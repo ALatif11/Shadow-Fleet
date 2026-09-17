@@ -113,8 +113,6 @@ DMA_STATIC_COLUMNS = [
     "imo", "callsign", "name", "ship_type", "cargo_type", "length", "width", "draught",
     "destination", "eta", "dim_a", "dim_b", "dim_c", "dim_d",
 ]
-DMA_DYNAMIC_COLUMNS = ["lat", "lon", "sog", "cog", "heading", "rot", "nav_status", "mobile_type",
-                       "pos_fix_type", "data_source"]
 
 # Tanker-class filter (plan R5, phase1-prompt task 1). Values compared lower-case.
 TANKER_SHIP_TYPES = {"tanker"}

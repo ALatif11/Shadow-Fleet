@@ -258,9 +258,5 @@ def report_phase0() -> None:
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase0.md'}")
 
 
-def main() -> None:  # pragma: no cover
-    app()
-
-
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(app())

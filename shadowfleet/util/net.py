@@ -48,21 +48,6 @@ def get(c: httpx.Client, url: str, retries: int = 4, _sleep=time.sleep, **kw) ->
     raise RuntimeError(f"unreachable: {url} {last!r}")
 
 
-def first_ok(c: httpx.Client, urls: list[str], **kw) -> tuple[str, httpx.Response]:
-    """Try candidate URLs in order; return the first 200. Raises with every status seen."""
-    seen = []
-    for u in urls:
-        try:
-            r = get(c, u, retries=2, **kw)
-        except httpx.HTTPError as e:
-            seen.append(f"{u}: {e!r}")
-            continue
-        if r.status_code == 200:
-            return u, r
-        seen.append(f"{u}: HTTP {r.status_code}")
-    raise RuntimeError("no candidate URL answered: " + "; ".join(seen))
-
-
 def head_size(c: httpx.Client, url: str) -> int | None:
     try:
         r = c.head(url)

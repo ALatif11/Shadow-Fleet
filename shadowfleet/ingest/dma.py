@@ -9,7 +9,6 @@ Per source file:
 from __future__ import annotations
 
 import csv
-import io
 import json
 import logging
 import os
@@ -17,7 +16,6 @@ import re
 import shutil
 import time
 import zipfile
-from collections import Counter
 from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
@@ -36,7 +34,6 @@ from shadowfleet.util import disk, net, probes
 
 log = logging.getLogger(__name__)
 
-TABLES = ("ais_dynamic", "ais_static", "ais_artifacts", "jump_baseline", "vessel_day")
 FULLRES_TABLE = "ais_fullres"
 CANONICAL = list(config.DMA_COLUMN_ALIASES)
 
@@ -908,14 +905,3 @@ def probe(day: date | None = None, keep_fullres: bool = True) -> dict:
     }
     probes.write("dma", payload)
     return payload
-
-
-def read_timing_log() -> list[dict]:
-    p = config.LOG_DIR / "dma_ingest.csv"
-    if not p.exists():
-        return []
-    return list(csv.DictReader(io.StringIO(p.read_text())))
-
-
-def value_counts(rows: Iterable[str]) -> Counter:
-    return Counter(rows)
