@@ -6,7 +6,7 @@ FULLRES ?= 0
 
 .PHONY: setup test lint doctor probe probe-dma probe-gfw probe-ofac probe-opensanctions probe-mid \
         window-gate ingest-dma ingest-dma-bg ingest-dma-status ingest-dma-check ingest-day llm-smoke \
-        report-phase0 cutoffs phase1
+        report-phase0 cutoffs phase1 labels
 
 setup:
 	uv sync --extra dev
@@ -74,3 +74,6 @@ report-phase0:
 
 phase1:
 	$(CLI) phase1
+
+labels:
+	$(CLI) labels

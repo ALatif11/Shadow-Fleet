@@ -172,6 +172,22 @@ def phase1_cmd(sts_day: str = typer.Option(None, help="day with ais_fullres; def
         typer.echo(f"wrote {config.REPORTS_DIR / 'phase1.md'}", err=True)
 
 
+@app.command("labels")
+def labels_cmd(years: str = typer.Option(None, help="archive years, e.g. 2022-2026")) -> None:
+    """Phase 2: build sanctions_actions.parquet from OFAC XML + archive, EU and UK, then the positives table."""
+    from shadowfleet.labels import labels as lab
+    from shadowfleet.util import probes
+
+    logs.setup("labels")
+    rng = None
+    if years:
+        a, b = (int(x) for x in years.split("-"))
+        rng = range(a, b + 1)
+    out = lab.build(rng)
+    probes.write("labels", out)
+    _print(out)
+
+
 @app.command("probe-opensanctions")
 def probe_opensanctions() -> None:
     """Phase 0 task 7."""
