@@ -56,8 +56,14 @@ DUCKDB_MEMORY_LIMIT = os.environ.get("SHADOWFLEET_DUCKDB_MEMORY", "12GB")  # 32 
 DUCKDB_THREADS = int(os.environ.get("SHADOWFLEET_DUCKDB_THREADS", "8"))
 
 # --------------------------------------------------------------------------- DMA (ADR-2, ADR-14)
-# Plan section 0. HTTP only. Phase 0 records the live index; add mirrors here if DMA moves.
-DMA_INDEX_URLS = ["http://web.ais.dk/aisdata/"]
+# Tried in order. Sep 17 2026: web.ais.dk timed out from Adam's machine; DMA serves the daily files from an S3
+# bucket (http://aisdata.ais.dk.s3.eu-central-1.amazonaws.com/aisdk-YYYY-MM-DD.zip, per github.com/Luke3520/
+# ais-pipeline; ~590-750 MB zipped, ~17M rows per day). S3 answers with an XML listing, the old site with HTML.
+DMA_INDEX_URLS = [
+    "http://aisdata.ais.dk.s3.eu-central-1.amazonaws.com/",
+    "http://aisdata.ais.dk/",
+    "http://web.ais.dk/aisdata/",
+]
 DMA_DAILY_RE = r"aisdk[-_](\d{4}-\d{2}-\d{2})\.zip"
 DMA_MONTHLY_RE = r"aisdk[-_](\d{4}-\d{2})\.zip"
 DMA_MAX_WORKERS = 2  # phase1-prompt: never more than two concurrent downloads
