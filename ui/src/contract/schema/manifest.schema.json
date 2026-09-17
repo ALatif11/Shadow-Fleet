@@ -1,0 +1,276 @@
+{
+  "$defs": {
+    "CutoffInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "cutoff": {
+          "format": "date",
+          "title": "Cutoff",
+          "type": "string"
+        },
+        "horizon_closed": {
+          "title": "Horizon Closed",
+          "type": "boolean"
+        },
+        "horizon_end": {
+          "format": "date",
+          "title": "Horizon End",
+          "type": "string"
+        },
+        "supervised": {
+          "title": "Supervised",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "cutoff",
+        "horizon_end",
+        "horizon_closed",
+        "supervised"
+      ],
+      "title": "CutoffInfo",
+      "type": "object"
+    },
+    "FeatureDef": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "family": {
+          "enum": [
+            "identity",
+            "ais",
+            "gfw",
+            "detect",
+            "static",
+            "graph",
+            "anomaly"
+          ],
+          "title": "Family",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "post_hoc": {
+          "default": false,
+          "title": "Post Hoc",
+          "type": "boolean"
+        },
+        "source": {
+          "enum": [
+            "dma",
+            "gfw",
+            "self_built",
+            "sanctions"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "family",
+        "source",
+        "description",
+        "post_hoc"
+      ],
+      "title": "FeatureDef",
+      "type": "object"
+    },
+    "Overlay": {
+      "additionalProperties": false,
+      "description": "Static map context: configured anchorages, port zones, coverage areas (from config, never from labels).",
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "lon_min, lat_min, lon_max, lat_max",
+          "title": "Bbox"
+        },
+        "kind": {
+          "enum": [
+            "anchorage",
+            "port",
+            "coverage"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "lat": {
+          "title": "Lat",
+          "type": "number"
+        },
+        "lon": {
+          "title": "Lon",
+          "type": "number"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "placeholder": {
+          "description": "value is a PLACEHOLDER in config.py, not a sourced polygon",
+          "title": "Placeholder",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "lon",
+        "lat",
+        "bbox",
+        "placeholder"
+      ],
+      "title": "Overlay",
+      "type": "object"
+    }
+  },
+  "$id": "shadowfleet/ui/manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "cutoffs": {
+      "items": {
+        "$ref": "#/$defs/CutoffInfo"
+      },
+      "minItems": 1,
+      "title": "Cutoffs",
+      "type": "array"
+    },
+    "default_label_set": {
+      "enum": [
+        "ofac_eu_uk",
+        "ofac_only"
+      ],
+      "title": "Default Label Set",
+      "type": "string"
+    },
+    "default_model": {
+      "title": "Default Model",
+      "type": "string"
+    },
+    "features": {
+      "items": {
+        "$ref": "#/$defs/FeatureDef"
+      },
+      "title": "Features",
+      "type": "array"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "k_values": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "K Values",
+      "type": "array"
+    },
+    "label_sets": {
+      "items": {
+        "enum": [
+          "ofac_eu_uk",
+          "ofac_only"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Label Sets",
+      "type": "array"
+    },
+    "models": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Models",
+      "type": "array"
+    },
+    "notes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "origin": {
+      "enum": [
+        "synthetic",
+        "live"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "overlays": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Overlay"
+      },
+      "title": "Overlays",
+      "type": "array"
+    },
+    "vessels": {
+      "description": "hull_ids that have a dossier file",
+      "items": {
+        "type": "string"
+      },
+      "title": "Vessels",
+      "type": "array"
+    },
+    "window_end": {
+      "format": "date",
+      "title": "Window End",
+      "type": "string"
+    },
+    "window_start": {
+      "format": "date",
+      "title": "Window Start",
+      "type": "string"
+    }
+  },
+  "required": [
+    "contract_version",
+    "origin",
+    "generated_at",
+    "window_start",
+    "window_end",
+    "cutoffs",
+    "models",
+    "default_model",
+    "label_sets",
+    "default_label_set",
+    "k_values",
+    "features",
+    "vessels",
+    "overlays",
+    "notes"
+  ],
+  "title": "Manifest",
+  "type": "object",
+  "x-contract-version": "1.0.0"
+}

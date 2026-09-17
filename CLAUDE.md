@@ -20,7 +20,8 @@ Everything runs in WSL2 Ubuntu on Adam's PC, with the repo and `data/` on the WS
 7. **Respect licences.** GFW and OpenSanctions are non-commercial; do not scrape Equasis or any site whose terms forbid it. Never commit GFW-derived tables or OpenSanctions bulk files; the repo publishes code, aggregates, and figures only. State this in `README.md`.
 8. **Report failures as findings.** If a model cannot beat the rules baseline, if positives are thin, if GFW lacks tanker loitering, if self-built STS detection finds nothing: write it in `reports/phaseN.md` and the README. Do not tune until it looks good.
 9. **Ask what is Adam's to decide, then assume and record.** If Adam is present at the start of a session, ask the questions only he can answer (scope, spend, anything irreversible). Otherwise assume, proceed, and write every assumption in `reports/phaseN.md` under "Assumptions to confirm".
-10. **Do not break earlier phases.** Before ending a session, run the full `make test`, not only the new tests. A change to a table schema or config key used by an earlier phase needs a migration note in the phase report.
+10. **Do not break earlier phases.** Before ending a session, run the full `make test`, not only the new tests (`make test-all` when anything under `ui/` or `shadowfleet/ui_export/` changed). A change to a table schema or config key used by an earlier phase needs a migration note in the phase report, and a change to any table in the field map at the top of `ui_export/export.py` needs that map updated.
+11. **The console only renders (ADR-18).** Numbers shown in `ui/` come from the bundle Python writes; the browser never computes a metric. The UI contract lives in `shadowfleet/ui_export/contract.py`: change it only deliberately, bump `CONTRACT_VERSION`, run `make ui-schema`, and fix both test suites. A synthetic bundle always says SYNTHETIC. The bundle (`ui/public/ui_data/`) is never committed.
 
 ## Repo layout
 ```
@@ -36,8 +37,10 @@ shadowfleet/
     models/   rules.py tabular.py anomaly.py
     backtest/ harness.py metrics.py drift.py
     briefs/   bundle.py generate.py verify.py
+    ui_export/ contract.py bundle.py fixtures.py export.py   # UI data contract, synthetic bundle, live exporter (ADR-18)
     util/     disk.py net.py logs.py ids.py probes.py     # disk guard, HTTP, logging, IMO check digit, probe files
     cli.py                    # `python -m shadowfleet.cli <command>`
+  ui/                         # React console (ADR-18): src/contract/ holds generated schema, types and a committed sample
   config/window.json          # written by `make window-gate` in Phase 0; committed
   tests/  tests/fixtures/
   notebooks/                  # exploration only, never imported
@@ -46,7 +49,7 @@ shadowfleet/
 ```
 
 ## Phases (one Opus session each)
-0 probes, scaffold, frozen ingest schema, DMA one-day benchmark, bulk ingest start, llama.cpp smoke test, window gate · 1 DMA ingest completion, population, gap evidence, STS readiness · 2 labels and PREREG.md · 3 identity resolution · 4a GFW events · 4b self-built detectors · 5a feature store and leakage suite · 5b baselines and harness · 6 models, ablations, drift, SHAP · 7 graph layer (stretch only; skip unless ahead of schedule) · 8 briefs · 9 faithfulness · 10 report · F forward test (score on or after 2026-10-01, evaluate spring 2027).
+0 probes, scaffold, frozen ingest schema, DMA one-day benchmark, bulk ingest start, llama.cpp smoke test, window gate · 1 DMA ingest completion, population, gap evidence, STS readiness · 2 labels and PREREG.md · 3 identity resolution · 4a GFW events · 4b self-built detectors · 5a feature store and leakage suite · 5b baselines and harness · 6 models, ablations, drift, SHAP · 7 graph layer (stretch only; skip unless ahead of schedule) · 8 briefs · 9 faithfulness · 10 report · F forward test (score on or after 2026-10-01, evaluate spring 2027) · C console wiring (after 6; ADR-18). The console shell (`ui/`) already exists and runs on synthetic data.
 
 ## Conventions
 - Python 3.11+, `uv` or `pip` with `pyproject.toml`. Core deps: duckdb, pyarrow, polars or pandas, shapely, pyproj, lightgbm, scikit-learn, igraph, httpx, pydantic, typer, pytest, matplotlib. Add nothing heavy without a note in the phase report.
@@ -74,6 +77,7 @@ shadowfleet/
 - Lead time is event-study: designation date minus the earliest cutoff at which the hull ranked in the top k. Per-cutoff lead time is a supplement.
 - Metrics: precision@k and recall@k (k = 25/50/100), PR-AUC, alert volume needed for 50 percent recall, FPR at the operating point, calibration; mandatory qualitative review of the top 20 non-listed flags per cutoff with a labelled reason.
 - Models: rules B0/B1/B1b/B2, logistic regression, LightGBM, isolation forest; per-cutoff PSI drift check and performance by training-window age. Graph PPR only as stretch. No GNN.
+- Console (ADR-18): React + TypeScript + Vite + deck.gl, static app over a JSON bundle; offline Natural Earth basemap; point-in-time as-of scrubber locked to the cutoff unless hindsight is on; local only.
 - LLM: llama.cpp server, Gemma 4 12B Q4_K_M (fallback Qwen3-14B Q4_K_M), 8k context, JSON-schema constrained output, briefs cite evidence ids. Judge is a different model family from the generator; judge-vs-human kappa on a 30-finding audit is the credibility number.
 
 ## Known limitations to keep visible

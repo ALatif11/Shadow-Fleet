@@ -21,6 +21,9 @@ make setup && make doctor && make test
 make probe-dma && make window-gate && make ingest-dma
 ```
 
+## Analyst console
+`ui/` is a local React console (ADR-18): a ranked watchlist per cutoff, a map of each hull's DMA track and GFW / self-built events, and a timeline that shows each hull only as it was knowable at the chosen instant. It currently runs on a synthetic bundle that is labelled as such; it is wired to live outputs after Phase 6. It is local only, because its data includes GFW-derived events. See `SETUP.md` section 9.
+
 ## Documents
 - `shadow-fleet-plan.md`: architecture, risks, ADRs, evaluation design.
 - `CLAUDE.md`: rules for every build session.

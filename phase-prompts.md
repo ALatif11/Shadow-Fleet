@@ -2,7 +2,7 @@
 
 Paste one prompt per session. Every prompt assumes Opus has read `CLAUDE.md`, `SETUP.md`, and all existing `reports/phaseN.md`. Each session ends with `reports/phaseN.md` and a passing `make test` (the whole suite, not only the new tests).
 
-Reconciled Sep 17 2026 against `shadow-fleet-plan.md` (revision items 12 to 19). Where a prompt and CLAUDE.md disagree, CLAUDE.md wins; fix the prompt and note it in the phase report.
+Reconciled Sep 17 2026 against `shadow-fleet-plan.md` (revision items 12 to 24; Phase C added for the ADR-18 console). Where a prompt and CLAUDE.md disagree, CLAUDE.md wins; fix the prompt and note it in the phase report.
 
 ---
 
@@ -291,6 +291,29 @@ Tasks:
 Acceptance criteria:
 - Verifier and judge run over all briefs; aggregate tables exist.
 - Audit sheet generated; agreement CLI works on a filled example.
+
+---
+
+## PHASE C: Console wiring (ADR-18)
+
+Read CLAUDE.md, PREREG.md, phase reports 0 to 6 (and 8 if done), `reports/ui-shell.md`, and `shadowfleet/ui_export/contract.py`. Runs any time after Phase 6.
+
+State on entry: the console in `ui/` works against a synthetic bundle (`make ui-fixtures`, `make ui-dev`). The contract is frozen at the version in `contract.py`; `export.py` lists, field by field, which pipeline output fills it, and `export_live` raises `NotReady` until those outputs exist.
+
+Goal: `make ui-export` writes a live bundle from real outputs that validates against the unchanged contract, and the console shows it.
+
+Tasks:
+1. `make ui-export` and read the `NotReady` list. Anything still missing is a finding, not something to fake.
+2. Implement `export_live` following the field map in `export.py`: manifest from `config/window.json` and the FEATURES registry; one watchlist per (cutoff, model, label set) from the Phase 6 flagged lists and SHAP tables (top 100 rows); metrics copied from `reports/metrics_*.csv`, never recomputed (rule 4); dossiers for every hull that appears in any watchlist, with the track from `ais_dynamic` through `hull_map`, thinned with `thin_track`, and draught as-of joined from `ais_static`; events from `gfw_events/`, the `detect/` tables and identity-change boundaries, each with its real `observed_at`; scores for every cutoff and model; sanctions actions from `sanctions_actions.parquet`. Overlays from config polygons, with `placeholder` set where config still says PLACEHOLDER.
+3. Supervised models have no watchlist at cutoffs before the first supervised cutoff; do not write empty files.
+4. Tests: a tiny Parquet fixture (3 hulls, 2 cutoffs) through `export_live`, validated with `bundle.read_bundle`; a check that the exporter never drops or shifts `observed_at` (20 random events compared with their source rows); hindsight is a view setting, so the export includes events after each cutoff and the console hides them. The rule-3 validator must pass on real data.
+5. If the contract genuinely needs a change, bump `CONTRACT_VERSION`, run `make ui-schema`, update the console, and record it in the report.
+6. Run `make ui-check`, `make test-all`, open the console, and take two screenshots (hindsight off and on) for the README. Check `git status` shows nothing under `ui/public/`.
+
+Acceptance criteria:
+- Live bundle validates; bundle size recorded; five hulls spot-checked against `reports/flagged_<cutoff>.csv` (rank, score, designation date).
+- `make test-all` passes.
+- `reports/phaseC.md` with numbers and assumptions.
 
 ---
 

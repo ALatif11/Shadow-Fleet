@@ -262,5 +262,55 @@ def main() -> None:  # pragma: no cover
     app()
 
 
+# ------------------------------------------------------------------ UI console (ADR-18)
+@app.command("ui-schema")
+def ui_schema() -> None:
+    """Write the UI contract JSON Schema and the tiny committed sample bundle."""
+    from shadowfleet.ui_export import bundle, fixtures
+
+    paths = bundle.write_schemas(config.UI_SCHEMA_DIR)
+    m, w, d = fixtures.build("tiny")
+    res = bundle.write_bundle(config.UI_SAMPLE_DIR, m, w, d)
+    _print({"schemas": [str(p) for p in paths], "sample": res})
+
+
+@app.command("ui-fixtures")
+def ui_fixtures(size: str = typer.Option("full", help="full or tiny"), seed: int = typer.Option(7),
+                out: str = typer.Option(None, help="default config.UI_DATA_DIR")) -> None:
+    """Write a SYNTHETIC bundle for the console. Replaces whatever bundle is there."""
+    from pathlib import Path
+
+    from shadowfleet.ui_export import bundle, fixtures
+
+    m, w, d = fixtures.build(size, seed)
+    _print(bundle.write_bundle(Path(out) if out else config.UI_DATA_DIR, m, w, d))
+
+
+@app.command("ui-export")
+def ui_export(out: str = typer.Option(None, help="default config.UI_DATA_DIR")) -> None:
+    """Write the LIVE bundle from pipeline outputs (after Phase 6)."""
+    from pathlib import Path
+
+    from shadowfleet.ui_export import export
+
+    try:
+        _print(export.export_live(Path(out) if out else None))
+    except export.NotReady as e:
+        typer.echo(str(e))
+        raise typer.Exit(1) from None
+
+
+@app.command("ui-check")
+def ui_check(root: str = typer.Option(None, help="default config.UI_DATA_DIR")) -> None:
+    """Re-validate a bundle on disk against the contract."""
+    from pathlib import Path
+
+    from shadowfleet.ui_export import bundle
+
+    m, w, d = bundle.read_bundle(Path(root) if root else config.UI_DATA_DIR)
+    _print({"origin": m.origin, "contract_version": m.contract_version, "cutoffs": len(m.cutoffs),
+            "watchlists": len(w), "dossiers": len(d)})
+
+
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(app())

@@ -1,0 +1,66 @@
+/*
+ * Shadow Fleet console theme. Every colour, font and effect lives here, so the look can be tuned in one file.
+ * Map layers read the --map-* and --ev-* tokens at runtime (src/lib/colors.ts), so they follow this file too.
+ */
+:root {
+  /* surfaces */
+  --bg-0: #02060a;
+  --bg-1: #061019;
+  --panel: rgba(6, 18, 28, 0.78);
+  --panel-solid: #07141f;
+  --line: rgba(0, 229, 255, 0.16);
+  --line-strong: rgba(0, 229, 255, 0.5);
+
+  /* signal colours */
+  --cyan: #00e5ff;
+  --cyan-dim: #0b8ea3;
+  --amber: #ffb000;
+  --red: #ff3b5c;
+  --green: #3dffa8;
+  --violet: #b18cff;
+
+  /* text */
+  --text: #cdeefb;
+  --text-dim: #6c93a6;
+  --text-faint: #3c5a6a;
+
+  /* type */
+  --font-display: "Orbitron", "Rajdhani", sans-serif;
+  --font-ui: "Rajdhani", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 13px;
+  --fs-md: 15px;
+  --fs-lg: 20px;
+
+  /* effects (set to 0 / none to calm things down) */
+  --glow: 0 0 12px rgba(0, 229, 255, 0.35);
+  --glow-amber: 0 0 12px rgba(255, 176, 0, 0.45);
+  --scanline-opacity: 0.05;
+  --grid-opacity: 0.06;
+  --anim-speed: 1;
+  --radius: 2px;
+  --corner: 10px;
+
+  /* map */
+  --map-bg: #02070c;
+  --map-land: #071822;
+  --map-land-edge: #12c4dd;
+  --map-graticule: rgba(0, 229, 255, 0.07);
+  --map-track: #00e5ff;
+  --map-track-old: #0b5e6e;
+  --map-future: #ffb000;
+  --map-overlay: #ffb000;
+  --map-port: #b18cff;
+
+  /* event types (contract EventType) */
+  --ev-gap: #ff3b5c;
+  --ev-encounter: #ffb000;
+  --ev-loitering: #ffd36b;
+  --ev-port_visit: #b18cff;
+  --ev-sts_candidate: #ff7a1a;
+  --ev-anchorage_loitering: #f5e28a;
+  --ev-draught_inconsistency: #3dffa8;
+  --ev-identity_change: #00e5ff;
+  --ev-spoof_day: #ff5cf0;
+}
