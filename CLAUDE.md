@@ -36,7 +36,8 @@ shadowfleet/
     models/   rules.py tabular.py anomaly.py
     backtest/ harness.py metrics.py drift.py
     briefs/   bundle.py generate.py verify.py
-    util/     disk.py net.py logs.py ids.py probes.py     # disk guard, HTTP, logging, IMO check digit, probe files
+    util/     disk.py net.py logs.py ids.py probes.py doctor.py report.py
+    phase1.py                 # population, type changes, gap evidence, STS readiness (reads Parquet only)
     cli.py                    # `python -m shadowfleet.cli <command>`
   config/window.json          # written by `make window-gate` in Phase 0; committed
   tests/  tests/fixtures/

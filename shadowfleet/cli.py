@@ -154,6 +154,24 @@ def ingest_dma_check(start: str = typer.Option(None), end: str = typer.Option(No
 
 
 # ------------------------------------------------------------------ other probes
+@app.command("phase1")
+def phase1_cmd(sts_day: str = typer.Option(None, help="day with ais_fullres; default = latest ingested"),
+               report: bool = typer.Option(True, help="also write reports/phase1.md")) -> None:
+    """Phase 1: population, type changes, gap evidence, STS readiness (reads Parquet only)."""
+    from shadowfleet import phase1
+    from shadowfleet.util import probes
+
+    logs.setup("phase1")
+    out = phase1.run_all(_d(sts_day))
+    probes.write("phase1", out)
+    _print(out)
+    if report:
+        from shadowfleet.util import report as rep
+
+        rep.write_phase1()
+        typer.echo(f"wrote {config.REPORTS_DIR / 'phase1.md'}", err=True)
+
+
 @app.command("probe-opensanctions")
 def probe_opensanctions() -> None:
     """Phase 0 task 7."""

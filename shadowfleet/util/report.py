@@ -211,3 +211,49 @@ def write() -> str:
     text = render()
     (config.REPORTS_DIR / "phase0.md").write_text(text)
     return text
+
+
+# ---------------------------------------------------------------------------- Phase 1
+def render_phase1() -> str:
+    p = probes.read("phase1")
+    if not p:
+        return "# Phase 1 report\n\n" + NOT_RUN + " — run `make phase1`.\n"
+    w = config.load_window()
+    pop, tc, ge, sts = (p.get(k) or {} for k in ("population", "type_changes", "gap_evidence", "sts_readiness"))
+    ing = _ingest_progress()
+    lines = [f"# Phase 1 report (generated {date.today().isoformat()} by `make phase1`)", "",
+             f"Window {w.start} to {w.end}." if w else "No window file.", ""]
+    lines += ing or []
+    lines += ["## Population", "",
+              f"- MMSIs seen: {pop.get('mmsi_total')}; ever tanker-class: {pop.get('mmsi_ever_tanker_class')}; "
+              f"with an IMO in AIS: {pop.get('mmsi_with_imo')}.",
+              f"- Monthly counts: `{pop.get('by_month_csv')}` ({pop.get('months')} months).", "",
+              "## Reported type changes", "",
+              f"- Changes: {tc.get('changes')} across {tc.get('mmsi_with_change')} MMSIs; "
+              f"{tc.get('mmsi_that_stopped_reporting_tanker')} stopped reporting as tanker at least once "
+              "(these must not silently drop out of the study; Phase 3 cross-checks them).", "",
+              "## DMA gaps are coverage, not evasion (R4)", "",
+              f"- Gaps over 6 h: {ge.get('gaps_over_6h')}; median {ge.get('median_gap_hours')} h, "
+              f"p90 {ge.get('p90_gap_hours')} h.",
+              f"- Of {ge.get('sampled')} sampled gaps, {ge.get('sampled_at_coverage_edge')} start at the "
+              f"coverage edge ({(ge.get('share_at_coverage_edge') or 0):.0%}).",
+              f"- **{ge.get('conclusion')}**", f"- Figure: `{ge.get('figure')}`", "",
+              "## STS readiness (Phase 4b input)", "",
+              f"- Day {sts.get('day')}, pairs within {sts.get('radius_m')} m under {sts.get('max_sog')} kn for "
+              f"{sts.get('min_hours')} h in the Skagen box: {sts.get('pairs_fullres')} at full resolution, "
+              f"{sts.get('pairs_downsampled')} after downsampling.",
+              f"- Downsample loses pairs: **{sts.get('downsample_loses_pairs')}**", "",
+              "## Assumptions to confirm", "",
+              "- The coverage edge is derived from the data (0.1-degree cells with fewer than 8 occupied "
+              "neighbours), not from an official Danish polygon.",
+              "- STS readiness counts qualifying minute buckets, not contiguous runs; Phase 4b does run-length "
+              "detection.",
+              "- The Skagen box in config is still a placeholder.", ""]
+    return "\n".join(lines)
+
+
+def write_phase1() -> str:
+    text = render_phase1()
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (config.REPORTS_DIR / "phase1.md").write_text(text)
+    return text
