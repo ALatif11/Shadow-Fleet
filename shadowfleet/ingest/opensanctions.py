@@ -9,6 +9,7 @@ import csv
 import io
 import json
 import logging
+import re
 from collections import Counter
 from collections.abc import Iterator
 from pathlib import Path
@@ -111,6 +112,9 @@ def iter_ftm(path: Path) -> Iterator[dict]:
                 yield json.loads(line)
 
 
+CELEX = re.compile(r"celex%3A(\d{5}[A-Z]\d{4})", re.IGNORECASE)
+
+
 def vessel_sanction_summary(path: Path, program_hint: str | None = None) -> dict:
     """Vessels in an FtM export and how many have a Sanction with a listing/start date."""
     vessels: dict[str, dict] = {}
@@ -126,22 +130,31 @@ def vessel_sanction_summary(path: Path, program_hint: str | None = None) -> dict
             sanctions.append(props)
             for pid in (props.get("programId") or []) + (props.get("program") or []):
                 programs[pid] += 1
-    dated = hinted = 0
+    dated = hinted = with_celex = 0
     example = None
+    vessel_programs: Counter = Counter()
     for s in sanctions:
         ents = s.get("entity") or []
         if not any(x in vessels for x in ents):
             continue
-        if program_hint and not any(program_hint in p for p in (s.get("programId") or []) + (s.get("program") or [])):
+        prog = (s.get("programId") or []) + (s.get("program") or [])
+        vessel_programs.update(prog)
+        if program_hint and not any(program_hint in p for p in prog):
             continue
         hinted += 1
         if s.get("listingDate") or s.get("startDate"):
             dated += 1
-            example = example or {k: s.get(k) for k in ("programId", "program", "listingDate", "startDate")}
+            example = example or {k: s.get(k) for k in ("programId", "program", "listingDate", "startDate",
+                                                        "sourceUrl")}
+        elif any(CELEX.search(u or "") for u in s.get("sourceUrl") or []):
+            with_celex += 1
     return {"vessels": len(vessels),
             "vessels_with_imo": sum(1 for v in vessels.values() if v["imo"]),
             "vessel_sanctions" + (f"_{program_hint}" if program_hint else ""): hinted,
-            "vessel_sanctions_with_date": dated, "example_dated_sanction": example,
+            "vessel_sanctions_with_date": dated,
+            "vessel_sanctions_undated_with_celex": with_celex,
+            "example_dated_sanction": example,
+            "top_vessel_programs": dict(vessel_programs.most_common(10)),
             "top_programs": dict(programs.most_common(15))}
 
 
@@ -165,10 +178,10 @@ def probe(max_ftm_mb: int = 400) -> tuple[dict, list[str]]:
         out["maritime"] = summary
         out["ofac_sanctioned_imo_candidates"] = len(candidates)
 
-        vessel_slugs = [s for s in (summary.get("dataset_counts") or {})
-                        if s.startswith("eu_") or s == config.OPENSANCTIONS_UK_VESSELS]
-        if config.OPENSANCTIONS_UK_VESSELS not in vessel_slugs:
-            vessel_slugs.append(config.OPENSANCTIONS_UK_VESSELS)
+        # Always probe the two confirmed label sources, plus any other eu_* slug the maritime CSV mentions.
+        vessel_slugs = [config.OPENSANCTIONS_EU_DATASET, config.OPENSANCTIONS_UK_VESSELS]
+        vessel_slugs += [s for s in (summary.get("dataset_counts") or {})
+                         if s.startswith("eu_") and s not in vessel_slugs]
         out["label_sources"] = {}
         for slug in vessel_slugs:
             rec: dict = {}
@@ -182,6 +195,8 @@ def probe(max_ftm_mb: int = 400) -> tuple[dict, list[str]]:
                 if ftm and size_mb <= max_ftm_mb:
                     path = download_resource(c, slug, si, "ftm.json")
                     hint = config.OPENSANCTIONS_EU_PROGRAM if slug.startswith("eu_") else None
+                if slug == config.OPENSANCTIONS_UK_VESSELS:
+                    hint = None
                     rec.update(vessel_sanction_summary(path, hint))
                 rec["dated_exports"] = {d: dated_export_exists(c, slug, d)
                                         for d in ("20240105", "20250103", "20260102")}

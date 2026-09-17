@@ -190,7 +190,14 @@ OPENSANCTIONS_BASE = "https://data.opensanctions.org/datasets"
 OPENSANCTIONS_MARITIME = "maritime"
 OPENSANCTIONS_UK_VESSELS = "gb_fcdo_sanctions"  # UK FCDO list; vessel entities carry listingDate
 OPENSANCTIONS_OFAC = "us_ofac_sdn"
-OPENSANCTIONS_EU_PROGRAM = "EU-MARE"  # Annex XLII to Reg 833/2014; dataset slug located in Phase 0
+# Confirmed Sep 17 2026: EU Annex XLII vessels live in eu_sanctions_map, not eu_fsf (2 vessels). That export
+# had 716 vessels and 729 Sanction records with programId EU-MARE, 674 of them carrying startDate; the rest
+# carry sourceUrl with the amending regulation's CELEX id, which Phase 2 maps to an Official Journal date.
+OPENSANCTIONS_EU_PROGRAM = "EU-MARE"
+OPENSANCTIONS_EU_DATASET = "eu_sanctions_map"
+# Dated exports (data.opensanctions.org/datasets/YYYYMMDD/...) answered 403: they now need a paid delivery
+# token, so the snapshot-diff cross-check in ADR-15 is replaced by CELEX/OJ dates and manual spot checks.
+OPENSANCTIONS_DATED_EXPORTS_PUBLIC = False
 OPENSANCTIONS_LICENCE = "CC BY-NC 4.0 (non-commercial)"
 
 # --------------------------------------------------------------------------- MID (Phase 0 task 8)

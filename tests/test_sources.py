@@ -89,6 +89,7 @@ def test_ftm_vessel_sanction_summary(tmp_path):
     s = opensanctions.vessel_sanction_summary(p, "EU-MARE")
     assert s["vessels"] == 2 and s["vessels_with_imo"] == 1
     assert s["vessel_sanctions_EU-MARE"] == 1 and s["vessel_sanctions_with_date"] == 1
+    assert s["top_vessel_programs"] == {"EU-MARE": 1, "EU-UKR": 1}
     index = {"resources": [{"name": "entities.ftm.json", "url": "u"}]}
     assert opensanctions.resource_url(index, "ftm.json") == "u"
 
@@ -202,3 +203,15 @@ def test_pdf_to_text_streams_pages(tmp_path):
     text = ofac.pdf_to_text(pdf_path, out)
     assert "01/10/2025" in text and "IMO 9074729" in text and out.exists()
     assert "IMO 9074729" in ofac.pdf_to_text(pdf_path)
+
+
+def test_undated_eu_sanction_falls_back_to_celex(tmp_path):
+    lines = [
+        {"id": "v1", "schema": "Vessel", "properties": {"imoNumber": ["9074729"]}},
+        {"id": "s1", "schema": "Sanction", "properties": {"entity": ["v1"], "programId": ["EU-MARE"],
+         "sourceUrl": ["https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=celex%3A32024R1745"]}},
+    ]
+    p = tmp_path / "e.ftm.json"
+    p.write_text("\n".join(json.dumps(x) for x in lines))
+    s = opensanctions.vessel_sanction_summary(p, "EU-MARE")
+    assert s["vessel_sanctions_with_date"] == 0 and s["vessel_sanctions_undated_with_celex"] == 1
