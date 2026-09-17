@@ -106,3 +106,12 @@ def test_doctor_offline_runs(tmp_data):
     res = doctor.checks(network=False)
     names = {c.name for c in res}
     assert {"python", "free disk for data/", "gpu", "GFW_TOKEN"} <= names
+
+
+def test_doctor_network_deadline(monkeypatch):
+    import time as _t
+
+    monkeypatch.setattr(doctor, "_probe_url", lambda url, timeout: _t.sleep(5) or "HTTP 200")
+    t0 = _t.monotonic()
+    res = doctor.network_checks(deadline_s=0.3)
+    assert _t.monotonic() - t0 < 2 and all(c.status == doctor.WARN for c in res)
