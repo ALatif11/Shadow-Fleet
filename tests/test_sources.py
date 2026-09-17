@@ -163,3 +163,10 @@ def test_gfw_cache_key_ignores_token_and_orders_params():
     a = gfw.cache_key("get", "events", {"b": "1", "a": "2"}, None)
     b = gfw.cache_key("GET", "events", {"a": "2", "b": "1"}, None)
     assert a == b and imo_valid(9074729)
+
+
+def test_vessel_ids_match_imo_in_registry_with_prefix():
+    resp = {"entries": [{"selfReportedInfo": [{"id": "v9"}], "registryInfo": [{"imo": "IMO 9074729"}]},
+                        {"selfReportedInfo": [{"id": "other", "imo": 9176187}]}]}
+    assert gfw.vessel_ids_from_search(resp, "9074729") == ["v9"]
+    assert gfw.vessel_ids_from_search(resp, "9176187") == ["other"]

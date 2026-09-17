@@ -84,3 +84,16 @@ def test_download_retries_on_503(tmp_path):
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as c:
         assert net.download(c, "http://x/a", tmp_path / "a", _sleep=lambda s: None) == 2
+
+
+def test_free_gb_is_capped_by_host_drive(tmp_path, monkeypatch):
+    import shutil as _sh
+    from collections import namedtuple
+
+    Usage = namedtuple("Usage", "total used free")
+    monkeypatch.setattr(config, "HOST_DISK_PATH", "/fake/c")
+    monkeypatch.setattr(_sh, "disk_usage",
+                        lambda p: Usage(0, 0, 23 * disk.GB) if str(p) == "/fake/c" else Usage(0, 0, 940 * disk.GB))
+    assert round(disk.free_gb(tmp_path)) == 23
+    monkeypatch.setattr(config, "HOST_DISK_PATH", "")
+    assert round(disk.free_gb(tmp_path)) == 940
