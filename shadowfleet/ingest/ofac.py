@@ -51,7 +51,8 @@ def sdn_vessels(rows: list[dict]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------- change archive
-DATE_LINE = re.compile(r"^\s*(\d{1,2}/\d{1,2}/\d{4})\s*:?\s*$")
+# Text archives use 2-digit years ("01/05/23:"), PDFs 4-digit ones (checked against sdnnew23.txt, Sep 2026).
+DATE_LINE = re.compile(r"^\s*(\d{1,2}/\d{1,2}/(?:\d{4}|\d{2}))\s*:?\s*$")
 DATE_LINE_LONG = re.compile(
     r"^\s*((?:January|February|March|April|May|June|July|August|September|October|November|December)"
     r"\s+\d{1,2},\s+\d{4})\s*:?\s*$"
@@ -97,7 +98,7 @@ class ParseStats:
 
 
 def _parse_date(s: str) -> str:
-    for fmt in ("%m/%d/%Y", "%B %d, %Y"):
+    for fmt in ("%m/%d/%Y", "%m/%d/%y", "%B %d, %Y"):
         try:
             return datetime.strptime(s.strip(), fmt).date().isoformat()
         except ValueError:
@@ -119,6 +120,32 @@ def _entry_name(text: str) -> str:
 
 def _is_vessel(text: str) -> bool:
     return bool(re.search(r"\(vessel\)|vessel registration identification", text, re.I))
+
+
+HEADING_START = re.compile(r"^\s*the following\b", re.I)
+
+
+def _join_wrapped_headings(text: str) -> str:
+    """Headings wrap: "The following [X] entries have been" / "added to OFAC's SDN List:".
+
+    Join each heading onto one line so the action verb is visible to the state machine.
+    """
+    out: list[str] = []
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if HEADING_START.match(line) and not line.rstrip().endswith(":"):
+            parts = [line.strip()]
+            for nxt in lines[i + 1:i + 4]:  # a heading never wraps further than this
+                i += 1
+                parts.append(nxt.strip())
+                if nxt.rstrip().endswith(":"):
+                    break
+            line = " ".join(p for p in parts if p)
+        out.append(line)
+        i += 1
+    return "\n".join(out)
 
 
 def parse_changes_text(text: str) -> tuple[list[ChangeRow], ParseStats]:
@@ -184,7 +211,7 @@ def parse_changes_text(text: str) -> tuple[list[ChangeRow], ParseStats]:
             _emit(pending_old, None)
         pending_old, expecting_new = None, False
 
-    for line in text.replace("\r", "").split("\n"):
+    for line in _join_wrapped_headings(text.replace("\r", "")).split("\n"):
         if any(p.match(line) for p in NOISE):
             continue
         m = DATE_LINE.match(line) or DATE_LINE_LONG.match(line)

@@ -38,3 +38,11 @@ June 5, 2025
 The following [vessels] have been added to OFAC's SDN List:
 
 EPSILON (vessel) Chemical Tanker; Vessel Registration Identification IMO 1234568 [RUSSIA-EO14024].
+
+07/14/25:
+
+The following [RUSSIA-EO14024] entries have been
+added to OFAC's SDN List:
+
+ZETA WIND Crude Oil Tanker Gabon flag; Vessel Registration Identification IMO 9176187 (vessel)
+[RUSSIA-EO14024].
