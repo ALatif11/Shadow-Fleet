@@ -170,3 +170,15 @@ def test_vessel_ids_match_imo_in_registry_with_prefix():
                         {"selfReportedInfo": [{"id": "other", "imo": 9176187}]}]}
     assert gfw.vessel_ids_from_search(resp, "9074729") == ["v9"]
     assert gfw.vessel_ids_from_search(resp, "9176187") == ["other"]
+
+
+def test_gfw_candidates_prefer_ofac_russia_tankers(tmp_data):
+    from shadowfleet import cli
+
+    sdn = config.HTTP_CACHE_DIR / "ofac" / "sdn.csv"
+    sdn.parent.mkdir(parents=True)
+    sdn.write_text(
+        '1,"A","vessel","RUSSIA-EO14024",-0- ,-0- ,"Crude Oil Tanker",-0- ,-0- ,-0- ,-0- ,"IMO 9074729."\n'
+        '2,"B","vessel","IRAN",-0- ,-0- ,"Crude Oil Tanker",-0- ,-0- ,-0- ,-0- ,"IMO 9176187."\n'
+        '3,"C","vessel","RUSSIA-EO14024",-0- ,-0- ,"General Cargo",-0- ,-0- ,-0- ,-0- ,"IMO 9176187."\n')
+    assert cli._gfw_candidates() == ["9074729"]

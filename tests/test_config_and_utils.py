@@ -35,6 +35,7 @@ def test_cutoffs_respect_window_end():
 def test_imo_check_digit():
     assert imo_valid(9074729) and imo_valid("9176187")
     assert not imo_valid(9074728) and not imo_valid("123") and not imo_valid(None) and not imo_valid("0000000")
+    assert not imo_valid("0023569")  # passes the check digit, but IMO numbers never start with 0
     txt = "Vessel Registration Identification IMO 9074729; IMO 9074728; imo:9176187"
     assert extract_imos(txt) == [9074729, 9176187]
 

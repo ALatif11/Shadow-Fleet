@@ -165,12 +165,33 @@ def probe_gfw(imos: list[str] = typer.Argument(None, help="default: first 15 Ope
 
     logs.setup("probe_gfw")
     if not imos:
-        f = config.PROBE_DIR / "imo_candidates.json"
-        if not f.exists():
-            typer.echo("run `make probe-opensanctions` first (IMOs must come from data, not memory)", err=True)
+        imos = _gfw_candidates()
+        if not imos:
+            typer.echo("no candidate IMOs: run `make probe-ofac` (preferred) or `make probe-opensanctions` first",
+                       err=True)
             raise typer.Exit(1)
-        imos = _pick_tankers(json.loads(f.read_text()))
+        typer.echo(f"candidate IMOs: {imos}", err=True)
     _print(gfw.probe(imos, start, end))
+
+
+def _gfw_candidates(want: int = 5) -> list[str]:
+    """OFAC SDN vessels typed as tankers (from the cached sdn.csv), else OpenSanctions candidates checked on GFW."""
+    from shadowfleet.ingest import ofac
+    from shadowfleet.util.ids import imo_valid
+
+    sdn = config.HTTP_CACHE_DIR / "ofac" / "sdn.csv"
+    if sdn.exists():
+        vessels = ofac.sdn_vessels(ofac.parse_sdn_csv(sdn.read_bytes().decode("latin-1")))
+        tankers = [str(v["imo"]) for v in vessels
+                   if v["imo"] and "tanker" in (v.get("vess_type") or "").lower() and "RUSSIA" in (v["program"] or "")]
+        # newest entries last in the file; take them from the end for a spread of recent designations
+        if tankers:
+            return tankers[-want:]
+    f = config.PROBE_DIR / "imo_candidates.json"
+    if f.exists():
+        cands = [c for c in json.loads(f.read_text()) if imo_valid(c)]
+        return _pick_tankers(cands, want)
+    return []
 
 
 def _pick_tankers(candidates: list[str], want: int = 5, max_tries: int = 25) -> list[str]:
