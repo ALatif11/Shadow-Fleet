@@ -235,13 +235,18 @@ def render_phase1() -> str:
               "## DMA gaps are coverage, not evasion (R4)", "",
               f"- Gaps over 6 h: {ge.get('gaps_over_6h')}; median {ge.get('median_gap_hours')} h, "
               f"p90 {ge.get('p90_gap_hours')} h.",
-              f"- Of {ge.get('sampled')} sampled gaps, {ge.get('sampled_at_coverage_edge')} start at the "
-              f"coverage edge ({(ge.get('share_at_coverage_edge') or 0):.0%}).",
+              f"- Of {ge.get('sampled')} sampled gaps, {ge.get('within_10km_of_edge')} start within 10 km of "
+              f"the coverage edge ({(ge.get('share_at_coverage_edge') or 0):.0%}), "
+              f"{ge.get('within_25km_of_edge')} within 25 km; median distance to the edge "
+              f"{ge.get('median_km_to_edge')} km.",
+              f"- Median displacement across the gap {ge.get('median_displacement_km')} km; "
+              f"{ge.get('gaps_that_moved_over_50km')} of the sample reappeared over 50 km away.",
               f"- **{ge.get('conclusion')}**", f"- Figure: `{ge.get('figure')}`", "",
               "## STS readiness (Phase 4b input)", "",
               f"- Day {sts.get('day')}, pairs within {sts.get('radius_m')} m under {sts.get('max_sog')} kn for "
               f"{sts.get('min_hours')} h in the Skagen box: {sts.get('pairs_fullres')} at full resolution, "
               f"{sts.get('pairs_downsampled')} after downsampling.",
+              f"- Diagnostics: {sts.get('diagnostics')}",
               f"- Downsample loses pairs: **{sts.get('downsample_loses_pairs')}**", "",
               "## Assumptions to confirm", "",
               "- The coverage edge is derived from the data (0.1-degree cells with fewer than 8 occupied "

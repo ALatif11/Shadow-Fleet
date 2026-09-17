@@ -77,13 +77,16 @@ def test_gap_evidence_on_a_two_day_track(tmp_data):
     dma.ingest_zip(z, [D], z.name)
     out = phase1.gap_evidence(dma.connect(), sample=10)
     assert out["gaps_over_6h"] == 1
-    assert out["sampled_at_coverage_edge"] == 1 and out["share_at_coverage_edge"] == 1.0
+    assert out["within_10km_of_edge"] == 1 and out["share_at_coverage_edge"] == 1.0
+    assert out["median_km_to_edge"] < 10 and out["median_displacement_km"] is not None
     assert "coverage artefacts" in out["conclusion"]
     assert (config.REPORTS_DIR / "phase1_gaps.png").exists()
 
 
 def test_sts_readiness_finds_the_planted_pair(ingested):
     out = phase1.sts_readiness(D, dma.connect())
+    d = out["diagnostics"]
+    assert d["slow_mmsi"] == 3 and d["mmsi_in_box"] == 3 and d["closest_pair_m"] < 300
     assert out["pairs_fullres"] == 1          # 777 with 888; the 5 km control is excluded
     assert out["pairs_downsampled"] == 1      # 30 s downsample keeps it
     assert out["downsample_loses_pairs"] is False

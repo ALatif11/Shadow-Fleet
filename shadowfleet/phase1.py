@@ -29,6 +29,12 @@ def _rel(p: Path) -> str:
         return str(p)
 
 
+def _haversine(lat1: str, lon1: str, lat2: str, lon2: str) -> str:
+    """Great-circle km between two SQL expressions."""
+    return (f"2 * 6371.0088 * asin(sqrt(pow(sin(radians({lat2} - {lat1}) / 2), 2) + "
+            f"cos(radians({lat1})) * cos(radians({lat2})) * pow(sin(radians({lon2} - {lon1}) / 2), 2)))")
+
+
 def _glob(table: str) -> str:
     return (config.PARQUET_DIR / table / "dt=*" / "*.parquet").as_posix()
 
@@ -92,15 +98,16 @@ def type_changes(con: duckdb.DuckDBPyConnection | None = None) -> dict:
           )
           SELECT mmsi, observed_at, prev_ship_type, ship_type, prev_cargo_type, cargo_type
           FROM s
-          WHERE (prev_ship_type IS NOT NULL AND prev_ship_type IS DISTINCT FROM ship_type)
-             OR (prev_cargo_type IS NOT NULL AND prev_cargo_type IS DISTINCT FROM cargo_type)
+          -- both sides non-null: a static message with the field absent is not a reported change
+          WHERE (prev_ship_type IS NOT NULL AND ship_type IS NOT NULL AND prev_ship_type <> ship_type)
+             OR (prev_cargo_type IS NOT NULL AND cargo_type IS NOT NULL AND prev_cargo_type <> cargo_type)
           ORDER BY mmsi, observed_at
         ) TO '{out.as_posix()}' (FORMAT parquet, COMPRESSION zstd)
     """)
     n, n_mmsi, n_left_tanker = con.execute(f"""
         SELECT count(*), count(DISTINCT mmsi),
           count(DISTINCT mmsi) FILTER (WHERE lower(prev_ship_type) = 'tanker'
-                                         AND lower(ship_type) IS DISTINCT FROM 'tanker')
+                                         AND lower(ship_type) <> 'tanker')
         FROM read_parquet('{out.as_posix()}')
     """).fetchone()
     return {"changes": n, "mmsi_with_change": n_mmsi, "mmsi_that_stopped_reporting_tanker": n_left_tanker}
@@ -132,32 +139,56 @@ def gap_evidence(con: duckdb.DuckDBPyConnection | None = None, sample: int = 500
         CREATE OR REPLACE TEMP TABLE gaps AS
         WITH d AS (
           SELECT mmsi, observed_at, lat, lon,
-            lead(observed_at) OVER w AS next_at
+            lead(observed_at) OVER w AS next_at, lead(lat) OVER w AS end_lat, lead(lon) OVER w AS end_lon
           FROM read_parquet('{_glob('ais_dynamic')}', hive_partitioning=true)
           WINDOW w AS (PARTITION BY mmsi ORDER BY observed_at)
         )
         SELECT mmsi, observed_at AS gap_start, next_at AS gap_end,
-          (epoch(next_at) - epoch(observed_at)) / 3600.0 AS gap_hours, lat, lon,
+          (epoch(next_at) - epoch(observed_at)) / 3600.0 AS gap_hours, lat, lon, end_lat, end_lon,
           CAST(floor(lat / {GRID_DEG}) AS INTEGER) AS cy, CAST(floor(lon / {GRID_DEG}) AS INTEGER) AS cx
         FROM d
         WHERE next_at IS NOT NULL AND epoch(next_at) - epoch(observed_at) > {GAP_HOURS * 3600}
     """)
+    con.execute(f"""
+        CREATE OR REPLACE TEMP TABLE gsample AS
+        SELECT *, {_haversine('lat', 'lon', 'end_lat', 'end_lon')} AS displacement_km
+        FROM gaps USING SAMPLE {sample} ROWS
+    """)
     n_gaps, median_h, p90_h = con.execute(
         "SELECT count(*), median(gap_hours), quantile_cont(gap_hours, 0.9) FROM gaps"
     ).fetchone()
-    at_edge = con.execute(f"""
-        SELECT count(*), count(*) FILTER (WHERE e.neighbours < {EDGE_NEIGHBOURS})
-        FROM (SELECT * FROM gaps USING SAMPLE {sample} ROWS) g
-        LEFT JOIN edge e USING (cy, cx)
+    # distance from the gap-start position to the nearest edge cell centre (phase1-prompt: within 10 km)
+    near = con.execute(f"""
+        WITH e AS (
+          SELECT (cy + 0.5) * {GRID_DEG} AS lat, (cx + 0.5) * {GRID_DEG} AS lon
+          FROM edge WHERE neighbours < {EDGE_NEIGHBOURS}
+        )
+        SELECT count(*),
+          count(*) FILTER (WHERE km <= 10), count(*) FILTER (WHERE km <= 25),
+          median(km), median(displacement_km), count(*) FILTER (WHERE displacement_km > 50)
+        FROM (
+          SELECT g.rowid AS id, min({_haversine('g.lat', 'g.lon', 'e.lat', 'e.lon')}) AS km,
+                 any_value(g.displacement_km) AS displacement_km
+          FROM gsample g CROSS JOIN e GROUP BY g.rowid
+        )
     """).fetchone()
-    share = at_edge[1] / at_edge[0] if at_edge[0] else None
+    n, within10, within25, median_km, median_disp, moved_far = near
+    share = within10 / n if n else None
     fig = _plot_gaps(con, n_gaps, share)
     return {"gaps_over_6h": n_gaps, "median_gap_hours": median_h, "p90_gap_hours": p90_h,
-            "sampled": at_edge[0], "sampled_at_coverage_edge": at_edge[1],
-            "share_at_coverage_edge": share, "figure": fig,
-            "conclusion": ("DMA gaps are coverage artefacts, not evasion features"
-                           if (share or 0) >= 0.5 else
-                           "unexpected: most long gaps start inside coverage; investigate before Phase 5a")}
+            "sampled": n, "within_10km_of_edge": within10, "within_25km_of_edge": within25,
+            "share_at_coverage_edge": share, "median_km_to_edge": median_km,
+            "median_displacement_km": median_disp, "gaps_that_moved_over_50km": moved_far,
+            "figure": fig,
+            "conclusion": _gap_conclusion(share, (moved_far / n) if n else 0)}
+
+
+def _gap_conclusion(share_at_edge: float | None, share_moved: float) -> str:
+    if (share_at_edge or 0) >= 0.5 or share_moved >= 0.5:
+        return ("DMA gaps are coverage artefacts, not evasion features: they start at the coverage edge "
+                "or the hull reappears far away, i.e. it left the footprint")
+    return ("unexpected: long gaps start inside coverage and the hull reappears nearby; "
+            "investigate before Phase 5a (could be in-port silence, not evasion)")
 
 
 def _plot_gaps(con: duckdb.DuckDBPyConnection, n_gaps: int, share: float | None) -> str | None:
@@ -224,10 +255,28 @@ def sts_readiness(day: date, con: duckdb.DuckDBPyConnection | None = None,
             )
         """).fetchone()[0]
         res[table] = pairs
+        if table == "ais_fullres":
+            diag_cols = ["slow_minutes", "slow_mmsi", "rows_in_box", "mmsi_in_box", "closest_pair_m"]
+            diag = con.execute(f"""
+                SELECT count(*) AS slow_minutes, count(DISTINCT mmsi) AS slow_mmsi,
+                  (SELECT count(*) FROM read_parquet('{part.as_posix()}')
+                   WHERE lat BETWEEN {box['lat'][0]} AND {box['lat'][1]}
+                     AND lon BETWEEN {box['lon'][0]} AND {box['lon'][1]}) AS rows_in_box,
+                  (SELECT count(DISTINCT mmsi) FROM read_parquet('{part.as_posix()}')
+                   WHERE lat BETWEEN {box['lat'][0]} AND {box['lat'][1]}
+                     AND lon BETWEEN {box['lon'][0]} AND {box['lon'][1]}) AS mmsi_in_box,
+                  (SELECT min(m) FROM (
+                     SELECT min({_haversine('a.lat', 'a.lon', 'b.lat', 'b.lon')}) * 1000 AS m
+                     FROM slow a JOIN slow b ON a.minute = b.minute AND a.mmsi < b.mmsi
+                     GROUP BY a.mmsi, b.mmsi)) AS closest_pair_m
+                FROM slow
+            """).fetchone()
+            res["diagnostics"] = dict(zip(diag_cols, diag, strict=True))
     return {"day": day.isoformat(), "radius_m": radius_m, "max_sog": max_sog, "min_hours": min_hours,
             "pairs_fullres": res["ais_fullres"], "pairs_downsampled": res["ais_dynamic"],
             "downsample_loses_pairs": (res["ais_fullres"] is not None and res["ais_dynamic"] is not None
-                                       and res["ais_dynamic"] < res["ais_fullres"])}
+                                       and res["ais_dynamic"] < res["ais_fullres"]),
+            "diagnostics": res.get("diagnostics")}
 
 
 def run_all(sts_day: date | None = None) -> dict:
