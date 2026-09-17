@@ -1,0 +1,40 @@
+SYNTHETIC FIXTURE: structure modelled on OFAC "SDN Changes" archives; not real entries.
+Replace or extend with a real page once Phase 0 saves reports/phase0_ofac_sample.txt.
+
+01/10/2025:
+
+OFFICE OF FOREIGN ASSETS CONTROL
+The following [vessels] have been added to OFAC's SDN List:
+
+VESSELS:
+
+ALPHA STAR (UBCD1) Crude Oil Tanker 105,000DWT Gabon flag; Vessel Registration
+Identification IMO 9074729; MMSI 626000001 (vessel) [RUSSIA-EO14024] (Linked To:
+EXAMPLE SHIPPING LLC).
+BETA WAVE Crude Oil Tanker Cameroon flag; Vessel Registration Identification IMO 9176187 (vessel)
+[RUSSIA-EO14024].
+
+The following [entities] have been added to OFAC's SDN List:
+
+EXAMPLE SHIPPING LLC, Dubai, United Arab Emirates; Organization Type: Sea shipping [RUSSIA-EO14024].
+Page 3 of 120
+
+02/27/2025:
+
+The following [entries] have been changed on OFAC's SDN List:
+
+GAMMA RAY (a.k.a. OLD NAME) Oil Tanker Panama flag; Vessel Registration Identification IMO 9074729
+(vessel) [RUSSIA-EO14024].
+-to-
+GAMMA RAY Oil Tanker Palau flag; Vessel Registration Identification IMO 9074729 (vessel)
+[RUSSIA-EO14024].
+
+The following [vessels] have been removed from OFAC's SDN List:
+
+DELTA SEA Tanker Liberia flag; Vessel Registration Identification IMO 9176187 (vessel) [IRAN-EO13846].
+
+June 5, 2025
+
+The following [vessels] have been added to OFAC's SDN List:
+
+EPSILON (vessel) Chemical Tanker; Vessel Registration Identification IMO 1234568 [RUSSIA-EO14024].

@@ -1,0 +1,46 @@
+[project]
+name = "shadowfleet"
+version = "0.0.1"
+description = "Evasion-indicator scoring for tankers from cooperative data (AIS, open watchlists) with a point-in-time backtest."
+requires-python = ">=3.11"
+dependencies = [
+  "duckdb>=1.1",
+  "pyarrow>=16",
+  "polars>=1.0",
+  "httpx>=0.27",
+  "pydantic>=2.6",
+  "typer>=0.12",
+  "python-dotenv>=1.0",
+  "pdfplumber>=0.11",   # OFAC change archives 2024+ are PDF-only (ADR-15)
+  "pycountry>=24.6",    # MID table: ITU country names -> ISO3
+  "shapely>=2.0",
+  "pyproj>=3.6",
+  "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+# Installed from Phase 5b on; kept out of Phase 0 so setup stays fast.
+model = ["lightgbm>=4.3", "scikit-learn>=1.5", "shap>=0.45", "python-igraph>=0.11"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+shadowfleet = "shadowfleet.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["shadowfleet"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["network: needs live internet (skipped unless SHADOWFLEET_NETWORK_TESTS=1)"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["B008"]  # typer.Option/Argument defaults are the typer idiom
