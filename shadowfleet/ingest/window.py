@@ -40,8 +40,17 @@ def months_between(a: date, b: date) -> float:
     return round((b - a).days / 30.4375, 1)
 
 
-def decide(dma_probe: dict, free_gb: float, today: date, allow_short: bool = False) -> GateDecision:
-    earliest = date.fromisoformat(dma_probe["earliest_day"])
+def decide(dma_probe: dict, free_gb: float, today: date, allow_short: bool = False,
+           start: date | None = None, allow_monthly: bool = False) -> GateDecision:
+    """Default start is the earliest *daily* file. Monthly archives (pre Mar 2024 on Sep 17 2026) need the
+    stage-2 day-column optimisation first, so a start before the first daily file needs allow_monthly."""
+    earliest_daily = dma_probe.get("earliest_daily")
+    earliest = date.fromisoformat(earliest_daily or dma_probe["earliest_day"])
+    if start is not None:
+        if start < earliest and not allow_monthly:
+            raise WindowGateError(f"{start} is before the first daily file ({earliest}); monthly archives are "
+                                  "not optimised yet (see phase0 assumptions). Rerun with --allow-monthly later.")
+        earliest = max(start, date.fromisoformat(dma_probe["earliest_day"]))
     latest = date.fromisoformat(dma_probe["latest_day"])
     day = dma_probe["result"]["day_stats"][0]
     per_day = sum(v for k, v in day["bytes_out"].items() if k != "ais_fullres")
@@ -54,7 +63,7 @@ def decide(dma_probe: dict, free_gb: float, today: date, allow_short: bool = Fal
     if budget <= 0:
         raise WindowGateError(f"no disk budget: {free_gb:.1f} GB free, reserve {config.MIN_FREE_GB} GB")
     if projected <= budget:
-        start, reason = earliest, "full available history fits the disk budget"
+        start, reason = earliest, "first daily DMA file (or --start) fits the disk budget"
     else:
         fit_days = int(budget / (per_day * SAFETY))
         start = latest - timedelta(days=fit_days - 1)
@@ -82,11 +91,12 @@ def decide(dma_probe: dict, free_gb: float, today: date, allow_short: bool = Fal
     )
 
 
-def run(allow_short: bool = False, today: date | None = None) -> GateDecision:
+def run(allow_short: bool = False, today: date | None = None, start: date | None = None,
+        allow_monthly: bool = False) -> GateDecision:
     p = probes.read("dma")
     if not p:
         raise WindowGateError("reports/probes/dma.json missing: run `make probe-dma` first")
-    dec = decide(p, disk.free_gb(config.DATA_DIR), today or date.today(), allow_short)
+    dec = decide(p, disk.free_gb(config.DATA_DIR), today or date.today(), allow_short, start, allow_monthly)
     old = json.loads(config.WINDOW_FILE.read_text()) if config.WINDOW_FILE.exists() else None
     payload = asdict(dec)
     if old and (old.get("start"), old.get("end")) != (dec.start, dec.end):

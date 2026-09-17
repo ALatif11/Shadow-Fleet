@@ -42,6 +42,10 @@ HORIZON_DAYS = 182  # plan ADR-11
 # ADR-11 addendum: below this the backtest has too few supervised cutoffs; shrinking further needs Adam.
 MIN_WINDOW_MONTHS_WITHOUT_SIGNOFF = 21
 TOP_K = (25, 50, 100)  # plan section 4
+# ADR-17 (Adam, Sep 17 2026): pre-registered regime break. Strait of Hormuz closed after the Feb 28 2026 strikes
+# (straits.live Day 1; Al Jazeera 2026-08-27). Metrics are reported before and after it; it is not a window bound.
+REGIME_BREAKS = {"hormuz_closure": "2026-02-28"}
+FORWARD_TEST_SCORING_DATE = "2026-10-01"  # ADR-17: top-50 committed to git on or after this date
 
 # --------------------------------------------------------------------------- disk (ADR-13)
 MIN_FREE_GB = float(os.environ.get("SHADOWFLEET_MIN_FREE_GB", "25"))  # pause ingest below this
@@ -120,7 +124,10 @@ HAZARDOUS_CARGO_SUBSTRINGS = ["hazard", "category x", "category y", "category z"
 MIN_TANKER_LENGTH_M = 100
 EXTRA_MMSI_ALLOWLIST: set[int] = set()  # Phase 3 may add hulls that mis-report type
 # Non-vessel AIS stations excluded from jump baselines and vessel_day counts.
-NON_VESSEL_MOBILE_TYPES = {"base station", "aton", "sar airborne", "search and rescue transmitter"}
+# Observed DMA values on 2026-09-03: Class A, Class B, Base Station, AtoN, SAR Airborne,
+# Search and Rescue Transponder, Man Overboard Device.
+NON_VESSEL_MOBILE_TYPES = {"base station", "aton", "sar airborne", "search and rescue transmitter",
+                           "search and rescue transponder", "man overboard device"}
 
 # Downsampling (ADR-14): irreversible, so the finer interval is the default.
 DOWNSAMPLE_S = 60

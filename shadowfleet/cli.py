@@ -76,14 +76,16 @@ def probe_dma(day: str = typer.Option(None, help="YYYY-MM-DD; default 14 days ag
 
 
 @app.command("window-gate")
-def window_gate(allow_short: bool = typer.Option(False, help="only after Adam signs off")) -> None:
+def window_gate(allow_short: bool = typer.Option(False, help="only after Adam signs off"),
+                start: str = typer.Option(None, help="YYYY-MM-DD; default = first daily DMA file"),
+                allow_monthly: bool = typer.Option(False, help="allow a start inside the monthly archives")) -> None:
     """Phase 0 task 3: write config/window.json."""
     from dataclasses import asdict
 
     from shadowfleet.ingest.window import WindowGateError, run
 
     try:
-        _print(asdict(run(allow_short=allow_short)))
+        _print(asdict(run(allow_short=allow_short, start=_d(start), allow_monthly=allow_monthly)))
     except WindowGateError as e:
         typer.echo(f"window gate refused: {e}", err=True)
         raise typer.Exit(2) from e

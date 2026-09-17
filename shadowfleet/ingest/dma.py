@@ -687,8 +687,9 @@ def ingest_zip(
                     res.days_failed[day.isoformat()] = repr(e)
                     failed_path(day).write_text(json.dumps({"source_file": source_file, "error": repr(e)}))
                     continue
-                for m in tanker_today:
-                    registry.setdefault(m, day.isoformat())
+                for m in tanker_today:  # keep the earliest day, even when days are ingested out of order
+                    if m not in registry or day.isoformat() < registry[m]:
+                        registry[m] = day.isoformat()
                 save_registry(registry)
                 malformed_share = st.malformed_rows / max(st.rows_in + st.malformed_rows, 1)
                 marker = {

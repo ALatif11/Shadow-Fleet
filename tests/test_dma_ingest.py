@@ -203,3 +203,11 @@ def test_s3_listing_paginates_and_falls_back(monkeypatch):
     assert files[-1].url == "http://aisdata.ais.dk.s3.eu-central-1.amazonaws.com/aisdk-2026-09-14.zip"
     assert unknown == []
     assert any("continuation-token=tok1" in u for u in calls)
+
+
+def test_registry_keeps_earliest_day_when_ingested_out_of_order(tmp_data):
+    config.DMA_RAW_DIR.mkdir(parents=True)
+    dma.save_registry({111: "2026-09-03"})
+    z = write_zip(config.DMA_RAW_DIR / "a.zip", synthetic_rows(), HEADER_V1)
+    dma.ingest_zip(z, [D], z.name)
+    assert dma.load_registry()[111] == D.isoformat()
