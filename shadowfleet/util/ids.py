@@ -12,8 +12,8 @@ def imo_valid(imo: int | str | None) -> bool:
     if imo is None:
         return False
     s = str(imo).strip()
-    if not (len(s) == 7 and s.isdigit()) or s == "0000000":
-        return False
+    if not (len(s) == 7 and s.isdigit()) or s[0] == "0":
+        return False  # IMO ship numbers never start with 0 (seen as junk values in OpenSanctions, Sep 2026)
     total = sum(int(d) * w for d, w in zip(s[:6], range(7, 1, -1), strict=True))
     return total % 10 == int(s[6])
 
