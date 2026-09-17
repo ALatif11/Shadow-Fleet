@@ -46,6 +46,7 @@ class DmaFile:
     url: str
     kind: str  # "daily" | "monthly"
     period: str  # YYYY-MM-DD or YYYY-MM
+    size: int | None = None  # bytes, when the listing says
 
     def dates(self) -> list[date]:
         if self.kind == "daily":
@@ -60,36 +61,89 @@ class DmaFile:
 
 
 def parse_index(html: str, base_url: str) -> tuple[list[DmaFile], list[str]]:
-    """Parse a directory listing. Returns (recognised files, unrecognised archive names)."""
+    """Parse an HTML directory listing. Returns (recognised files, unrecognised archive names)."""
     hrefs = re.findall(r'href="([^"]+)"', html, flags=re.IGNORECASE)
+    return _classify(((h, None) for h in hrefs), base_url)
+
+
+def _classify(names_sizes: Iterable[tuple[str, int | None]], base_url: str) -> tuple[list[DmaFile], list[str]]:
     files: dict[str, DmaFile] = {}
     unknown: set[str] = set()
-    for h in hrefs:
-        name = h.rstrip("/").split("/")[-1]
+    for key, size in names_sizes:
+        name = key.rstrip("/").split("/")[-1]
         if not re.search(r"\.(zip|rar|7z|gz)$", name, re.IGNORECASE):
             continue
-        url = urljoin(base_url, h)
+        url = urljoin(base_url, key)
         if m := re.fullmatch(config.DMA_DAILY_RE, name):
-            files[name] = DmaFile(name, url, "daily", m.group(1))
+            files[name] = DmaFile(name, url, "daily", m.group(1), size)
         elif m := re.fullmatch(config.DMA_MONTHLY_RE, name):
-            files[name] = DmaFile(name, url, "monthly", m.group(1))
+            files[name] = DmaFile(name, url, "monthly", m.group(1), size)
         else:
             unknown.add(name)
     return sorted(files.values(), key=lambda f: (f.period, f.kind)), sorted(unknown)
+
+
+_S3_NS = re.compile(r"\{.*?\}")
+
+
+def parse_s3_listing(xml_text: str) -> tuple[list[tuple[str, int | None]], bool, str | None]:
+    """One page of an S3 ListObjectsV2 response: ([(key, size)], is_truncated, next_token)."""
+    import xml.etree.ElementTree as ET  # noqa: PLC0415
+
+    root = ET.fromstring(xml_text)
+
+    def tag(el):
+        return _S3_NS.sub("", el.tag)
+
+    items, truncated, token = [], False, None
+    for el in root:
+        t = tag(el)
+        if t == "Contents":
+            fields = {tag(x): x.text for x in el}
+            size = fields.get("Size")
+            items.append((fields.get("Key") or "", int(size) if size and size.isdigit() else None))
+        elif t == "IsTruncated":
+            truncated = (el.text or "").strip().lower() == "true"
+        elif t == "NextContinuationToken":
+            token = el.text
+    return items, truncated, token
+
+
+def list_s3(c, base: str, max_pages: int = 50) -> list[tuple[str, int | None]]:
+    out: list[tuple[str, int | None]] = []
+    token = None
+    for _ in range(max_pages):
+        params = {"list-type": "2"}
+        if token:
+            params["continuation-token"] = token
+        r = net.get(c, base, params=params)
+        r.raise_for_status()
+        items, truncated, token = parse_s3_listing(r.text)
+        out.extend(items)
+        if not truncated or not token:
+            break
+    return out
 
 
 def list_available(c) -> tuple[str, list[DmaFile], list[str]]:
     errors = []
     for base in config.DMA_INDEX_URLS:
         try:
-            r = net.get(c, base)
+            r = net.get(c, base, retries=1)
         except Exception as e:  # noqa: BLE001 - record and try the next mirror
             errors.append(f"{base}: {e!r}")
             continue
         if r.status_code != 200:
             errors.append(f"{base}: HTTP {r.status_code}")
             continue
-        files, unknown = parse_index(r.text, base)
+        if "<ListBucketResult" in r.text[:2000]:
+            try:
+                files, unknown = _classify(list_s3(c, base), base)
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"{base}: S3 listing failed {e!r}")
+                continue
+        else:
+            files, unknown = parse_index(r.text, base)
         if files:
             return base, files, unknown
         errors.append(f"{base}: no aisdk files recognised ({len(unknown)} other archives)")
@@ -719,7 +773,8 @@ def run_window(
                 for k in range(i, min(i + workers, len(groups))):
                     if k not in futures:
                         fk = groups[k][0]
-                        futures[k] = pool.submit(_download_file, c, fk, net.head_size(c, fk.url), wait_disk)
+                        futures[k] = pool.submit(_download_file, c, fk, fk.size or net.head_size(c, fk.url),
+                                                 wait_disk)
                 try:
                     zip_path, secs = futures.pop(i).result()
                 except Exception as e:  # noqa: BLE001
@@ -773,9 +828,7 @@ def probe(day: date | None = None, keep_fullres: bool = True) -> dict:
         daily = [f for f in files if f.kind == "daily"]
         monthly = [f for f in files if f.kind == "monthly"]
         all_days = sorted({d for f in files for d in f.dates()})
-        sizes = {}
-        for f in (files[:2] + files[-2:]):
-            sizes[f.name] = net.head_size(c, f.url)
+        sizes = {f.name: f.size or net.head_size(c, f.url) for f in (files[:2] + files[-2:])}
         target = day or (date.today() - timedelta(days=14))
         by_day = files_for_dates(files, target, target)
         if target not in by_day:
@@ -784,7 +837,7 @@ def probe(day: date | None = None, keep_fullres: bool = True) -> dict:
             target = date.fromisoformat(daily[-1].period) if daily else all_days[-1]
             by_day = files_for_dates(files, target, target)
         f = by_day[target]
-        size_hint = net.head_size(c, f.url)
+        size_hint = f.size or net.head_size(c, f.url)
         t0 = time.monotonic()
         dest, secs = _download_file(c, f, size_hint, wait_disk=False)
         secs = secs or (time.monotonic() - t0)

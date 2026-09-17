@@ -164,3 +164,42 @@ def test_missing_required_column_fails_day_and_keeps_zip(tmp_data):
     assert z.exists()
     assert "required columns missing" in dma.check(D, D)["failed"][D.isoformat()]
     assert not dma.is_done(D)
+
+
+S3_PAGE1 = """<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>aisdata.ais.dk</Name>
+<KeyCount>2</KeyCount><MaxKeys>2</MaxKeys><IsTruncated>true</IsTruncated>
+<NextContinuationToken>tok1</NextContinuationToken>
+<Contents><Key>aisdk-2024-09-01.zip</Key><Size>650000000</Size></Contents>
+<Contents><Key>aisdk-2006-03.zip</Key><Size>900</Size></Contents></ListBucketResult>"""
+S3_PAGE2 = """<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><IsTruncated>false</IsTruncated>
+<Contents><Key>aisdk-2026-09-14.zip</Key><Size>700000000</Size></Contents>
+<Contents><Key>readme.txt</Key><Size>10</Size></Contents></ListBucketResult>"""
+
+
+def test_s3_listing_paginates_and_falls_back(monkeypatch):
+    import httpx
+
+
+    calls = []
+
+    def handler(req):
+        calls.append(str(req.url))
+        if "web.ais.dk" in req.url.host or req.url.host == "aisdata.ais.dk":
+            return httpx.Response(504)
+        if req.url.params.get("continuation-token") == "tok1":
+            return httpx.Response(200, text=S3_PAGE2)
+        return httpx.Response(200, text=S3_PAGE1)
+
+    monkeypatch.setattr(config, "DMA_INDEX_URLS", ["http://web.ais.dk/aisdata/",
+                                                   "http://aisdata.ais.dk.s3.eu-central-1.amazonaws.com/"])
+    with httpx.Client(transport=httpx.MockTransport(handler)) as c:
+        base, files, unknown = dma.list_available(c)
+    assert base.startswith("http://aisdata.ais.dk.s3")
+    assert [(f.name, f.kind, f.size) for f in files] == [
+        ("aisdk-2006-03.zip", "monthly", 900), ("aisdk-2024-09-01.zip", "daily", 650000000),
+        ("aisdk-2026-09-14.zip", "daily", 700000000)]
+    assert files[-1].url == "http://aisdata.ais.dk.s3.eu-central-1.amazonaws.com/aisdk-2026-09-14.zip"
+    assert unknown == []
+    assert any("continuation-token=tok1" in u for u in calls)
