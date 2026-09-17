@@ -182,3 +182,23 @@ def test_gfw_candidates_prefer_ofac_russia_tankers(tmp_data):
         '2,"B","vessel","IRAN",-0- ,-0- ,"Crude Oil Tanker",-0- ,-0- ,-0- ,-0- ,"IMO 9176187."\n'
         '3,"C","vessel","RUSSIA-EO14024",-0- ,-0- ,"General Cargo",-0- ,-0- ,-0- ,-0- ,"IMO 9176187."\n')
     assert cli._gfw_candidates() == ["9074729"]
+
+
+def test_pdf_to_text_streams_pages(tmp_path):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+
+    pdf_path = tmp_path / "s.pdf"
+    with PdfPages(pdf_path) as pdf:
+        for line in ["01/10/2025:", "ALPHA STAR Tanker; IMO 9074729 (vessel) [RUSSIA-EO14024]."]:
+            fig = plt.figure()
+            fig.text(0.1, 0.5, line)
+            pdf.savefig(fig)
+            plt.close(fig)
+    out = tmp_path / "s.txt"
+    text = ofac.pdf_to_text(pdf_path, out)
+    assert "01/10/2025" in text and "IMO 9074729" in text and out.exists()
+    assert "IMO 9074729" in ofac.pdf_to_text(pdf_path)

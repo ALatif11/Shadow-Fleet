@@ -220,17 +220,37 @@ def parse_changes_text(text: str) -> tuple[list[ChangeRow], ParseStats]:
     return rows, st
 
 
-def pdf_to_text(pdf_path: Path) -> str:
-    import pdfplumber  # noqa: PLC0415 - heavy import only when needed
+def pdf_to_text(pdf_path: Path, out_path: Path | None = None) -> str:
+    """Extract text page by page with pypdfium2 (installed with pdfplumber).
 
-    pages = []
-    with pdfplumber.open(pdf_path) as pdf:
-        n = len(pdf.pages)
-        for i, page in enumerate(pdf.pages, 1):
-            pages.append(page.extract_text() or "")
-            if i % 25 == 0 or i == n:
-                log.info("pdf text", extra={"file": pdf_path.name, "page": i, "pages": n})
-    return "\n\n".join(pages)
+    pdfplumber keeps parsed pages in memory; on the 2,143-page 2025 archive that exhausted WSL's RAM
+    (exit 137, Sep 17 2026). pypdfium2 is fast and frees each page as it goes. Text is streamed to
+    `out_path` when given, so a crash leaves a partial file rather than nothing.
+    """
+    import pypdfium2 as pdfium  # noqa: PLC0415
+
+    pdf = pdfium.PdfDocument(str(pdf_path))
+    n = len(pdf)
+    chunks: list[str] = []
+    sink = open(out_path, "w", encoding="utf-8") if out_path else None
+    try:
+        for i in range(n):
+            page = pdf[i]
+            textpage = page.get_textpage()
+            text = textpage.get_text_range().replace("\r\n", "\n").replace("\r", "\n")
+            textpage.close()
+            page.close()
+            if sink:
+                sink.write(text + "\n\n")
+            else:
+                chunks.append(text)
+            if (i + 1) % 250 == 0 or i + 1 == n:
+                log.info("pdf text", extra={"file": pdf_path.name, "page": i + 1, "pages": n})
+    finally:
+        pdf.close()
+        if sink:
+            sink.close()
+    return out_path.read_text(encoding="utf-8") if out_path else "\n\n".join(chunks)
 
 
 def _cached_download(c, urls: list[str], name: str) -> tuple[str, Path]:
@@ -261,8 +281,10 @@ def changes_for_year(c, year: int) -> tuple[str, str]:
     src, p = _cached_download(c, [config.OFAC_CHANGES_PDF_URL.format(yy=yy)], f"sdnnew{yy}.pdf")
     txt_cache = p.with_suffix(".extracted.txt")
     if not txt_cache.exists():
-        txt_cache.write_text(pdf_to_text(p))
-    return src, txt_cache.read_text()
+        partial = txt_cache.with_suffix(".partial")
+        pdf_to_text(p, partial)
+        partial.replace(txt_cache)
+    return src, txt_cache.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------- advanced XML presence check
