@@ -38,19 +38,24 @@ source ~/.bashrc
 uv python install 3.12
 ```
 
-## 5. Repo
-Copy the repo out of your Windows folder onto the Linux filesystem (`/mnt/c` is slow for Parquet):
+## 5. Repo and GitHub
+The repo already exists as a git repo (one commit) in `Downloads\New Proj Files\shadowfleet`. Clone it onto the Linux filesystem (`/mnt/c` is slow for Parquet):
 ```bash
-mkdir -p ~/shadowfleet
-cp -r "/mnt/c/Users/adam1/Downloads/New Proj Files/shadowfleet/." ~/shadowfleet/
+git clone "/mnt/c/Users/adam1/Downloads/New Proj Files/shadowfleet" ~/shadowfleet
 cd ~/shadowfleet
-git init && git add -A && git commit -m "Phase 0 scaffold and reconciled plan"
-make setup                 # creates .venv and .env
-nano .env                  # paste GFW_TOKEN=... (from globalfishingwatch.org/our-apis)
-make doctor                # everything should be ok or warn; nothing FAIL
+git remote remove origin          # drop the link back to the Windows copy
+make setup                        # creates .venv and .env
+nano .env                         # paste GFW_TOKEN=... (from globalfishingwatch.org/our-apis)
+make doctor                       # everything should be ok or warn; nothing FAIL
 make test
 ```
-Push to GitHub when you want (`gh repo create ALatif11/shadowfleet --private --source . --push`). `.gitignore` already keeps `data/`, `.env` and GFW-derived files out.
+Publish it to GitHub as a private repo (one-time login through the browser):
+```bash
+sudo apt install -y gh
+gh auth login                     # GitHub.com, HTTPS, login with a web browser
+gh repo create shadowfleet --private --source . --remote origin --push
+```
+From then on the WSL copy is the working copy; the Windows folder is only the hand-off. `.gitignore` already keeps `data/`, `.env` and GFW-derived files out of the repo. The first commit's author email is your Apple ID address; change it for future commits with `git config user.email <your GitHub email>` if you prefer.
 
 ## 6. llama.cpp with CUDA (Phase 0 task 9; timebox 30 minutes)
 Install the CUDA toolkit for WSL (check NVIDIA's "CUDA Toolkit downloads, Linux, WSL-Ubuntu" page for the current command; this is the usual shape):
