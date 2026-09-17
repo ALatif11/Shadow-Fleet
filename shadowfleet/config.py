@@ -56,7 +56,8 @@ RECOMMENDED_FREE_GB = 100  # SETUP.md; doctor warns below this
 # that holds the virtual disk: C: by default; set SHADOWFLEET_HOST_DISK=/mnt/d if the distro was moved.
 _default_host = "/mnt/c" if Path("/mnt/c").is_dir() and "microsoft" in os.uname().release.lower() else ""
 HOST_DISK_PATH = os.environ.get("SHADOWFLEET_HOST_DISK", _default_host)
-DUCKDB_MEMORY_LIMIT = os.environ.get("SHADOWFLEET_DUCKDB_MEMORY", "12GB")  # 32 GB host, WSL gets ~half
+# WSL gets ~15 GB by default on a 32 GB host; leave room for probes running beside the ingest (OOM, Sep 17 2026).
+DUCKDB_MEMORY_LIMIT = os.environ.get("SHADOWFLEET_DUCKDB_MEMORY", "8GB")
 DUCKDB_THREADS = int(os.environ.get("SHADOWFLEET_DUCKDB_THREADS", "8"))
 
 # --------------------------------------------------------------------------- DMA (ADR-2, ADR-14)
