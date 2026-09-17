@@ -106,8 +106,12 @@ def ingest_dma(start: str = typer.Option(None), end: str = typer.Option(None),
     if not (s and e):
         typer.echo("no window: run `make window-gate` or pass --start/--end", err=True)
         raise typer.Exit(1)
-    summary = dma.run_window(s, e, newest_first=newest_first, workers=workers, max_days=max_days,
-                             wait_disk=wait_disk)
+    try:
+        summary = dma.run_window(s, e, newest_first=newest_first, workers=workers, max_days=max_days,
+                                 wait_disk=wait_disk)
+    except dma.IngestLocked as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(4) from err
     _print({k: (v if k != "not_in_index" else len(v)) for k, v in summary.items()})
     if summary.get("stopped_early"):
         raise typer.Exit(3)
@@ -123,7 +127,11 @@ def ingest_day(day: str, fullres: bool = typer.Option(False)) -> None:
     marker = dma.marker_path(d)
     if marker.exists():
         marker.unlink()
-    s = dma.run_window(d, d, workers=1, keep_fullres={d} if fullres else None, wait_disk=False)
+    try:
+        s = dma.run_window(d, d, workers=1, keep_fullres={d} if fullres else None, wait_disk=False)
+    except dma.IngestLocked as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(4) from err
     _print(s)
     if s["failed"] or not s["done"]:
         raise typer.Exit(1)

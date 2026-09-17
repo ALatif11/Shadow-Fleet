@@ -61,3 +61,33 @@ def test_run_window_stops_on_systematic_failures(tmp_data, monkeypatch, tmp_path
     assert s.get("stopped_early") and len(s["failed"]) == 3
     # corrupt zips are kept for inspection
     assert len(list(config.DMA_RAW_DIR.glob("*.zip"))) >= 3
+
+
+def test_second_ingest_is_refused(tmp_data):
+    import pytest
+
+    with dma.ingest_lock():
+        with pytest.raises(dma.IngestLocked, match="another DMA ingest"):
+            with dma.ingest_lock():
+                pass
+    with dma.ingest_lock():  # released
+        pass
+
+
+def test_corrupt_leftover_zip_is_redownloaded(tmp_data, monkeypatch, tmp_path):
+    good = _zip_bytes(tmp_path, "g.zip")
+    config.DMA_RAW_DIR.mkdir(parents=True)
+    (config.DMA_RAW_DIR / "aisdk-2025-03-04.zip").write_bytes(good[:1000] + b"garbage" * 10)
+    xml = ("<ListBucketResult><IsTruncated>false</IsTruncated><Contents><Key>2025/aisdk-2025-03-04.zip</Key>"
+           f"<Size>{len(good)}</Size></Contents></ListBucketResult>")
+
+    def handler(req):
+        if req.url.path == "/":
+            return httpx.Response(200, text=xml)
+        return httpx.Response(200, content=good, headers={"Content-Length": str(len(good))})
+
+    monkeypatch.setattr(config, "DMA_INDEX_URLS", ["http://bucket.example/"])
+    real_client = net.client
+    monkeypatch.setattr(net, "client", lambda **kw: real_client(transport=httpx.MockTransport(handler)))
+    s = dma.run_window(date(2025, 3, 4), date(2025, 3, 4))
+    assert s["done"] == 1 and not s["failed"]
