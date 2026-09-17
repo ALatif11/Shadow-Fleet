@@ -12,6 +12,7 @@ import csv
 import io
 import json
 import logging
+import os
 import re
 import shutil
 import time
@@ -19,6 +20,7 @@ import zipfile
 from collections import Counter
 from collections.abc import Iterable
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -722,10 +724,55 @@ def ingest_zip(
 
 
 # ============================================================================ bulk run
+def zip_looks_complete(path: Path, expected_size: int | None) -> bool:
+    """Cheap integrity check before reusing a zip left on disk: listed size and a readable central directory."""
+    if not path.exists():
+        return False
+    if expected_size is not None and path.stat().st_size != expected_size:
+        return False
+    return zipfile.is_zipfile(path)
+
+
+class IngestLocked(RuntimeError):
+    pass
+
+
+@contextmanager
+def ingest_lock():
+    """One DMA ingest at a time: two runners share raw/.part files and corrupt each other (Sep 17 2026)."""
+    import fcntl  # noqa: PLC0415 - POSIX only; the runtime is WSL2
+
+    path = _state("locks") / "ingest_dma.lock"
+    fh = open(path, "a+")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as e:
+        fh.seek(0)
+        holder = fh.read().strip()
+        fh.close()
+        raise IngestLocked(f"another DMA ingest is running ({holder or 'unknown pid'}); "
+                           "check with `pgrep -af shadowfleet.cli`") from e
+    fh.seek(0)
+    fh.truncate()
+    fh.write(f"pid {os.getpid()} since {datetime.now(UTC).isoformat(timespec='seconds')}")
+    fh.flush()
+    try:
+        yield
+    finally:
+        fcntl.flock(fh, fcntl.LOCK_UN)
+        fh.close()
+
+
 def _download_file(c, f: DmaFile, size_hint: int | None, wait_disk: bool) -> tuple[Path, float]:
     dest = config.DMA_RAW_DIR / f.name
     if dest.exists():
-        return dest, 0.0
+        if zip_looks_complete(dest, f.size):
+            return dest, 0.0
+        log.warning("discarding incomplete or corrupt zip", extra={"file": f.name,
+                                                                    "bytes": dest.stat().st_size,
+                                                                    "expected": f.size})
+        dest.unlink()
+        dest.with_suffix(dest.suffix + ".part").unlink(missing_ok=True)
     need = int((size_hint or 1 << 30) * 2.5)  # zip + temp parquet + outputs, generous
     disk.wait_for_space(config.DATA_DIR, need_bytes=need, max_wait_s=None if wait_disk else 0)
     t0 = time.monotonic()
@@ -746,7 +793,7 @@ def run_window(
     """Ingest every not-yet-done day in [start, end]. Downloads are prefetched by up to `workers`
     threads; processing is sequential in date order so the tanker registry grows in time order."""
     workers = max(1, min(workers, config.DMA_MAX_WORKERS))
-    with net.client(timeout=config.DMA_HTTP_TIMEOUT_S) as c:
+    with ingest_lock(), net.client(timeout=config.DMA_HTTP_TIMEOUT_S) as c:
         base, files, _ = list_available(c)
         by_day = files_for_dates(files, start, end)
         pending = [d for d in by_day if not is_done(d)]
