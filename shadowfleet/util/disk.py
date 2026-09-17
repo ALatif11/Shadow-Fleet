@@ -18,8 +18,20 @@ class DiskFullError(RuntimeError):
 
 
 def free_gb(path: Path) -> float:
+    """Free space for `path`, capped by the Windows drive that backs the WSL virtual disk (ADR-13)."""
+    return min(v for v in free_breakdown(path).values() if v is not None)
+
+
+def free_breakdown(path: Path) -> dict[str, float | None]:
     path.mkdir(parents=True, exist_ok=True)
-    return shutil.disk_usage(path).free / GB
+    out: dict[str, float | None] = {"linux": shutil.disk_usage(path).free / GB, "host": None}
+    host = config.HOST_DISK_PATH
+    if host:
+        try:
+            out["host"] = shutil.disk_usage(host).free / GB
+        except OSError:
+            out["host"] = None
+    return out
 
 
 def wait_for_space(

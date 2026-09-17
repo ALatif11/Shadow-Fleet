@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -38,11 +39,13 @@ def checks(network: bool = True) -> list[Check]:
                      platform.uname().release + ("" if "microsoft" in rel else " (not WSL; fine only if Linux)")))
     root = str(config.REPO_ROOT)
     out.append(Check("repo on Linux filesystem", FAIL if root.startswith("/mnt/") else OK, root))
+    fb = disk.free_breakdown(config.DATA_DIR)
     free = disk.free_gb(config.DATA_DIR)
     st = FAIL if free < config.MIN_FREE_GB else WARN if free < config.RECOMMENDED_FREE_GB else OK
+    host = f"; Windows drive {config.HOST_DISK_PATH}: {fb['host']:.1f} GB" if fb["host"] is not None else ""
     out.append(Check("free disk for data/", st,
-                     f"{free:.1f} GB at {config.DATA_DIR} (reserve {config.MIN_FREE_GB:.0f}, "
-                     f"recommended {config.RECOMMENDED_FREE_GB})"))
+                     f"{free:.1f} GB usable (WSL view {fb['linux']:.1f} GB{host}; reserve "
+                     f"{config.MIN_FREE_GB:.0f}, recommended {config.RECOMMENDED_FREE_GB})"))
     try:
         mem_kb = int(next(ln for ln in open("/proc/meminfo") if ln.startswith("MemTotal")).split()[1])
         mem_gb = mem_kb / 1024**2
@@ -54,8 +57,9 @@ def checks(network: bool = True) -> list[Check]:
     smi = _run(["nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"])
     cuda = _run(["nvidia-smi"])
     cuda_v = None
-    if cuda and "CUDA Version" in cuda:
-        cuda_v = cuda.split("CUDA Version:")[1].split()[0]
+    if cuda:
+        m = re.search(r"CUDA(?: UMD)? Version:\s*([\d.]+)", cuda)
+        cuda_v = m.group(1) if m else None
     out.append(Check("gpu", OK if smi else WARN,
                      f"{smi} CUDA {cuda_v}" if smi else "nvidia-smi not found (needed from Phase 0 task 9)"))
     out.append(Check("GFW_TOKEN", OK if config.GFW_TOKEN else WARN,

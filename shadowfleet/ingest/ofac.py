@@ -225,8 +225,11 @@ def pdf_to_text(pdf_path: Path) -> str:
 
     pages = []
     with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
+        n = len(pdf.pages)
+        for i, page in enumerate(pdf.pages, 1):
             pages.append(page.extract_text() or "")
+            if i % 25 == 0 or i == n:
+                log.info("pdf text", extra={"file": pdf_path.name, "page": i, "pages": n})
     return "\n\n".join(pages)
 
 
@@ -237,6 +240,7 @@ def _cached_download(c, urls: list[str], name: str) -> tuple[str, Path]:
     last = None
     for u in urls:
         try:
+            log.info("downloading", extra={"url": u})
             net.download(c, u, dest)
             return u, dest
         except Exception as e:  # noqa: BLE001
@@ -292,11 +296,13 @@ def probe(years: tuple[int, ...] = (2023, 2025)) -> dict:
             out["sdn_csv"] = {"error": repr(e)}
         try:
             src, p = _cached_download(c, config.OFAC_SDN_ADVANCED_XML_URLS, "sdn_advanced.xml")
+            log.info("scanning advanced XML", extra={"mb": round(p.stat().st_size / 1e6)})
             out["sdn_advanced_xml"] = {"source": src, "bytes": p.stat().st_size, **advanced_xml_summary(p)}
         except Exception as e:  # noqa: BLE001
             out["sdn_advanced_xml"] = {"error": repr(e)}
         for y in years:
             try:
+                log.info("change archive", extra={"year": y})
                 src, text = changes_for_year(c, y)
                 rows, st = parse_changes_text(text)
                 vessel_rows = [r for r in rows if r.is_vessel]

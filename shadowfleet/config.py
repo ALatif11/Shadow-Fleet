@@ -47,6 +47,11 @@ TOP_K = (25, 50, 100)  # plan section 4
 MIN_FREE_GB = float(os.environ.get("SHADOWFLEET_MIN_FREE_GB", "25"))  # pause ingest below this
 RESUME_FREE_GB = MIN_FREE_GB + 5  # hysteresis so the guard does not flap
 RECOMMENDED_FREE_GB = 100  # SETUP.md; doctor warns below this
+# WSL2 stores Linux files in a sparse virtual disk (ext4.vhdx) on a Windows drive, so `df` inside WSL
+# reports the virtual size (about 1 TB), not the real free space. The guard also checks the Windows drive
+# that holds the virtual disk: C: by default; set SHADOWFLEET_HOST_DISK=/mnt/d if the distro was moved.
+_default_host = "/mnt/c" if Path("/mnt/c").is_dir() and "microsoft" in os.uname().release.lower() else ""
+HOST_DISK_PATH = os.environ.get("SHADOWFLEET_HOST_DISK", _default_host)
 DUCKDB_MEMORY_LIMIT = os.environ.get("SHADOWFLEET_DUCKDB_MEMORY", "12GB")  # 32 GB host, WSL gets ~half
 DUCKDB_THREADS = int(os.environ.get("SHADOWFLEET_DUCKDB_THREADS", "8"))
 

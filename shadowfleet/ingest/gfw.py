@@ -136,16 +136,27 @@ class GfwClient:
 
 
 # ---------------------------------------------------------------------- response helpers
+def _digits(v) -> str:
+    return "".join(ch for ch in str(v or "") if ch.isdigit())
+
+
+def entry_imos(entry: dict) -> set[str]:
+    """IMO values anywhere in a search entry (self-reported, registry, combined), digits only."""
+    found = set()
+    for key in ("selfReportedInfo", "registryInfo", "combinedSourcesInfo"):
+        for rec in entry.get(key) or []:
+            if isinstance(rec, dict) and rec.get("imo"):
+                found.add(_digits(rec["imo"]))
+    return found - {""}
+
+
 def vessel_ids_from_search(resp: dict, imo: str | None = None) -> list[str]:
     """Vessel ids from selfReportedInfo of entries; if imo is given, keep entries whose identity mentions it."""
     ids: list[str] = []
     for e in resp.get("entries") or []:
-        infos = e.get("selfReportedInfo") or []
-        if imo is not None:
-            imos = {str(i.get("imo")) for i in infos} | {str(i.get("imo")) for i in e.get("registryInfo") or []}
-            if imo not in imos:
-                continue
-        for i in infos:
+        if imo is not None and _digits(imo) not in entry_imos(e):
+            continue
+        for i in e.get("selfReportedInfo") or []:
             vid = i.get("id")
             if vid and vid not in ids:
                 ids.append(vid)
@@ -186,7 +197,16 @@ def probe(imos: list[str], start: str = "2025-01-01", end: str = "2025-12-31") -
             try:
                 resp = c.search_vessels(imo)
                 ids = vessel_ids_from_search(resp, imo)
-                rec.update({"n_entries": len(resp.get("entries") or []), "vessel_ids": ids,
+                how = "query"
+                if not ids:
+                    alt = c.search_vessels(imo, where=f"imo = '{imo}'")
+                    if vessel_ids_from_search(alt, imo):
+                        resp, ids, how = alt, vessel_ids_from_search(alt, imo), "where"
+                entries = resp.get("entries") or []
+                rec.update({"n_entries": len(entries), "search_method": how,
+                            "imos_in_entries": sorted(set().union(*(entry_imos(e) for e in entries)))[:10]
+                            if entries else [],
+                            "vessel_ids": ids,
                             "identity": identity_is_dated(resp), "shiptypes": shiptypes(resp)})
                 if ids and not saved_example:
                     # GFW-derived: gitignored, local only (CLAUDE.md rule 7)
