@@ -55,7 +55,7 @@ Goal: a dated sanctions-action table and a `labels(cutoff, horizon)` function; t
 Inputs: OFAC probe parser; OpenSanctions downloads; `population.parquet`.
 
 Tasks:
-0. Before loading any label, write and commit `PREREG.md` (cutoff rule, primary endpoint precision@50 in the B1 stratum with label OFAC∪EU∪UK, primary model LightGBM, frozen feature list by family, ablations are reporting only). The commit must precede the first commit that contains a positives count.
+0. Before loading any label, write and commit `PREREG.md` (cutoff rule, primary endpoint precision@50 in the B1 stratum with label OFAC∪EU∪UK, primary model LightGBM, frozen feature list by family, ablations are reporting only, the regime break `hormuz_closure = 2026-02-28` with before/after reporting, and the Phase F forward-test protocol from ADR-17). The commit must precede the first commit that contains a positives count.
 1. `shadowfleet/ingest/ofac.py`: parse every yearly SDN Changes archive from 2022 through the current year (text for 2022 to 2023, PDF for 2024 onward) into `data/parquet/sanctions_actions.parquet` with columns `source` (OFAC), `action` (add/modify/remove), `date`, `name`, `imo`, `program`, `raw`. Handle the archive's formatting quirks; vessel entries typically include "Vessel Registration Identification IMO nnnnnnn" in remarks. Cross-check against the current SDN XML: every current vessel with an IMO must have an `add` action; report the mismatch count and the reasons. Cross-check add dates against the entry-event dates in the SDN advanced XML where present.
 2. `shadowfleet/ingest/opensanctions.py`: EU = vessels under Annex XLII to Reg 833/2014 (program `EU-MARE`, dataset slug recorded in phase0.md), not the EU FSF file. UK = `gb_fcdo_sanctions` vessels. Extract IMO and listing date (`listingDate`/`startDate` on the Sanction entity; `first_seen` only as a fallback). Cross-check by diffing monthly dated exports (`data.opensanctions.org/datasets/YYYYMMDD/<slug>/`) over the window; report vessels where the snapshot month and the listing date disagree by more than 31 days. Append rows with `source` EU or UK. Spot-check 5 against official EU/UK publications.
 3. `shadowfleet/labels/labels.py`: `sanctioned_as_of(imo, T, sources)` (has an unrevoked add on or before T) and `labels(T, horizon, sources)` returning, for every hull in population with a valid IMO (Phase 3 refines hull ids; for now key on IMO from `ais_static` majority vote with a check-digit test), `label` in {0,1}, `designation_date`, `program`, `source`. Positive = first add by any source in `sources` within (T, T+horizon]. Population exclusion always uses all three lists regardless of `sources`: a hull listed by any of OFAC, EU or UK on or before T is not in the population (CLAUDE.md rule 3).
@@ -216,7 +216,7 @@ Tasks:
 1. `models/tabular.py`: LightGBM with conservative settings (num_leaves 15, min_child_samples 20, feature_fraction 0.8, early stopping on the most recent training cutoff held out as validation, `scale_pos_weight` set from the training base rate). No hyperparameter search beyond three seeds averaged.
 2. `models/anomaly.py`: isolation forest on the feature matrix (no labels), score reported as a model in its own right and as an extra feature to LightGBM in an ablation arm.
 3. Ablations (reporting only; never drive feature removal): drop one family at a time (identity, ais, gfw_gaps, gfw_encounters, gfw_ports, detect, static), plus GFW-only and self-built-only arms; table of PR-AUC and P@50 per arm per cutoff.
-3b. Drift: PSI per feature family per cutoff against the training window, and performance by training-window age.
+3b. Drift: PSI per feature family per cutoff against the training window, and performance by training-window age. Report both split at `config.REGIME_BREAKS['hormuz_closure']` (cutoffs before vs on or after 2026-02-28), and say how many post-break cutoffs have a closed horizon.
 4. Calibration: reliability diagram and Brier score for LightGBM at each scored cutoff.
 5. SHAP: TreeExplainer contributions for every scored (hull, T); write `data/parquet/shap/cutoff=T/` with top-10 features and values per hull.
 6. Top-k lists: `reports/flagged_<cutoff>.csv` with hull_id, score, rank, label, designation_date, and the top-5 SHAP features.
@@ -310,3 +310,22 @@ Acceptance criteria:
 - Clean-clone `make all` completes or the README documents the exact prerequisites.
 - README numbers match `reports/` files.
 - `reports/portfolio.md` complete with no placeholders.
+
+---
+
+## PHASE F: Forward test (on or after 2026-10-01; evaluation in spring 2027)
+
+Read CLAUDE.md, PREREG.md, ADR-17, and phase reports 0 to 6.
+
+Goal: a prospective, tamper-evident prediction that complements the backtest.
+
+Tasks:
+1. Ingest DMA through the scoring date (`make ingest-dma --end <date>` after extending `config/window.json` end with a recorded reason) and refresh GFW events for the population.
+2. Score the population at T = the scoring date with the frozen PREREG model. If Phase 6 is not finished, score with B2 and label the file as the rules baseline.
+3. Write `reports/forward/top50_<T>.csv` (rank, hull_id, imo, score, top-5 feature names; no GFW-derived values) and its SHA-256 in `reports/forward/README.md`. Commit and push the same day; the commit timestamp is the evidence.
+4. Add `make forward-eval T=<date>` that reads `sanctions_actions` as of the evaluation date and reports precision@k, recall@k, and lead time for the committed list, never modifying the list.
+5. Run the evaluation monthly until T + 182 d; report the final numbers in the README next to the backtest, labelled prospective.
+
+Acceptance criteria:
+- The ranked list is in git history dated on or after 2026-10-01 and before any evaluation.
+- `forward-eval` is read-only with respect to the list; a test asserts the file hash is unchanged.

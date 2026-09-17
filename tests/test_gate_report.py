@@ -14,9 +14,10 @@ from shadowfleet.util import disk, doctor, probes, report
 GB = disk.GB
 
 
-def fake_probe(earliest="2024-09-17", latest="2026-09-15", per_day=200 * 1024**2):
+def fake_probe(earliest="2024-09-17", latest="2026-09-15", per_day=200 * 1024**2, earliest_daily=None):
     return {
-        "earliest_day": earliest, "latest_day": latest, "zipped_bytes": 800 * 1024**2, "seconds_download": 60,
+        "earliest_day": earliest, "earliest_daily": earliest_daily, "latest_day": latest,
+        "zipped_bytes": 800 * 1024**2, "seconds_download": 60,
         "result": {"stage": {"seconds": 120}, "day_stats": [{
             "seconds": 60, "bytes_out": {"ais_dynamic": per_day, "ais_fullres": 10 * GB}}],
             "days_failed": {}},
@@ -115,3 +116,15 @@ def test_doctor_network_deadline(monkeypatch):
     t0 = _t.monotonic()
     res = doctor.network_checks(deadline_s=0.3)
     assert _t.monotonic() - t0 < 2 and all(c.status == doctor.WARN for c in res)
+
+
+def test_gate_defaults_to_first_daily_file_and_guards_monthly():
+    p = fake_probe(earliest="2006-03-01", earliest_daily="2024-03-01", per_day=2_500_000)
+    d = window.decide(p, free_gb=86, today=date(2026, 9, 17))
+    assert d.start == "2024-03-01" and len(d.cutoffs) == 19 and len(d.supervised_cutoffs) == 12
+    with pytest.raises(window.WindowGateError, match="monthly"):
+        window.decide(p, free_gb=86, today=date(2026, 9, 17), start=date(2023, 1, 1))
+    d = window.decide(p, free_gb=86, today=date(2026, 9, 17), start=date(2023, 1, 1), allow_monthly=True)
+    assert d.start == "2023-01-01"
+    d = window.decide(p, free_gb=86, today=date(2026, 9, 17), start=date(2024, 6, 1))
+    assert d.start == "2024-06-01"

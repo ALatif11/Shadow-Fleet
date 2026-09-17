@@ -46,7 +46,7 @@ shadowfleet/
 ```
 
 ## Phases (one Opus session each)
-0 probes, scaffold, frozen ingest schema, DMA one-day benchmark, bulk ingest start, llama.cpp smoke test, window gate · 1 DMA ingest completion, population, gap evidence, STS readiness · 2 labels and PREREG.md · 3 identity resolution · 4a GFW events · 4b self-built detectors · 5a feature store and leakage suite · 5b baselines and harness · 6 models, ablations, drift, SHAP · 7 graph layer (stretch only; skip unless ahead of schedule) · 8 briefs · 9 faithfulness · 10 report.
+0 probes, scaffold, frozen ingest schema, DMA one-day benchmark, bulk ingest start, llama.cpp smoke test, window gate · 1 DMA ingest completion, population, gap evidence, STS readiness · 2 labels and PREREG.md · 3 identity resolution · 4a GFW events · 4b self-built detectors · 5a feature store and leakage suite · 5b baselines and harness · 6 models, ablations, drift, SHAP · 7 graph layer (stretch only; skip unless ahead of schedule) · 8 briefs · 9 faithfulness · 10 report · F forward test (score on or after 2026-10-01, evaluate spring 2027).
 
 ## Conventions
 - Python 3.11+, `uv` or `pip` with `pyproject.toml`. Core deps: duckdb, pyarrow, polars or pandas, shapely, pyproj, lightgbm, scikit-learn, igraph, httpx, pydantic, typer, pytest, matplotlib. Add nothing heavy without a note in the phase report.
@@ -68,6 +68,8 @@ shadowfleet/
 - Spoof-jump counts are normalised per day and 0.5-degree cell by the share of all vessels jumping, so GNSS-interference days wash out.
 - Labels: replay of the OFAC SDN change archive for (imo, action, date); 2024 onward is PDF-only, cross-checked against SDN advanced XML entry dates. EU = Annex XLII to Reg 833/2014 (OpenSanctions program `EU-MARE`), not the EU FSF file. UK = `gb_fcdo_sanctions` listing dates. EU/UK dates cross-checked by diffing dated OpenSanctions exports. Headline label OFAC∪EU∪UK; OFAC-only reported as a sensitivity table.
 - Hull identity = IMO by majority vote over DMA static messages; GFW identity linking used as fallback only, with a silver test set from OpenSanctions and GFW IMO-MMSI pairs and a sensitivity arm that disables GFW-based merges.
+- Window (decided Sep 17 2026): 2024-03-01 (first daily DMA file) to the latest file; monthly-archive backfill is optional and needs the stage-2 day-column optimisation first.
+- Strait of Hormuz closure (2026-02-28) is a pre-registered regime break (`config.REGIME_BREAKS`): metrics and drift are reported before and after it; it is never a window bound. Forward test (Phase F): top 50 committed to git on or after 2026-10-01 and scored against real designations through spring 2027 (ADR-17).
 - Backtest: monthly cutoffs, 180 d feature window, 182 d horizon, expanding-window training on cutoffs whose horizon closed before T. Metrics per cutoff, monthly and quarterly aggregates, stratified by the B1 Russia-port rule, plus a first-appearance evaluation (each hull scored only at its first eligible cutoff).
 - Lead time is event-study: designation date minus the earliest cutoff at which the hull ranked in the top k. Per-cutoff lead time is a supplement.
 - Metrics: precision@k and recall@k (k = 25/50/100), PR-AUC, alert volume needed for 50 percent recall, FPR at the operating point, calibration; mandatory qualitative review of the top 20 non-listed flags per cutoff with a labelled reason.
