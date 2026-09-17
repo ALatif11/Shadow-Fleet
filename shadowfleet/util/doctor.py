@@ -70,19 +70,49 @@ def checks(network: bool = True) -> list[Check]:
     except ImportError as e:
         out.append(Check("duckdb/pyarrow", FAIL, repr(e)))
     if network:
-        from shadowfleet.util import net
-
-        targets = {
-            "net: DMA": config.DMA_INDEX_URLS[0],
-            "net: GFW": config.GFW_BASE_URL,
-            "net: OFAC": "https://ofac.treasury.gov/",
-            "net: OpenSanctions": f"{config.OPENSANCTIONS_BASE}/latest/maritime/index.json",
-        }
-        with net.client(timeout=15) as c:
-            for name, url in targets.items():
-                try:
-                    r = c.get(url)
-                    out.append(Check(name, OK if r.status_code < 500 else WARN, f"HTTP {r.status_code}"))
-                except Exception as e:  # noqa: BLE001
-                    out.append(Check(name, WARN, repr(e)[:120]))
+        out.extend(network_checks())
     return out
+
+
+def _probe_url(url: str, timeout: float) -> str:
+    """Status line for one URL; reads headers only, never the body (the DMA index is large)."""
+    import httpx
+
+    from shadowfleet.util import net
+
+    with net.client(timeout=httpx.Timeout(timeout)) as c, c.stream("GET", url) as r:
+        return f"HTTP {r.status_code}"
+
+
+def network_checks(deadline_s: float = 30.0) -> list[Check]:
+    """All network probes in parallel daemon threads with one overall deadline, so a DNS stall
+    cannot hang doctor (ThreadPoolExecutor would still join the stuck thread at exit)."""
+    import threading
+    import time
+
+    targets = {
+        "net: DMA": config.DMA_INDEX_URLS[0],
+        "net: GFW": config.GFW_BASE_URL,
+        "net: OFAC": "https://ofac.treasury.gov/",
+        "net: OpenSanctions": f"{config.OPENSANCTIONS_BASE}/latest/maritime/index.json",
+        "net: GitHub": "https://github.com/",
+    }
+    print(f"checking network (up to {deadline_s:.0f} s)...", file=sys.stderr, flush=True)
+    results: dict[str, Check] = {}
+
+    def work(name: str, url: str) -> None:
+        try:
+            status = _probe_url(url, 15.0)
+            code = int(status.split()[1])
+            results[name] = Check(name, OK if code < 500 else WARN, status)
+        except Exception as e:  # noqa: BLE001
+            results[name] = Check(name, WARN, repr(e)[:120])
+
+    threads = [threading.Thread(target=work, args=kv, daemon=True) for kv in targets.items()]
+    for t in threads:
+        t.start()
+    end = time.monotonic() + deadline_s
+    for t in threads:
+        t.join(max(0.0, end - time.monotonic()))
+    return [results.get(n) or Check(n, WARN, f"no answer within {deadline_s:.0f} s (DNS or firewall?)")
+            for n in targets]
