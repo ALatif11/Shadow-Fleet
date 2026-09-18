@@ -46,3 +46,11 @@ added to OFAC's SDN List:
 
 ZETA WIND Crude Oil Tanker Gabon flag; Vessel Registration Identification IMO 9176187 (vessel)
 [RUSSIA-EO14024].
+
+• 09/12/25
+
+The following [RUSSIA-EO14024] entries have been added
+to OFAC's SDN List:
+
+ETA FLOW Crude Oil Tanker Panama flag; Vessel Registration Identification IMO 9074729 (vessel)
+[RUSSIA-EO14024].

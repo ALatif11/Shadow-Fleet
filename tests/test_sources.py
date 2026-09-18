@@ -24,13 +24,14 @@ def test_change_archive_parser_on_synthetic_fixture():
         ("2025-02-27", "remove", "DELTA SEA", 9176187),
         ("2025-06-05", "add", "EPSILON", None),  # 1234568 fails the check digit
         ("2025-07-14", "add", "ZETA WIND", 9176187),  # 2-digit year, heading wrapped over two lines
+        ("2025-09-12", "add", "ETA FLOW", 9074729),    # PDF bullet date
     ]
     alpha = vessels[0]
     assert "Linked To" in alpha.raw and alpha.programs == ["RUSSIA-EO14024"]
     assert vessels[2].old_raw and "Panama" in vessels[2].old_raw
-    assert st.dates == 4 and st.vessel_entries == 6 and st.vessel_entries_with_imo == 5
+    assert st.dates == 5 and st.vessel_entries == 7 and st.vessel_entries_with_imo == 6
     assert st.entries_without_action == 1  # the fixture preamble, counted rather than silently dropped
-    assert st.actions == {"add": 4, "modify": 1, "remove": 1}
+    assert st.actions == {"add": 5, "modify": 1, "remove": 1}
     assert not any("Page 3" in r.raw for r in rows)
 
 

@@ -70,6 +70,8 @@ NOISE = [
     re.compile(r"^\s*specially designated nationals (list )?update\s*$", re.I),
 ]
 PROGRAM_TAG = re.compile(r"\[([A-Z0-9][A-Z0-9 _./-]*?)\]")
+# PDF archives list each section's date as a bullet: "• 01/03/25" (found in sdnnew25 text, Sep 18 2026).
+BULLET = re.compile(r"^[\s\u2022\u00b7\u25cf*]+")
 TO_MARK = re.compile(r"^\s*-\s*to\s*-\s*$", re.I)
 ENTRY_END = re.compile(r"(\]|\))\.\s*$")
 
@@ -214,7 +216,8 @@ def parse_changes_text(text: str) -> tuple[list[ChangeRow], ParseStats]:
     for line in _join_wrapped_headings(text.replace("\r", "")).split("\n"):
         if any(p.match(line) for p in NOISE):
             continue
-        m = DATE_LINE.match(line) or DATE_LINE_LONG.match(line)
+        bare = BULLET.sub("", line)
+        m = DATE_LINE.match(bare) or DATE_LINE_LONG.match(bare)
         if m:
             close_pending()
             cur_date, cur_action = _parse_date(m.group(1)), None
