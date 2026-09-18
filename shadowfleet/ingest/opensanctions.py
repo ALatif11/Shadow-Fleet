@@ -16,7 +16,7 @@ from pathlib import Path
 
 from shadowfleet import config
 from shadowfleet.util import net, probes
-from shadowfleet.util.ids import imo_valid
+from shadowfleet.util.ids import normalize_imo
 
 log = logging.getLogger(__name__)
 
@@ -86,16 +86,16 @@ def maritime_summary(text: str) -> tuple[dict, list[str]]:
         n += 1
         t = (row.get(c_type) or "") if c_type else ""
         types[t] += 1
-        imo = "".join(ch for ch in (row.get(c_imo) or "") if ch.isdigit()) if c_imo else ""
+        imo = str(normalize_imo(row.get(c_imo)) or "") if c_imo else ""
         if t.lower() in ("vessel", "") and imo:
             n_vessel += 1
-        if imo and imo_valid(imo):
+        if imo:
             n_imo += 1
         rks = _split(row.get(c_risk)) if c_risk else []
         dss = _split(row.get(c_ds)) if c_ds else []
         risks.update(rks)
         datasets.update(dss)
-        if imo and imo_valid(imo) and any("sanction" in r for r in rks) and config.OPENSANCTIONS_OFAC in dss:
+        if imo and any("sanction" in r for r in rks) and config.OPENSANCTIONS_OFAC in dss:
             candidates.add(imo)
     summary = {"header": header, "rows": n, "rows_with_valid_imo": n_imo, "vessel_rows_with_imo": n_vessel,
                "type_counts": dict(types.most_common(10)), "risk_counts": dict(risks.most_common(30)),
@@ -124,7 +124,7 @@ def vessel_sanction_summary(path: Path, program_hint: str | None = None) -> dict
         schema = e.get("schema")
         props = e.get("properties") or {}
         if schema == "Vessel":
-            vessels[e["id"]] = {"imo": (props.get("imoNumber") or [None])[0],
+            vessels[e["id"]] = {"imo": normalize_imo((props.get("imoNumber") or [None])[0]),
                                 "first_seen": e.get("first_seen")}
         elif schema == "Sanction":
             sanctions.append(props)

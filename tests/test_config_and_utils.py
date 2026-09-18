@@ -36,6 +36,16 @@ def test_imo_check_digit():
     assert imo_valid(9074729) and imo_valid("9176187")
     assert not imo_valid(9074728) and not imo_valid("123") and not imo_valid(None) and not imo_valid("0000000")
     assert not imo_valid("0023569")  # passes the check digit, but IMO numbers never start with 0
+
+
+def test_normalize_imo_accepts_every_spelling_sources_use():
+    from shadowfleet.util.ids import normalize_imo
+
+    assert normalize_imo("IMO9402263") == 9402263      # OpenSanctions FtM
+    assert normalize_imo("IMO 9402263") == 9402263
+    assert normalize_imo(9402263) == 9402263           # DMA int
+    assert normalize_imo("9402263") == 9402263         # OFAC advanced XML
+    assert normalize_imo("0023569") is None and normalize_imo("") is None and normalize_imo(None) is None
     txt = "Vessel Registration Identification IMO 9074729; IMO 9074728; imo:9176187"
     assert extract_imos(txt) == [9074729, 9176187]
 

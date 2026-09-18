@@ -51,8 +51,8 @@ def test_advanced_xml_gives_dated_vessel_adds(tmp_path):
 
 def test_opensanctions_rows_with_celex_fallback(tmp_path):
     lines = [
-        {"id": "v1", "schema": "Vessel", "properties": {"imoNumber": ["9074729"], "name": ["BETA"]}},
-        {"id": "v2", "schema": "Vessel", "properties": {"imoNumber": ["9176187"]}},
+        {"id": "v1", "schema": "Vessel", "properties": {"imoNumber": ["IMO9074729"], "name": ["BETA"]}},
+        {"id": "v2", "schema": "Vessel", "properties": {"imoNumber": ["IMO 9176187"]}},
         {"id": "v3", "schema": "Vessel", "properties": {"imoNumber": ["0023569"]}},  # junk IMO, dropped
         {"id": "s1", "schema": "Sanction", "properties": {"entity": ["v1"], "programId": ["EU-MARE"],
                                                           "startDate": ["2024-06-25"]}},

@@ -18,6 +18,15 @@ def imo_valid(imo: int | str | None) -> bool:
     return total % 10 == int(s[6])
 
 
+def normalize_imo(value: object) -> int | None:
+    """Digits of an IMO written any of the ways sources write it, or None if it is not a valid IMO.
+
+    OpenSanctions writes "IMO9402263", OFAC's advanced XML writes a bare "9402263", DMA writes an int.
+    """
+    digits = "".join(ch for ch in str(value or "") if ch.isdigit())
+    return int(digits) if imo_valid(digits) else None
+
+
 def extract_imos(text: str) -> list[int]:
     """Valid IMO numbers mentioned as 'IMO nnnnnnn', in order, de-duplicated."""
     out: list[int] = []

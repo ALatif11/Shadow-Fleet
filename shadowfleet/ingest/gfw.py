@@ -137,6 +137,7 @@ class GfwClient:
 
 # ---------------------------------------------------------------------- response helpers
 def _digits(v) -> str:
+    """Digits only; GFW writes IMOs bare, OpenSanctions with an "IMO" prefix."""
     return "".join(ch for ch in str(v or "") if ch.isdigit())
 
 

@@ -26,7 +26,7 @@ import pyarrow.parquet as pq
 
 from shadowfleet import config
 from shadowfleet.ingest import ofac, opensanctions
-from shadowfleet.util.ids import extract_imos, imo_valid
+from shadowfleet.util.ids import extract_imos, imo_valid, normalize_imo
 
 log = logging.getLogger(__name__)
 
@@ -149,10 +149,9 @@ def opensanctions_rows(path: Path, source: str, program: str | None, celex_dates
     for e in opensanctions.iter_ftm(path):
         props = e.get("properties") or {}
         if e.get("schema") == "Vessel":
-            imos = [i for i in (str(x) for x in (props.get("imoNumber") or [])) if imo_valid(i)]
+            imos = [i for i in (normalize_imo(x) for x in (props.get("imoNumber") or [])) if i]
             if imos:
-                vessels[e["id"]] = {"imo": int(imos[0]),
-                                    "name": (props.get("name") or [None])[0]}
+                vessels[e["id"]] = {"imo": imos[0], "name": (props.get("name") or [None])[0]}
         elif e.get("schema") == "Sanction":
             sanctions.append(props)
     out: list[dict] = []
