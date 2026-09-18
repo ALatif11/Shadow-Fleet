@@ -47,23 +47,31 @@ def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
-def parse_advanced_xml(path: Path) -> list[dict]:
-    """Vessel entries with an IMO and their dated entry events.
+def parse_advanced_xml(path: Path, imo_by_ent: dict[str, int] | None = None) -> list[dict]:
+    """Dated entry events for vessel entries.
 
-    Two passes over one streamed parse: `DistinctParty` gives profile id -> (name, imo), `SanctionsEntry`
-    gives profile id -> events. Only entries currently on the list appear here (ADR-4 amended).
+    OFAC stores a vessel's IMO as a bare 7-digit `VersionDetail`, not as "IMO nnnnnnn" (found Sep 18 2026,
+    which is why the first run returned nothing). Two ways to know a party is a vessel with an IMO:
+      1. `imo_by_ent`: entity number -> IMO from the current SDN CSV, which already says `sdn_type=vessel`.
+      2. fallback: any bare 7-digit value in the party subtree whose IMO check digit passes.
+    The fallback is only used for parties the CSV does not cover; `via` records which path supplied the row.
     """
+    imo_by_ent = imo_by_ent or {}
     parties: dict[str, dict] = {}
     rows: list[dict] = []
     for _, el in ET.iterparse(path, events=("end",)):
         tag = _local(el.tag)
         if tag == "DistinctParty":
-            text = " ".join(t or "" for t in el.itertext())
-            imos = extract_imos(text)
             pid = el.get("FixedRef") or el.get("ID") or ""
-            if pid and imos:
-                name = next((t.strip() for t in el.itertext() if t and t.strip()), "")
-                parties[pid] = {"imo": imos[0], "name": name[:200]}
+            texts = [t.strip() for t in el.itertext() if t and t.strip()]
+            imo = imo_by_ent.get(pid)
+            source = "sdn_csv"
+            if imo is None:
+                bare = [int(t) for t in texts if t.isdigit() and imo_valid(t)]
+                named = extract_imos(" ".join(texts))
+                imo, source = (named[0] if named else bare[0] if bare else None), "xml_scan"
+            if pid and imo:
+                parties[pid] = {"imo": imo, "name": texts[0][:200] if texts else "", "imo_source": source}
             el.clear()
         elif tag == "SanctionsEntry":
             pid = el.get("ProfileID") or ""
@@ -81,9 +89,10 @@ def parse_advanced_xml(path: Path) -> list[dict]:
     for r in rows:
         party = parties.get(r.pop("profile_id"))
         if not party:
-            continue  # not a vessel, or no IMO in its features
+            continue  # not a vessel, or no IMO anywhere in its features
         out.append({"source": "OFAC", "action": r["action"], "date": r["date"], "imo": party["imo"],
-                    "name": party["name"], "program": r["program"], "via": "advanced_xml",
+                    "name": party["name"], "program": r["program"],
+                    "via": f"advanced_xml:{party['imo_source']}",
                     "raw": f"EntryEventTypeID={r['event_type_id']}"})
     return out
 
@@ -324,9 +333,18 @@ def build(years: range | None = None) -> dict:
     if not xml_path.exists():
         with net.client(timeout=300) as c:
             ofac._cached_download(c, config.OFAC_SDN_ADVANCED_XML_URLS, "sdn_advanced.xml")
-    xml_rows = parse_advanced_xml(xml_path)
+    csv_path = config.HTTP_CACHE_DIR / "ofac" / "sdn.csv"
+    imo_by_ent: dict[str, int] = {}
+    if csv_path.exists():
+        for v in ofac.sdn_vessels(ofac.parse_sdn_csv(csv_path.read_bytes().decode("latin-1"))):
+            if v["imo"]:
+                imo_by_ent[str(v["ent_num"])] = v["imo"]
+    stats["sdn_csv_vessels_with_imo"] = len(imo_by_ent)
+    xml_rows = parse_advanced_xml(xml_path, imo_by_ent)
     rows += xml_rows
-    stats["ofac_xml"] = {"rows": len(xml_rows), "imos": len({r["imo"] for r in xml_rows})}
+    stats["ofac_xml"] = {"rows": len(xml_rows), "imos": len({r["imo"] for r in xml_rows}),
+                         "by_via": {v: sum(1 for r in xml_rows if r["via"] == v)
+                                    for v in {r["via"] for r in xml_rows}}}
 
     arch = archive_rows(years or range(2022, date.today().year + 1))
     rows += arch

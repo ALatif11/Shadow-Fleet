@@ -14,7 +14,7 @@ ADV_XML = """<?xml version="1.0"?>
   <DistinctParty FixedRef="100"><Profile><Identity><Alias><DocumentedName>
    <DocumentedNamePart><NamePartValue>ALPHA STAR</NamePartValue></DocumentedNamePart>
   </DocumentedName></Alias></Identity>
-  <Feature><FeatureVersion><VersionDetail>Vessel Registration Identification IMO 9074729</VersionDetail>
+  <Feature><FeatureVersion><VersionDetail>9074729</VersionDetail>
   </FeatureVersion></Feature></Profile></DistinctParty>
   <DistinctParty FixedRef="200"><Profile><Identity><Alias><DocumentedName>
    <DocumentedNamePart><NamePartValue>NOT A VESSEL LLC</NamePartValue></DocumentedNamePart>
@@ -42,7 +42,10 @@ def test_advanced_xml_gives_dated_vessel_adds(tmp_path):
     rows = L.parse_advanced_xml(p)
     assert [(r["imo"], r["action"], r["date"].isoformat()) for r in rows] == [
         (9074729, "add", "2025-01-10"), (9074729, "modify", "2025-03-04")]
-    assert rows[0]["program"] == "RUSSIA-EO14024" and rows[0]["via"] == "advanced_xml"
+    assert rows[0]["program"] == "RUSSIA-EO14024" and rows[0]["via"] == "advanced_xml:xml_scan"
+    # the SDN CSV mapping wins when it covers the entity
+    named = L.parse_advanced_xml(p, {"100": 9176187})
+    assert named[0]["imo"] == 9176187 and named[0]["via"] == "advanced_xml:sdn_csv"
     assert rows[0]["name"].strip() == "ALPHA STAR"  # the non-vessel party is dropped
 
 
