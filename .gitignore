@@ -6,8 +6,12 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 reports/logs/
-# GFW-derived and OpenSanctions bulk data must never be committed (CLAUDE.md rule 7)
+# GFW-derived and OpenSanctions bulk data must never be committed (CLAUDE.md rule 7).
+# Probe output is raw source data (gfw.json holds GFW events, opensanctions.json holds vessel records), and
+# it is regenerable, so the whole directory stays local. The rendered reports/phase*.md are the deliverable.
+reports/probes/
 reports/phase0_gfw_vessel.json
-reports/probes/raw/
+reports/phase0_ofac_sample.txt
+reports/phase2_spotcheck.csv
 *.zip
 *.part
