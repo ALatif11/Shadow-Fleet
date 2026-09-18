@@ -192,6 +192,17 @@ def labels_cmd(years: str = typer.Option(None, help="archive years, e.g. 2022-20
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase2.md'}", err=True)
 
 
+@app.command("identity")
+def identity_cmd() -> None:
+    """Phase 3: hull ids, identity intervals, coverage, fragmentation and the population cross-check."""
+    from shadowfleet.resolve import identity
+
+    logs.setup("identity")
+    out = identity.run_all()
+    _print(out)
+    typer.echo(f"wrote {config.REPORTS_DIR / 'phase3.md'}", err=True)
+
+
 @app.command("probe-opensanctions")
 def probe_opensanctions() -> None:
     """Phase 0 task 7."""
