@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -188,3 +190,23 @@ def test_celex_table_in_the_repo_is_cited_and_parseable():
     raw = (config.REPO_ROOT / "config" / "celex_dates.json").read_text()
     for celex in dates:
         assert f"_source_{celex}" in raw, f"{celex} has no cited source"
+
+
+def test_spotcheck_sample_is_stratified_and_stable(tmp_data):
+    from datetime import date as _date
+
+    rows = ([{"source": "OFAC", "action": "add", "imo": 9000000 + i, "name": f"O{i}",
+              "date": _date(2025, 1, 1), "program": "RUSSIA-EO14024"} for i in range(20)]
+            + [{"source": "EU", "action": "add", "imo": 9100000 + i, "name": f"E{i}",
+                "date": _date(2025, 2, 1), "program": "EU-MARE"} for i in range(20)]
+            + [{"source": "UK", "action": "add", "imo": 9200000 + i, "name": f"U{i}",
+                "date": _date(2025, 3, 1), "program": None} for i in range(20)]
+            + [{"source": "OFAC", "action": "remove", "imo": 9300000, "name": "GONE",
+                "date": _date(2025, 4, 1), "program": None}])
+    first = Path(L.spotcheck_sample(rows)).read_text()
+    assert first == Path(L.spotcheck_sample(rows)).read_text()  # seeded: same ten on a rerun
+    lines = first.strip().splitlines()
+    assert len(lines) == 11  # header + 10
+    by_source = Counter(ln.split(",")[0] for ln in lines[1:])
+    assert by_source == Counter({"OFAC": 4, "EU": 3, "UK": 3})
+    assert "GONE" not in first  # removals are not designations

@@ -403,4 +403,35 @@ def build(years: range | None = None) -> dict:
             wr.writeheader()
             wr.writerows(stats["positives_by_cutoff"])
         stats["positives_csv"] = str(csv_path)
+    stats["spotcheck_csv"] = spotcheck_sample(rows)
     return stats
+
+
+def spotcheck_sample(rows: list[dict] | None = None, n: int = 10, seed: int = 20260918) -> str:
+    """Ten designations to hand-check against the official publications (Phase 2 task 5).
+
+    Stratified across sources so the check covers all three parsers, and seeded so the same ten come back
+    on a rerun; the point is a fixed list Adam can tick off, not a fresh sample every time.
+    """
+    import csv as _csv
+    import random
+
+    rows = rows if rows is not None else _actions()
+    adds = [r for r in rows if r["action"] == "add" and r.get("imo") and r.get("name")]
+    rng = random.Random(seed)
+    want = {"OFAC": 4, "EU": 3, "UK": 3}
+    picked: list[dict] = []
+    for source, k in want.items():
+        pool = [r for r in adds if r["source"] == source]
+        picked += rng.sample(pool, min(k, len(pool)))
+    out = config.REPORTS_DIR / "phase2_spotcheck.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with open(out, "w", newline="") as f:
+        wr = _csv.DictWriter(f, fieldnames=["source", "imo", "name", "date", "program",
+                                            "verified_y_n", "official_url", "note"])
+        wr.writeheader()
+        for r in sorted(picked, key=lambda r: (r["source"], r["date"])):
+            wr.writerow({"source": r["source"], "imo": r["imo"], "name": r["name"],
+                         "date": r["date"].isoformat(), "program": r.get("program") or "",
+                         "verified_y_n": "", "official_url": "", "note": ""})
+    return str(out)

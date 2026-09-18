@@ -298,7 +298,19 @@ def render_phase2() -> str:
         lines.append(f"| {r['cutoff']} | {r['population_observed']} | {r['population_in_scope']} | "
                      f"{r['excluded_already_listed']} | {r['positives_union']} | {r['positives_ofac_only']} | "
                      f"{r.get('ofac_adds_in_horizon_all')} | {r.get('ofac_adds_already_eu_uk_listed')} |")
+    thin = [r for r in rows if (r.get("positives_union") or 0) < 30]
+    fires = len(thin) > len(rows) / 3 if rows else False
     lines += ["", f"- Full table: `{p.get('positives_csv')}`", "",
+              "## The PREREG thin-positives rule", "",
+              f"- Union positives are below 30 at {len(thin)} of {len(rows)} cutoffs "
+              f"(the rule fires above {len(rows) / 3:.1f}). **{'FIRED' if fires else 'not fired'}.**",
+              ("- Reporting therefore aggregates to quarters per ADR-11. Scoring stays monthly; this changes "
+               "how metrics are presented, not how they are computed. It is a pre-registered branch, taken "
+               "before any model exists, so it carries no post-hoc label."
+               if fires else "- Monthly reporting stands."),
+              "- The cause is visible in the table: designations arrive in packages, so positives are lumpy "
+              "rather than thin on average. Late cutoffs are also the ones whose horizon runs into the end "
+              "of the data.", "",
               "## Findings", "",
               "- The union label (OFAC/EU/UK) carries the evaluation. Late-2024 cutoffs are the richest, "
               "because the January 2025 OFAC action falls inside their 182-day horizon.",
@@ -310,7 +322,9 @@ def render_phase2() -> str:
               "- `EntryEventTypeID = 1` is the original entry in the SDN advanced XML; other ids are recorded "
               "as `modify` rather than interpreted.",
               "- EU dates are entry-into-force dates; the CELEX table in `config/celex_dates.json` cites each.",
-              "- Ten positives still need a hand spot-check against the official press releases.", ""]
+              "- Ten designations for the hand spot-check are in "
+              "`reports/phase2_spotcheck.csv`, seeded so a rerun gives the same ten; "
+              "the `verified_y_n` and `official_url` columns are Adam's to fill.", ""]
     return "\n".join(lines)
 
 
