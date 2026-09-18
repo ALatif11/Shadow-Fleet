@@ -359,7 +359,7 @@ def render_phase3(out: dict | None = None) -> str:
              "vessel has no hull id until its first window closes; that is the warm-up above.",
              "- No GFW identity merge was built: IMO majority meets the bar on its own, so no hull id depends "
              "on a GFW model and the Phase 5a entity-resolution sensitivity arm has nothing to disable.", "",
-             "", "### What the thresholds cost", "",
+             "### What the thresholds cost", "",
              "| min IMO-days | min support | share of MMSI-days by IMO | |", "|---:|---:|---:|---|"] + [
              f"| {g['min_imo_days']} | {g['min_support']} | {g['share_by_imo']} |"
              f" {'**chosen**' if g.get('chosen') else ''} |" for g in (p.get("coverage_by_threshold") or [])
@@ -370,17 +370,12 @@ def render_phase3(out: dict | None = None) -> str:
              f"- Flags resolved from {iv.get('mid_rows')} ITU MID rows; "
              f"{iv.get('intervals_with_flag')} intervals carry a flag.", "",
              "## Checks", ""]
-    if frag.get("skipped"):
-        lines.append(f"- Fragmentation: skipped ({frag['skipped']}).")
-    else:
-        lines.append(f"- Fragmentation: {frag.get('single_hull_id')} of {frag.get('checked')} designated IMOs "
-                     f"map to exactly one hull id. Fragmented: {frag.get('fragmented')}")
-    if silver.get("skipped"):
-        lines.append(f"- Silver set: skipped ({silver['skipped']}).")
-    else:
-        lines.append(f"- Silver set (OpenSanctions IMO-MMSI pairs): {silver.get('agree')} of "
-                     f"{silver.get('pairs_in_population')} pairs agree (precision {silver.get('precision')}); "
-                     f"{silver.get('disagree')} resolved to a different IMO.")
+    lines.append("- Fragmentation: " + (frag.get("skipped")
+                 or f"{frag.get('single_hull_id')} of {frag.get('checked')} designated IMOs map to exactly "
+                    f"one hull id. Fragmented: {frag.get('fragmented')}"))
+    lines.append("- Silver set (OpenSanctions IMO-MMSI pairs): " + (silver.get("skipped")
+                 or f"{silver.get('agree')} of {silver.get('pairs_in_population')} pairs agree (precision "
+                    f"{silver.get('precision')}); {silver.get('disagree')} resolved to a different IMO."))
     lines += [f"- Population cross-check: {xc.get('mmsi_tanker_sized_never_tanker_class')} MMSIs are "
               f"tanker-sized with an unknown reported type and were never tanker-class; "
               f"{xc.get('of_those_later_designated', 'n/a')} of them were later designated.", "",
@@ -400,4 +395,4 @@ def write_phase3(out: dict | None = None) -> str:
     text = render_phase3(out)
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORTS_DIR / "phase3.md").write_text(text)
-    return str(config.REPORTS_DIR / "phase3.md")
+    return text

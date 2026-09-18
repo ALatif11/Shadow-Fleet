@@ -26,20 +26,14 @@ FEATURES = {
 }
 
 
-def features(T: date, con: duckdb.DuckDBPyConnection | None = None,
-             hull_ids: list[str] | None = None) -> list[dict]:
+def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict]:
     """One row per hull with an identity interval starting on or before T."""
     con = con or connect()
     path = (config.PARQUET_DIR / INTERVALS).as_posix()
     flags = ", ".join(f"'{f}'" for f in config.CONVENIENCE_FLAGS)
-    only = ""
-    if hull_ids is not None:
-        if not hull_ids:
-            return []
-        only = "AND hull_id IN (" + ", ".join(f"'{h}'" for h in hull_ids) + ")"
-    rows = con.execute(f"""
+    cur = con.execute(f"""
         WITH iv AS (
-          SELECT * FROM read_parquet('{path}') WHERE "start" <= TIMESTAMP '{T} 23:59:59' {only}
+          SELECT * FROM read_parquet('{path}') WHERE "start" <= TIMESTAMP '{T} 23:59:59'
         ), c AS (
           SELECT hull_id, "start", mmsi, name_normalised, flag_iso3,
             row_number() OVER w AS rn,
@@ -59,8 +53,7 @@ def features(T: date, con: duckdb.DuckDBPyConnection | None = None,
             AS days_since_last_identity_change,
           arg_max(flag_iso3, "start") AS current_flag
         FROM c GROUP BY hull_id ORDER BY hull_id
-    """).fetchall()
-    cols = ["hull_id", "n_name_changes", "n_mmsi_changes", "n_flag_changes",
-            "flag_to_convenience_registry", "days_since_last_identity_change", "current_flag"]
+    """)
+    cols = [d[0] for d in cur.description]  # named by the SELECT, so the two cannot drift apart
     # vessel_age_years needs the GFW registry build year (Phase 4a); null keeps the column in the frozen list.
-    return [dict(zip(cols, r, strict=True), vessel_age_years=None) for r in rows]
+    return [dict(zip(cols, r, strict=True), vessel_age_years=None) for r in cur.fetchall()]

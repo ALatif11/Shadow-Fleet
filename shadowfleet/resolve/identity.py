@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import logging
 from datetime import date
-from pathlib import Path
 
 import duckdb
 
@@ -36,9 +35,11 @@ THRESHOLD_GRID = [(1, 0.60), (2, 0.60), (3, 0.60), (5, 0.60), (5, 0.80), (10, 0.
 HULL_MAP = "hull_map.parquet"
 INTERVALS = "identity_intervals.parquet"
 
-# A 9-digit MMSI beginning 2-7 is a ship station; its first three digits are the ITU MID.
-MID_JOIN = ("length(CAST({m} AS VARCHAR)) = 9 AND substr(CAST({m} AS VARCHAR), 1, 1) BETWEEN '2' AND '7'"
-            " AND mid.mid = CAST(substr(CAST({m} AS VARCHAR), 1, 3) AS INTEGER)")
+def _kept_days() -> str:
+    """Kept MMSI-days as a subquery. A function, not a constant: tests repoint config.PARQUET_DIR, and a
+    module-level f-string would bind the path at import time (the same trap as config.load_window)."""
+    return (f"(SELECT mmsi, day FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)"
+            f" WHERE kept) x")
 
 
 def _window_start(con: duckdb.DuckDBPyConnection) -> date:
@@ -57,10 +58,11 @@ def _mid_table(con: duckdb.DuckDBPyConnection) -> int:
 
 def hull_map(con: duckdb.DuckDBPyConnection | None = None, window_days: int = WINDOW_DAYS,
              min_imo_days: int = MIN_IMO_DAYS, min_support: float = MIN_SUPPORT) -> dict:
-    """Majority-vote IMO per (MMSI, 30-day window) -> `hull_map.parquet`.
+    """Cumulative majority-vote IMO per (MMSI, window) -> `hull_map.parquet`.
 
-    Support is measured over static messages that carry an IMO at all, not over every static message:
-    Class B part-A messages have no IMO field, so the denominator would otherwise punish Class B hulls.
+    One vote per day an IMO was broadcast, counted over everything observed up to the end of the window.
+    Support is the winner's share of those day-votes, so a Class B hull is not punished for part-A messages
+    that carry no IMO field at all. See the module docstring for why the vote is cumulative.
     """
     con = con or connect()
     w0 = _window_start(con)
@@ -127,7 +129,7 @@ def hull_map(con: duckdb.DuckDBPyConnection | None = None, window_days: int = WI
             "min_support": min_support, "file": _rel(out)}
 
 
-def _as_of_hull(con: duckdb.DuckDBPyConnection, src: str, ts_col: str) -> str:
+def _as_of_hull(src: str, ts_col: str) -> str:
     """ASOF join of `src` to the hull_map window in force at `ts_col` (see the module docstring)."""
     return (f"{src} ASOF LEFT JOIN read_parquet('{(config.PARQUET_DIR / HULL_MAP).as_posix()}') hm"
             f" ON x.mmsi = hm.mmsi AND CAST(x.{ts_col} AS DATE) >= hm.effective_from")
@@ -150,8 +152,11 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
           SELECT hm.hull_id, x.mmsi, x.observed_at,
             nullif(upper(trim(regexp_replace(x.name, '\\s+', ' ', 'g'))), '') AS name_raw,
             nullif(upper(trim(x.callsign)), '') AS callsign_raw, mid.iso3 AS flag_raw
-          FROM {_as_of_hull(con, static_src, 'observed_at')}
-          LEFT JOIN mid ON {MID_JOIN.format(m='x.mmsi')}
+          FROM {_as_of_hull(static_src, 'observed_at')}
+          -- a 9-digit MMSI beginning 2-7 is a ship station; its first three digits are the MID
+          LEFT JOIN mid ON length(CAST(x.mmsi AS VARCHAR)) = 9
+            AND substr(CAST(x.mmsi AS VARCHAR), 1, 1) BETWEEN '2' AND '7'
+            AND mid.mid = CAST(substr(CAST(x.mmsi AS VARCHAR), 1, 3) AS INTEGER)
           WHERE hm.hull_id IS NOT NULL
         ), ff AS (
           SELECT hull_id, mmsi, observed_at,
@@ -184,12 +189,10 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
 def coverage(con: duckdb.DuckDBPyConnection | None = None) -> dict:
     """Share of kept MMSI-days whose as-of hull id is IMO-based (Phase 3 acceptance: >= 80 percent)."""
     con = con or connect()
-    days_src = (f"(SELECT mmsi, day FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)"
-                f" WHERE kept) x")
     total, by_imo, unmapped = con.execute(f"""
         SELECT count(*), count(*) FILTER (WHERE hm.method = 'imo_majority'),
                count(*) FILTER (WHERE hm.hull_id IS NULL)
-        FROM {_as_of_hull(con, days_src, 'day')}
+        FROM {_as_of_hull(_kept_days(), 'day')}
     """).fetchone()
     mapped = total - unmapped
     return {"mmsi_days": total, "mmsi_days_by_imo": by_imo, "mmsi_days_unmapped": unmapped,
@@ -205,14 +208,12 @@ def coverage_by_threshold(con: duckdb.DuckDBPyConnection | None = None) -> list[
     report shows the trade-off instead of defending a guess.
     """
     con = con or connect()
-    days_src = (f"(SELECT mmsi, day FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)"
-                f" WHERE kept) x")
     out = []
     for min_days, min_support in THRESHOLD_GRID:
         total, by_imo = con.execute(f"""
             SELECT count(*), count(*) FILTER (WHERE hm.n_imo_days >= {min_days}
                                                 AND hm.support >= {min_support})
-            FROM {_as_of_hull(con, days_src, 'day')}
+            FROM {_as_of_hull(_kept_days(), 'day')}
         """).fetchone()
         out.append({"min_imo_days": min_days, "min_support": min_support,
                     "share_by_imo": round(by_imo / total, 4) if total else None,
@@ -277,25 +278,23 @@ def population_crosscheck(con: duckdb.DuckDBPyConnection | None = None) -> dict:
     """Tanker-sized hulls that never reported a tanker type, and whether any were later designated."""
     con = con or connect()
     actions = config.PARQUET_DIR / "sanctions_actions.parquet"
-    rows = con.execute(f"""
+    con.execute(f"""
+        CREATE OR REPLACE TEMP TABLE xc AS
         SELECT mmsi, max(length) AS length, mode(name) AS name, mode(imo) AS imo, count(*) AS n_days
         FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)
         WHERE length >= {config.MIN_TANKER_LENGTH_M}
           AND (ship_type IS NULL OR lower(ship_type) IN ('undefined', 'unknown', 'other'))
         GROUP BY mmsi
         HAVING NOT bool_or(tanker_today)
-        ORDER BY n_days DESC
-    """).fetchall()
+    """)
+    rows = con.execute("SELECT * FROM xc ORDER BY n_days DESC").fetchall()
     out = {"mmsi_tanker_sized_never_tanker_class": len(rows),
            "examples": [{"mmsi": r[0], "length": r[1], "name": r[2], "n_days": r[4]} for r in rows[:10]]}
-    if actions.exists() and rows:
-        imos = [int(r[3]) for r in rows if r[3]]
-        if imos:
-            hit = con.execute(f"""
-                SELECT count(DISTINCT imo) FROM read_parquet('{actions.as_posix()}')
-                WHERE action = 'add' AND imo IN ({','.join(str(i) for i in imos)})
-            """).fetchone()[0]
-            out["of_those_later_designated"] = hit
+    if actions.exists():
+        out["of_those_later_designated"] = con.execute(f"""
+            SELECT count(DISTINCT imo) FROM read_parquet('{actions.as_posix()}')
+            WHERE action = 'add' AND imo IN (SELECT imo FROM xc WHERE imo IS NOT NULL)
+        """).fetchone()[0]
     return out
 
 
@@ -307,22 +306,10 @@ def run_all(**hull_map_kwargs) -> dict:
     con = connect()
     out = {"hull_map": hull_map(con, **hull_map_kwargs), "identity_intervals": identity_intervals(con),
            "coverage": coverage(con), "fragmentation": fragmentation(con), "silver_set": silver_set(con),
-           "crosscheck": population_crosscheck(con), "method_shares": method_shares(con),
+           "crosscheck": population_crosscheck(con),
            "coverage_by_threshold": coverage_by_threshold(con)}
     from shadowfleet.util import probes, report
     probes.write("identity", out)
-    out["report"] = report.write_phase3(out)
+    report.write_phase3(out)
+    out["report"] = _rel(config.REPORTS_DIR / "phase3.md")
     return out
-
-
-def method_shares(con: duckdb.DuckDBPyConnection | None = None, path: Path | None = None) -> list[dict]:
-    """Population share by hull_id method, for the report."""
-    con = con or connect()
-    p = (path or config.PARQUET_DIR / HULL_MAP).as_posix()
-    rows = con.execute(f"""
-        SELECT method, count(*) AS windows, count(DISTINCT mmsi) AS mmsi, sum(n_days) AS mmsi_days,
-               round(avg(support), 3) AS mean_support
-        FROM read_parquet('{p}') GROUP BY method ORDER BY windows DESC
-    """).fetchall()
-    return [{"method": r[0], "windows": r[1], "mmsi": r[2], "mmsi_days": int(r[3] or 0),
-             "mean_support": r[4]} for r in rows]
