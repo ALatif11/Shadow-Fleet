@@ -186,6 +186,10 @@ def labels_cmd(years: str = typer.Option(None, help="archive years, e.g. 2022-20
     out = lab.build(rng)
     probes.write("labels", out)
     _print(out)
+    from shadowfleet.util import report as rep
+
+    rep.write_phase2()
+    typer.echo(f"wrote {config.REPORTS_DIR / 'phase2.md'}", err=True)
 
 
 @app.command("probe-opensanctions")

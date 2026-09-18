@@ -1,0 +1,5 @@
+{
+  "_about": "CELEX id -> listing date for EU vessel designations whose OpenSanctions record carries no startDate. Each entry is the regulation's entry-into-force date, matching how startDate is set on the dated records (Reg 2024/1745 in force 2024-06-25 -> startDate 2024-06-25). Every entry must cite its source and the date it was checked.",
+  "32025R2033": "2025-10-24",
+  "_source_32025R2033": "Council Regulation (EU) 2025/2033 of 23 October 2025 amending Reg (EU) 833/2014 (19th package); published in the OJ and in force 24 October 2025. eur-lex.europa.eu/eli/reg/2025/2033/oj/eng, checked 2026-09-18. Covers 55 Annex XLII vessels."
+}

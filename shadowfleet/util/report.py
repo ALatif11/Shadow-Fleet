@@ -262,3 +262,60 @@ def write_phase1() -> str:
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORTS_DIR / "phase1.md").write_text(text)
     return text
+
+
+# ---------------------------------------------------------------------------- Phase 2
+def render_phase2() -> str:
+    p = probes.read("labels")
+    if not p:
+        return "# Phase 2 report\n\n" + NOT_RUN + " - run `make labels`.\n"
+    t = p.get("table") or {}
+    rows = p.get("positives_by_cutoff") or []
+    x = p.get("xml_vs_archive") or {}
+    lines = [f"# Phase 2 report (generated {date.today().isoformat()} by `make labels`)", "",
+             "`PREREG.md` was committed before this table existed; see the git history.", "",
+             "## Sources", "", "| source | rows | distinct IMOs | note |", "|---|---:|---:|---|",
+             f"| OFAC advanced XML | {(p.get('ofac_xml') or {}).get('rows')} | "
+             f"{(p.get('ofac_xml') or {}).get('imos')} | dated EntryEvents for currently listed vessels; "
+             f"IMO via {(p.get('ofac_xml') or {}).get('by_via')} |",
+             f"| OFAC change archive | {(p.get('ofac_archive') or {}).get('rows')} | "
+             f"{(p.get('ofac_archive') or {}).get('imos')} | removals, modifications, delisted hulls |",
+             f"| EU (eu_sanctions_map, EU-MARE) | {(p.get('eu') or {}).get('rows')} | "
+             f"{(p.get('eu') or {}).get('imos')} | undated: {(p.get('eu') or {}).get('undated')} "
+             f"{(p.get('eu') or {}).get('undated_celex')} |",
+             f"| UK (gb_fcdo_sanctions) | {(p.get('uk') or {}).get('rows')} | "
+             f"{(p.get('uk') or {}).get('imos')} | undated: {(p.get('uk') or {}).get('undated')} |",
+             "", f"- `sanctions_actions.parquet`: {t.get('rows')} rows. By source and action: "
+             f"{t.get('by_source_action')}",
+             f"- CELEX dates loaded from config: {p.get('celex_entries')}",
+             f"- XML vs archive add dates: {x.get('imos_in_both')} IMOs in both, "
+             f"{x.get('agree_within_7_days')} agree within 7 days. Worst: {x.get('worst')}", "",
+             "## Positives per cutoff", "",
+             "| cutoff | observed | in scope | excluded (already listed) | positives (union) | "
+             "positives (OFAC only) | OFAC adds in horizon | of those, EU/UK-listed at T |",
+             "|---|---:|---:|---:|---:|---:|---:|---:|"]
+    for r in rows:
+        lines.append(f"| {r['cutoff']} | {r['population_observed']} | {r['population_in_scope']} | "
+                     f"{r['excluded_already_listed']} | {r['positives_union']} | {r['positives_ofac_only']} | "
+                     f"{r.get('ofac_adds_in_horizon_all')} | {r.get('ofac_adds_already_eu_uk_listed')} |")
+    lines += ["", f"- Full table: `{p.get('positives_csv')}`", "",
+              "## Findings", "",
+              "- The union label (OFAC/EU/UK) carries the evaluation. Late-2024 cutoffs are the richest, "
+              "because the January 2025 OFAC action falls inside their 182-day horizon.",
+              "- R12 is real and material: a large share of OFAC designations were already EU or UK-listed at T, "
+              "which is why the pre-registered headline is the union and OFAC-only is a sensitivity table.",
+              "- Population keyed on the modal AIS IMO until Phase 3 lands `hull_id`; hulls without a valid "
+              "AIS IMO are not yet in the population and Phase 3 measures how many that is.", "",
+              "## Assumptions to confirm", "",
+              "- `EntryEventTypeID = 1` is the original entry in the SDN advanced XML; other ids are recorded "
+              "as `modify` rather than interpreted.",
+              "- EU dates are entry-into-force dates; the CELEX table in `config/celex_dates.json` cites each.",
+              "- Ten positives still need a hand spot-check against the official press releases.", ""]
+    return "\n".join(lines)
+
+
+def write_phase2() -> str:
+    text = render_phase2()
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (config.REPORTS_DIR / "phase2.md").write_text(text)
+    return text

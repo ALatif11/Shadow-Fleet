@@ -157,3 +157,34 @@ def test_write_actions_drops_rows_without_imo_or_date(tmp_data):
 def test_missing_actions_file_is_a_clear_error(tmp_data):
     with pytest.raises(FileNotFoundError, match="Phase 2"):
         L.listed_as_of(date(2025, 1, 1))
+
+
+def test_phase2_report_renders_from_the_probe_file(tmp_data):
+    from shadowfleet.util import probes, report
+
+    probes.write("labels", {"table": {"rows": 5031, "by_source_action": []},
+                            "ofac_xml": {"rows": 1862, "imos": 1525, "by_via": {}},
+                            "ofac_archive": {"rows": 1832, "imos": 1247},
+                            "eu": {"rows": 674, "imos": 672, "undated": 0, "undated_celex": {}},
+                            "uk": {"rows": 663, "imos": 663, "undated": 0},
+                            "celex_entries": 1, "xml_vs_archive": {"imos_in_both": 900},
+                            "positives_by_cutoff": [{"cutoff": "2024-12-31", "population_observed": 2681,
+                                                     "population_in_scope": 2599,
+                                                     "excluded_already_listed": 82, "positives_union": 164,
+                                                     "positives_ofac_only": 48,
+                                                     "ofac_adds_in_horizon_all": 78,
+                                                     "ofac_adds_already_eu_uk_listed": 30}],
+                            "positives_csv": "reports/phase2_positives.csv"})
+    text = report.write_phase2()
+    assert "| 2024-12-31 | 2681 | 2599 | 82 | 164 | 48 | 78 | 30 |" in text
+    assert "R12 is real" in text
+
+
+def test_celex_table_in_the_repo_is_cited_and_parseable():
+    from shadowfleet.labels import labels as lab
+
+    dates = lab.load_celex_dates()
+    assert dates.get("32025R2033") == "2025-10-24"
+    raw = (config.REPO_ROOT / "config" / "celex_dates.json").read_text()
+    for celex in dates:
+        assert f"_source_{celex}" in raw, f"{celex} has no cited source"
