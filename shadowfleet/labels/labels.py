@@ -16,6 +16,7 @@ import json
 import logging
 import re
 import xml.etree.ElementTree as ET
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
@@ -142,7 +143,8 @@ def _first_date(props: dict, *keys: str) -> date | None:
     return None
 
 
-def opensanctions_rows(path: Path, source: str, program: str | None, celex_dates: dict[str, str]) -> list[dict]:
+def opensanctions_rows(path: Path, source: str, program: str | None, celex_dates: dict[str, str],
+                       stats: dict | None = None) -> list[dict]:
     """Vessel sanctions from an FtM export; CELEX fallback when the entity carries no date."""
     vessels: dict[str, dict] = {}
     sanctions: list[dict] = []
@@ -156,15 +158,16 @@ def opensanctions_rows(path: Path, source: str, program: str | None, celex_dates
             sanctions.append(props)
     out: list[dict] = []
     undated = 0
+    undated_celex: Counter = Counter()
     for s in sanctions:
         progs = (s.get("programId") or []) + (s.get("program") or [])
         if program and not any(program in p for p in progs):
             continue
         d = _first_date(s, "startDate", "listingDate")
         via = "startDate"
+        celex = next((m.group(1) for u in (s.get("sourceUrl") or [])
+                      if (m := opensanctions.CELEX.search(u or ""))), None)
         if d is None:
-            celex = next((m.group(1) for u in (s.get("sourceUrl") or [])
-                          if (m := opensanctions.CELEX.search(u or ""))), None)
             iso = celex_dates.get((celex or "").upper())
             if iso:
                 d, via = date.fromisoformat(iso), f"celex:{celex}"
@@ -174,11 +177,15 @@ def opensanctions_rows(path: Path, source: str, program: str | None, celex_dates
                 continue
             if d is None:
                 undated += 1
+                undated_celex[celex or "no_celex"] += 1
                 continue
             out.append({"source": source, "action": "add", "date": d, "imo": v["imo"], "name": v["name"],
                         "program": ";".join(progs) or None, "via": via, "raw": None})
     if undated:
-        log.warning("vessel sanctions without a usable date", extra={"source": source, "n": undated})
+        log.warning("vessel sanctions without a usable date",
+                    extra={"source": source, "n": undated, "celex": dict(undated_celex)})
+    if stats is not None:
+        stats.update({"undated": undated, "undated_celex": dict(undated_celex)})
     return out
 
 
@@ -272,7 +279,7 @@ def labels(T: date, population_imos: list[int], sources: tuple[str, ...] = SOURC
 
 
 def positives_table(cutoffs: list[date], population_by_cutoff: dict[date, list[int]],
-                    path: Path | None = None) -> list[dict]:
+                    path: Path | None = None, horizon_days: int = config.HORIZON_DAYS) -> list[dict]:
     """Per cutoff: population size and positives under both label sets, plus the R12 exclusion count."""
     rows = []
     for T in cutoffs:
@@ -280,14 +287,20 @@ def positives_table(cutoffs: list[date], population_by_cutoff: dict[date, list[i
         union = labels(T, pop, SOURCES, path=path)
         ofac_only = labels(T, pop, ("OFAC",), path=path)
         eu_uk_listed = listed_as_of(T, ("EU", "UK"), path)
+        # R12: OFAC designations in the horizon that the EU or UK had ALREADY listed at T. This must be
+        # counted over the observed population, not the in-scope one: rule 3 excludes exactly those hulls,
+        # so measuring it after the exclusion always returns zero (it did, in the first live run).
+        ofac_adds = first_add_in_window(T, T + timedelta(days=horizon_days), ("OFAC",), path)
+        in_pop = set(pop)
+        r12 = sum(1 for imo in ofac_adds if imo in in_pop and imo in eu_uk_listed)
         rows.append({
             "cutoff": T.isoformat(), "population_observed": len(pop),
             "population_in_scope": len(union),
             "excluded_already_listed": len(pop) - len(union),
             "positives_union": sum(r["label"] for r in union),
             "positives_ofac_only": sum(r["label"] for r in ofac_only),
-            "ofac_positives_already_eu_uk_listed": sum(
-                1 for r in labels(T, pop, ("OFAC",), path=path) if r["label"] and r["imo"] in eu_uk_listed),
+            "ofac_adds_in_horizon_all": sum(1 for imo in ofac_adds if imo in in_pop),
+            "ofac_adds_already_eu_uk_listed": r12,
         })
     return rows
 
@@ -356,10 +369,11 @@ def build(years: range | None = None) -> dict:
                                       ("UK", config.OPENSANCTIONS_UK_VESSELS, None)):
             idx = opensanctions.fetch_index(c, slug)
             path = opensanctions.download_resource(c, slug, idx, "ftm.json")
-            src_rows = opensanctions_rows(path, source, program, celex) if path else []
+            src_stats: dict = {}
+            src_rows = opensanctions_rows(path, source, program, celex, src_stats) if path else []
             rows += src_rows
             stats[source.lower()] = {"slug": slug, "rows": len(src_rows),
-                                     "imos": len({r["imo"] for r in src_rows})}
+                                     "imos": len({r["imo"] for r in src_rows}), **src_stats}
     stats["table"] = write_actions(rows)
 
     # cross-check: add dates from the XML vs the archive for the same IMO

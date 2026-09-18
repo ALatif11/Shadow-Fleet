@@ -126,6 +126,23 @@ def test_positives_table_reports_the_r12_channel(actions):
     r = rows[0]
     assert r["positives_union"] == 1 and r["positives_ofac_only"] == 1
     assert r["population_in_scope"] == 2 and r["excluded_already_listed"] == 0
+    assert r["ofac_adds_in_horizon_all"] == 1 and r["ofac_adds_already_eu_uk_listed"] == 0
+
+
+def test_r12_counts_ofac_adds_the_eu_had_already_listed(tmp_data):
+    """The hull the EU listed first is excluded from the population, so R12 must be measured before that."""
+    rows = [
+        {"source": "EU", "action": "add", "date": date(2024, 6, 1), "imo": 9074729, "name": "A",
+         "program": "EU-MARE", "via": "startDate", "raw": None},
+        {"source": "OFAC", "action": "add", "date": date(2025, 1, 10), "imo": 9074729, "name": "A",
+         "program": "RUSSIA-EO14024", "via": "advanced_xml", "raw": None},
+    ]
+    out = config.PARQUET_DIR / "a.parquet"
+    L.write_actions(rows, out)
+    T = date(2024, 12, 31)
+    r = L.positives_table([T], {T: [9074729]}, path=out)[0]
+    assert r["excluded_already_listed"] == 1 and r["positives_union"] == 0
+    assert r["ofac_adds_already_eu_uk_listed"] == 1   # the trivial channel, now visible
 
 
 def test_write_actions_drops_rows_without_imo_or_date(tmp_data):
