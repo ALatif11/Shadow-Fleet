@@ -165,10 +165,11 @@ def _detect(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     out: dict[str, dict] = {}
     if has_table(sts.TABLE):
         for hull, n in con.execute(f"""
-            SELECT unnest([hull_a, hull_b]) AS hull, count(*)
-            FROM read_parquet('{glob_table(sts.TABLE)}', hive_partitioning=true)
-            WHERE observed_at BETWEEN TIMESTAMP '{start} 00:00:00' AND {_ts(T)}
-            GROUP BY 1
+            SELECT hull, count(*) FROM (  -- one scan; a candidate counts for both of its hulls
+              SELECT unnest([hull_a, hull_b]) AS hull FROM read_parquet('{glob_table(sts.TABLE)}',
+                     hive_partitioning=true)
+              WHERE observed_at BETWEEN TIMESTAMP '{start} 00:00:00' AND {_ts(T)}
+            ) GROUP BY 1
         """).fetchall():
             out.setdefault(hull, {})["n_sts_candidates"] = n
     if has_table(loitering.TABLE):

@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from shadowfleet import config
+from shadowfleet.detect import churn, draught, loitering, spoof, sts
 from shadowfleet.features import asof
 from shadowfleet.ingest import dma
 from shadowfleet.resolve import identity
@@ -81,25 +82,43 @@ def store(tmp_data):
         z = write_zip(config.DMA_RAW_DIR / f"{d}.zip", rows, HEADER_V1)
         assert not dma.ingest_zip(z, [d], z.name).days_failed
     con = dma.connect()
-    identity.hull_map(con, **SMALL)
-    identity.identity_intervals(con)
+    # the detect tables have to exist, or _detect's whole branch goes untested and a broken query there
+    # only shows up on real data (it did: an UNNEST that DuckDB rejects next to GROUP BY)
+    _rebuild_derived(con)
     return con
 
 
+RAW_TABLES = ("ais_dynamic", "ais_static", "ais_artifacts", "jump_baseline", "vessel_day", "ais_fullres")
+
+
+def _rebuild_derived(con) -> None:
+    identity.hull_map(con, **SMALL)
+    identity.identity_intervals(con)
+    for mod in (sts, loitering, draught, spoof, churn):
+        mod.run(con)
+
+
 def test_features_at_T_ignore_everything_after_T(store):
-    """PREREG test 1, the one that matters: the live store and a store physically cut at T must agree."""
+    """PREREG test 1, the one that matters.
+
+    The truncation has to be of the RAW tables, with everything derived rebuilt from what is left: that is
+    what the project would actually have had in hand at T. Deleting the derived tables' partitions by name
+    instead is both wrong and silently wrong, since `dt=all` sorts after any `dt=<date>`.
+    """
     T = (DAY + timedelta(days=5)).date()
     live = asof.features(T, store)
     assert live, "fixture produced no population"
 
-    for part in config.PARQUET_DIR.glob("*/dt=*"):
-        if part.name > f"dt={T}":
-            for f in part.glob("*"):
-                f.unlink()
-            part.rmdir()
+    for table in RAW_TABLES:
+        for part in (config.PARQUET_DIR / table).glob("dt=*"):
+            if part.name > f"dt={T}":
+                for f in part.glob("*"):
+                    f.unlink()
+                part.rmdir()
+    for derived in ("hull_map.parquet", "identity_intervals.parquet"):
+        (config.PARQUET_DIR / derived).unlink(missing_ok=True)
     con2 = dma.connect()
-    identity.hull_map(con2, **SMALL)
-    identity.identity_intervals(con2)
+    _rebuild_derived(con2)
     assert asof.features(T, con2) == live
 
 
@@ -118,9 +137,13 @@ def test_a_hull_listed_before_T_is_not_in_the_population(store):
 
 def test_every_row_carries_every_registered_feature(store):
     T = (DAY + timedelta(days=8)).date()
-    for r in asof.features(T, store):
+    rows = asof.features(T, store)
+    for r in rows:
         assert set(r) == {"hull_id", "cutoff", *asof.FEATURES}
         assert r["n_days_observed"] > 0 and r["n_transits"] >= 1
+    # every detect-family query ran against a real table rather than being skipped
+    assert all(r["n_sts_candidates"] is not None for r in rows)
+    assert all(r["spoof_jump_rate_excess"] is not None for r in rows)
 
 
 def test_features_cli_writes_a_matrix_and_the_report(store, tmp_path):
