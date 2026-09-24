@@ -9,16 +9,12 @@ cell. Excess can be negative; that is information, not an error, so it is not cl
 
 from __future__ import annotations
 
-import logging
-
 import duckdb
 
 from shadowfleet import config
 from shadowfleet.ingest.dma import connect
 from shadowfleet.resolve.identity import as_of_hull
 from shadowfleet.util.store import glob_table, rel_path
-
-log = logging.getLogger(__name__)
 
 TABLE = "detect_spoof"
 

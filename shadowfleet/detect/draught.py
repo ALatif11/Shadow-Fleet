@@ -8,16 +8,12 @@ When they do, this gains a second, stronger predicate; the column name stays.
 
 from __future__ import annotations
 
-import logging
-
 import duckdb
 
 from shadowfleet import config
 from shadowfleet.ingest.dma import connect
 from shadowfleet.resolve.identity import as_of_hull
 from shadowfleet.util.store import glob_table, has_table, rel_path
-
-log = logging.getLogger(__name__)
 
 MIN_CHANGE_M = 1.0  # phase-prompts Phase 4b task 3
 STS_TABLE = "detect_sts"

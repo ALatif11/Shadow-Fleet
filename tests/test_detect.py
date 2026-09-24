@@ -4,6 +4,7 @@ from datetime import timedelta
 
 import pytest
 
+import shadowfleet.detect as det
 from shadowfleet import config
 from shadowfleet.detect import churn, draught, loitering, spoof, sts
 from shadowfleet.ingest import dma
@@ -65,7 +66,7 @@ def test_sts_fires_on_a_long_close_slow_pair(resolved):
     # once the first 2-day window has closed the pair is named by IMO, not by MMSI
     assert {IMO_A, IMO_B} in [{r[0], r[1]} for r in rows]
     assert all(r[2] >= 2.0 and 150 < r[3] < 260 for r in rows)
-    assert sts.by_cell(con)[0]["candidates"] >= 1
+    assert det.by_cell(sts.TABLE, "count(DISTINCT hull_a) AS hulls", con)[0]["events"] >= 1
 
 
 def test_sts_does_not_fire_on_the_near_miss(resolved):
@@ -91,7 +92,7 @@ def test_loitering_fires_past_twelve_hours_and_not_before(resolved):
     # each hull-day is its own stretch (the overnight gap exceeds the tolerance), and the first two days
     # are the resolver warm-up, so 3 hulls x 4 resolved days
     assert out["events"] == 12
-    assert loitering.by_cell(con)[0]["hours"] > 12
+    assert det.by_cell(loitering.TABLE, "count(DISTINCT hull_id) AS hulls", con)[0]["hours"] > 12
     # run() rewrites the table, so this has to come last
     assert loitering.run(con, min_hours=20.0)["events"] == 0
 
@@ -178,8 +179,6 @@ def test_churn_records_the_mmsi_moving_under_one_hull(resolved):
 def test_run_all_writes_the_report(resolved):
     _ingest({off: _pair(off, hours=3, metres_apart=200) for off in range(6)}, fullres=True)
     resolved()
-    import shadowfleet.detect as det
-
     out = det.run_all()
     text = (config.REPORTS_DIR / "phase4b.md").read_text()
     assert "Phase 4b report" in text and "STS candidates" in text

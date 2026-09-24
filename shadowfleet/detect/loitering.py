@@ -7,16 +7,12 @@ the Phase 1 readiness count and is no longer on the critical path.
 
 from __future__ import annotations
 
-import logging
-
 import duckdb
 
 from shadowfleet import config
 from shadowfleet.ingest.dma import connect
 from shadowfleet.resolve.identity import as_of_hull
 from shadowfleet.util.store import glob_table, rel_path
-
-log = logging.getLogger(__name__)
 
 MAX_SOG_KN = 1.0  # phase-prompts Phase 4b task 2
 MIN_HOURS = 12.0
@@ -67,16 +63,3 @@ def run(con: duckdb.DuckDBPyConnection | None = None, max_sog: float = MAX_SOG_K
     """).fetchone()[0]
     return {"events": n, "max_sog": max_sog, "min_hours": min_hours,
             "table": rel_path(config.PARQUET_DIR / TABLE)}
-
-
-def by_cell(con: duckdb.DuckDBPyConnection | None = None, cell_deg: float = 0.05) -> list[dict]:
-    """The anchorages, derived. Top cells by loitering hours."""
-    con = con or connect()
-    rows = con.execute(f"""
-        SELECT round(floor(lat / {cell_deg}) * {cell_deg}, 3) AS lat,
-               round(floor(lon / {cell_deg}) * {cell_deg}, 3) AS lon,
-               count(*) AS events, round(sum(hours), 1) AS hours, count(DISTINCT hull_id) AS hulls
-        FROM read_parquet('{glob_table(TABLE)}', hive_partitioning=true)
-        GROUP BY 1, 2 ORDER BY hours DESC LIMIT 20
-    """).fetchall()
-    return [{"lat": r[0], "lon": r[1], "events": r[2], "hours": r[3], "hulls": r[4]} for r in rows]

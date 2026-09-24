@@ -116,18 +116,3 @@ def run(con: duckdb.DuckDBPyConnection | None = None, radius_m: int = RADIUS_M,
         log.info("sts %s: %d candidates", m, n)
     return {"candidates": written, "months": len(months), "radius_m": radius_m, "max_sog": max_sog,
             "min_hours": min_hours, "table": rel_path(config.PARQUET_DIR / TABLE)}
-
-
-def by_cell(con: duckdb.DuckDBPyConnection | None = None, cell_deg: float = 0.05) -> list[dict]:
-    """Where the candidates cluster. This is the honest version of the Skagen anchorage polygon: the
-    clusters come out of the data rather than out of a box drawn from a pilot chart."""
-    con = con or connect()
-    rows = con.execute(f"""
-        SELECT round(floor(lat / {cell_deg}) * {cell_deg}, 3) AS lat,
-               round(floor(lon / {cell_deg}) * {cell_deg}, 3) AS lon,
-               count(*) AS candidates, round(sum(hours), 1) AS hours,
-               count(DISTINCT hull_a) + count(DISTINCT hull_b) AS hull_slots
-        FROM read_parquet('{glob_table(TABLE)}', hive_partitioning=true)
-        GROUP BY 1, 2 ORDER BY candidates DESC LIMIT 20
-    """).fetchall()
-    return [{"lat": r[0], "lon": r[1], "candidates": r[2], "hours": r[3], "hull_slots": r[4]} for r in rows]

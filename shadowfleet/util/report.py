@@ -399,12 +399,11 @@ def write_phase3(out: dict | None = None) -> str:
 
 
 # ---------------------------------------------------------------------------- Phase 4b
-def _cells(rows: list[dict], value: str) -> list[str]:
+def _cells(rows: list[dict]) -> list[str]:
     if not rows:
         return ["(none)"]
-    out = [f"| lat | lon | events | {value} |", "|---:|---:|---:|---:|"]
-    return out + [f"| {r['lat']} | {r['lon']} | {r.get('events') or r.get('candidates')} | {r[value]} |"
-                  for r in rows[:10]]
+    return ["| lat | lon | events | hours | hulls |", "|---:|---:|---:|---:|---:|"] + [
+        f"| {r['lat']} | {r['lon']} | {r['events']} | {r['hours']} | {r['hulls']} |" for r in rows[:10]]
 
 
 def render_phase4b(out: dict | None = None) -> str:
@@ -421,11 +420,11 @@ def render_phase4b(out: dict | None = None) -> str:
              f"{s.get('radius_m')} m / {s.get('max_sog')} kn / {s.get('min_hours')} h.",
              f"- Table: `{s.get('table')}`. `observed_at` is when the transfer ended.", "",
              "Where they cluster (this replaces the hand-drawn Skagen anchorage box; the clusters come out "
-             "of the data):", ""] + _cells(p.get("sts_cells") or [], "hours") + ["",
+             "of the data):", ""] + _cells(p.get("sts_cells") or []) + ["",
              "## Anchorage loitering", "",
              f"- {lo.get('events')} stretches under {lo.get('max_sog')} kn for over "
              f"{lo.get('min_hours')} h, excluding hulls reporting Moored.",
-             f"- Table: `{lo.get('table')}`.", ""] + _cells(p.get("loitering_cells") or [], "hours") + ["",
+             f"- Table: `{lo.get('table')}`.", ""] + _cells(p.get("loitering_cells") or []) + ["",
              "## Draught inconsistency", "",
              f"- {dr.get('changes')} declared-draught changes of at least {dr.get('min_change_m')} m over "
              f"{dr.get('hulls')} hulls.",
