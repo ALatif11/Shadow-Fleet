@@ -155,3 +155,28 @@ def test_entity_resolution_arm_is_a_declared_no_op_while_no_gfw_merge_exists(tmp
                    config.PARQUET_DIR / HULL_MAP)
     out = harness.entity_resolution_delta()
     assert out["passes"] is False and out["pr_auc_delta"] is None
+
+
+def test_lead_time_is_measured_from_the_earliest_flag_not_the_latest():
+    """Event-study: the question is how early a hull was first flagged, not the average distance."""
+    top = {"LGBM": {date(2025, 1, 31): {"A", "B"}, date(2025, 3, 31): {"A"},
+                    date(2025, 5, 31): {"A", "C"}}}
+    out = harness.lead_time(top, {"A": date(2025, 6, 30), "C": date(2025, 6, 1)})
+    a = next(x for x in out["LGBM"]["examples"] if x["hull_id"] == "A")
+    assert a["first_flagged"] == "2025-01-31"  # the earliest, not 2025-05-31
+    assert a["weeks"] == pytest.approx(21.4, abs=0.2)
+    assert out["LGBM"]["flagged_before_designation"] == 2
+    assert out["LGBM"]["designated_in_window"] == 2
+
+
+def test_a_hull_flagged_only_after_its_designation_does_not_count_as_lead():
+    top = {"LGBM": {date(2025, 8, 31): {"A"}}}
+    out = harness.lead_time(top, {"A": date(2025, 6, 30)})
+    assert out["LGBM"]["flagged_before_designation"] == 0
+    assert out["LGBM"]["median_weeks"] is None  # None, not zero: there is no lead to report
+
+
+def test_lead_time_reports_the_designated_population_so_the_censoring_is_visible():
+    top = {"LGBM": {date(2025, 1, 31): {"A"}}}
+    out = harness.lead_time(top, {"A": date(2025, 6, 30), "B": date(2025, 7, 1), "C": date(2025, 8, 1)})
+    assert out["LGBM"]["flagged_before_designation"] == 1 and out["LGBM"]["designated_in_window"] == 3

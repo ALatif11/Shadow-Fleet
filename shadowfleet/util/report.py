@@ -570,8 +570,18 @@ def render_phase5b(out: dict | None = None) -> str:
     lines += [f"| {a['label_set']} | {a['stratum']} | `{a['model']}` | {a['precision_at_50']} | "
               f"{a['pr_auc']} | {a['recall_at_50']} | {a['fpr_at_50']} |"
               for a in sorted(agg, key=lambda a: (a["label_set"], a["stratum"], a["model"]))]
-    lines += ["", f"- Per-cutoff rows: `{p.get('csv')}`.", "",
-              "## Leakage suite", ""] + _leakage(p) + ["",
+    lines += ["", f"- Per-cutoff rows: `{p.get('csv')}`.", "", "## Lead time (event study)", "",
+              "Weeks between a hull's designation and the earliest cutoff at which it entered the top 50. "
+              "Event-study rather than per-cutoff: averaging per-cutoff distances mostly measures how far "
+              "each cutoff sat from the next designation wave (ADR-11).", "",
+              "| model | flagged before designation | of designated | median weeks | max |",
+              "|---|---:|---:|---:|---:|"] + [
+              f"| `{m}` | {v['flagged_before_designation']} | {v['designated_in_window']} | "
+              f"{v['median_weeks']} | {v['max_weeks']} |"
+              for m, v in sorted((p.get("lead_time") or {}).items())] + ["",
+              "Right-censored by construction: a hull flagged at the first cutoff cannot show a longer lead "
+              "than the window allows, and one designated after the last horizon does not appear at all.",
+              "", "## Leakage suite", ""] + _leakage(p) + ["",
               "## What is not contributing yet", "",
               f"- B2 term firing counts at the last cutoff: {p.get('b2_live_terms')}."]
     if dead:

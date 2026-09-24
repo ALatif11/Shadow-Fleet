@@ -23,6 +23,7 @@ from shadowfleet.util.store import rel_path
 log = logging.getLogger(__name__)
 
 LABEL_SETS = {"union": lab.SOURCES, "ofac_only": ("OFAC",)}
+LEAD_TIME_K = 50  # the operating point PREREG section 3 fixes for the primary endpoint
 PRIMARY_LABEL_SET = "union"  # PREREG section 3; the Phase 6 artefacts follow the primary endpoint only
 
 
@@ -83,6 +84,9 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None, full:
     history: dict[str, list[tuple[date, list[dict], np.ndarray]]] = {k: [] for k in label_sets}
     b2_terms: dict[str, int] = {}
     artefacts: list[dict] = []
+    # for the event-study lead time: which hulls each model ranked in the top k at each cutoff
+    top_k_seen: dict[str, dict[date, set[str]]] = {}
+
     label_history: dict[str, list[tuple[date, list[dict], np.ndarray]]] = {}
 
     for T in cutoffs:
@@ -112,6 +116,12 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None, full:
                     per_cutoff.append({**base, "stratum": stratum, "not_scored": False,
                                        **metrics.summary(y[mask], score[mask],
                                                          calibrated=model == "B3_logistic")})
+            if label_name == PRIMARY_LABEL_SET:
+                for model, score in scored.items():
+                    if score is None:
+                        continue
+                    top = np.argsort(-score)[:LEAD_TIME_K]
+                    top_k_seen.setdefault(model, {})[T] = {rows[i]["hull_id"] for i in top}
             if full and label_name == PRIMARY_LABEL_SET:
                 artefacts.append(_phase6(T, rows, y, scored, extra, per_cutoff))
 
@@ -135,6 +145,7 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None, full:
         out["phase6"] = {"per_cutoff": artefacts, "arms": sorted(explain.ablation_arms()),
                          "fp_review": _fp_sheets(artefacts),
                          "drift_by_side": _drift_sides(artefacts)}
+    out["lead_time"] = lead_time(top_k_seen, _designations_in_window(cutoffs))
     out["csv"] = _write_csv(per_cutoff)
     if failed:  # PREREG section 10: a failing leakage test means no metrics are reported at all
         log.error("leakage tests failed: %s", failed)
@@ -318,3 +329,44 @@ def _drift_sides(artefacts: list[dict]) -> dict:
                      "psi": {f: round(float(np.mean([r[f] for r in rows if r.get(f) is not None])), 4)
                              for f in families if any(r.get(f) is not None for r in rows)}}
     return out
+
+
+# ------------------------------------------------------------------------------- event-study lead time
+def lead_time(top_k_by_cutoff: dict[str, dict[date, set[str]]],
+              designations: dict[str, date]) -> dict:
+    """Weeks between a hull's designation and the EARLIEST cutoff at which it entered the top k.
+
+    Event-study, not per-cutoff (PREREG section 5 and ADR-11): asking "how early did we first flag this
+    hull" is the question an analyst has; averaging per-cutoff distances instead mostly measures how far
+    each cutoff sat from the next designation wave.
+
+    Right-censored by construction: a hull flagged at the first cutoff cannot show a longer lead than the
+    window allows, and one designated after the last horizon is not here at all. Both are reported.
+    """
+    out: dict = {}
+    for model, by_cutoff in top_k_by_cutoff.items():
+        leads = []
+        for hull, designated in designations.items():
+            seen = sorted(T for T, hulls in by_cutoff.items() if hull in hulls and T < designated)
+            if seen:
+                leads.append({"hull_id": hull, "first_flagged": seen[0].isoformat(),
+                              "designated": designated.isoformat(),
+                              "weeks": round((designated - seen[0]).days / 7, 1)})
+        weeks = sorted(x["weeks"] for x in leads)
+        out[model] = {
+            "flagged_before_designation": len(leads),
+            "designated_in_window": len(designations),
+            "median_weeks": weeks[len(weeks) // 2] if weeks else None,
+            "min_weeks": weeks[0] if weeks else None, "max_weeks": weeks[-1] if weeks else None,
+            "examples": sorted(leads, key=lambda x: -x["weeks"])[:5],
+        }
+    return out
+
+
+def _designations_in_window(cutoffs: list[date]) -> dict[str, date]:
+    """hull_id -> first designation date, for designations inside the scored span. Keyed on hull_id so it
+    joins to the top-k sets directly; a `syn:` hull has no IMO and so can never appear here."""
+    if not cutoffs:
+        return {}
+    first, last = min(cutoffs), max(cutoffs) + timedelta(days=config.HORIZON_DAYS)
+    return {str(imo): listing.date for imo, listing in lab.first_add_in_window(first, last).items()}
