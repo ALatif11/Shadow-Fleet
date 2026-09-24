@@ -11,10 +11,10 @@ from shadowfleet.ingest import dma
 from shadowfleet.resolve import identity
 from shadowfleet.util.ids import imo_valid
 from shadowfleet.util.store import glob_table
-from tests.conftest import DAY, HEADER_V1, row, write_zip
+from tests.conftest import DAY, HEADER_V1, row, valid_imos, write_zip
 
 SMALL = {"window_days": 2, "min_imo_days": 2}
-IMO_A, IMO_B, IMO_C = "9074729", "9176187", "9179834"
+IMO_A, IMO_B, IMO_C = valid_imos(3)
 
 
 def _ingest(days: dict[int, list[dict]], fullres: bool = False) -> None:
@@ -61,8 +61,8 @@ def test_sts_fires_on_a_long_close_slow_pair(resolved):
     rows = con.execute(f"SELECT hull_a, hull_b, hours, min_distance_m FROM "
                        f"read_parquet('{glob_table(sts.TABLE)}', hive_partitioning=true) "
                        f"ORDER BY start").fetchall()
-    # the far hull is never paired with anything, whichever id it is known by
-    assert not any({"9179834", "mmsi:999"} & {r[0], r[1]} for r in rows)
+    # the far hull is never paired with anything; its IMO is valid, so it is named and this bites
+    assert not any(IMO_C in {r[0], r[1]} for r in rows)
     # once the first 2-day window has closed the pair is named by IMO, not by MMSI
     assert {IMO_A, IMO_B} in [{r[0], r[1]} for r in rows]
     assert all(r[2] >= 2.0 and 150 < r[3] < 260 for r in rows)

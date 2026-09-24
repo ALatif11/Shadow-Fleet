@@ -116,3 +116,20 @@ def tmp_data(tmp_path, monkeypatch):
     }.items():
         monkeypatch.setattr(config, name, val)
     return tmp_path
+
+
+def valid_imos(n: int, start: int = 9000000) -> list[str]:
+    """`n` check-digit-valid IMO numbers, computed rather than typed.
+
+    Hand-picked IMOs have cost two debugging sessions: 1234567 happens to be valid, and 9179834 (used as a
+    fixture value for weeks) is not, so a hull that should have resolved by IMO silently landed on a
+    synthetic id instead. Never type an IMO into a test.
+    """
+    from shadowfleet.util.ids import imo_valid
+
+    out, v = [], start
+    while len(out) < n:
+        if imo_valid(v):
+            out.append(str(v))
+        v += 1
+    return out
