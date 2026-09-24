@@ -20,8 +20,8 @@ import duckdb
 from shadowfleet import config
 from shadowfleet.ingest import mid
 from shadowfleet.ingest.dma import connect
-from shadowfleet.phase1 import _glob, _has, _rel
 from shadowfleet.util.ids import imo_valid_sql
+from shadowfleet.util.store import glob_table, has_table, rel_path
 
 log = logging.getLogger(__name__)
 
@@ -38,12 +38,12 @@ INTERVALS = "identity_intervals.parquet"
 def _kept_days() -> str:
     """Kept MMSI-days as a subquery. A function, not a constant: tests repoint config.PARQUET_DIR, and a
     module-level f-string would bind the path at import time (the same trap as config.load_window)."""
-    return (f"(SELECT mmsi, day FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)"
+    return (f"(SELECT mmsi, day FROM read_parquet('{glob_table('vessel_day')}', hive_partitioning=true)"
             f" WHERE kept) x")
 
 
 def _window_start(con: duckdb.DuckDBPyConnection) -> date:
-    return con.execute(f"SELECT min(day) FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)"
+    return con.execute(f"SELECT min(day) FROM read_parquet('{glob_table('vessel_day')}', hive_partitioning=true)"
                        ).fetchone()[0]
 
 
@@ -74,11 +74,11 @@ def hull_map(con: duckdb.DuckDBPyConnection | None = None, window_days: int = WI
         WITH vd AS (
           SELECT mmsi, {wi.format(d='day')} AS wi, count(*) AS n_days,
                  mode(name) AS vd_name, mode(length) AS vd_length, mode(width) AS vd_width
-          FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)
+          FROM read_parquet('{glob_table('vessel_day')}', hive_partitioning=true)
           WHERE kept GROUP BY 1, 2
         ), s AS (
           SELECT mmsi, imo, observed_at, {wi.format(d='CAST(observed_at AS DATE)')} AS wi
-          FROM read_parquet('{_glob('ais_static')}', hive_partitioning=true) s
+          FROM read_parquet('{glob_table('ais_static')}', hive_partitioning=true) s
         ), votes AS (  -- one vote per day an IMO was broadcast, so ingest-time compression cannot skew it
           SELECT mmsi, wi, CAST(imo AS BIGINT) AS imo, count(DISTINCT CAST(observed_at AS DATE)) AS n
           FROM s WHERE {valid} GROUP BY 1, 2, 3
@@ -126,7 +126,7 @@ def hull_map(con: duckdb.DuckDBPyConnection | None = None, window_days: int = WI
     """).fetchone()
     return {"windows": n, "mmsi": n_mmsi, "windows_by_imo": n_imo, "hull_ids": n_hulls,
             "hull_ids_syn": n_syn, "window_days": window_days, "min_imo_days": min_imo_days,
-            "min_support": min_support, "file": _rel(out)}
+            "min_support": min_support, "file": rel_path(out)}
 
 
 def _as_of_hull(src: str, ts_col: str) -> str:
@@ -145,7 +145,7 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
     con = con or connect()
     n_mid = _mid_table(con)
     out = config.PARQUET_DIR / INTERVALS
-    static_src = f"(SELECT * FROM read_parquet('{_glob('ais_static')}', hive_partitioning=true)) x"
+    static_src = f"(SELECT * FROM read_parquet('{glob_table('ais_static')}', hive_partitioning=true)) x"
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE iv AS
         WITH src AS (
@@ -183,7 +183,7 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
         FROM (SELECT *, count(*) OVER (PARTITION BY hull_id) AS n FROM iv)
     """).fetchone()
     return {"intervals": n, "hulls": n_hulls, "hulls_with_a_change": n_multi,
-            "intervals_with_flag": n_flag, "mid_rows": n_mid, "file": _rel(out)}
+            "intervals_with_flag": n_flag, "mid_rows": n_mid, "file": rel_path(out)}
 
 
 def coverage(con: duckdb.DuckDBPyConnection | None = None) -> dict:
@@ -249,7 +249,7 @@ def silver_set(con: duckdb.DuckDBPyConnection | None = None) -> dict:
     con = con or connect()
     path = config.CACHE_DIR / "opensanctions" / "maritime.csv"
     if not path.exists():
-        return {"skipped": f"{_rel(path)} missing; run `make probe-opensanctions` first"}
+        return {"skipped": f"{rel_path(path)} missing; run `make probe-opensanctions` first"}
     hm = (config.PARQUET_DIR / HULL_MAP).as_posix()
     cols = {c[0] for c in con.execute(f"DESCRIBE SELECT * FROM read_csv('{path.as_posix()}')").fetchall()}
     imo_col = next((c for c in ("imoNumber", "imo") if c in cols), None)
@@ -281,7 +281,7 @@ def population_crosscheck(con: duckdb.DuckDBPyConnection | None = None) -> dict:
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE xc AS
         SELECT mmsi, max(length) AS length, mode(name) AS name, mode(imo) AS imo, count(*) AS n_days
-        FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)
+        FROM read_parquet('{glob_table('vessel_day')}', hive_partitioning=true)
         WHERE length >= {config.MIN_TANKER_LENGTH_M}
           AND (ship_type IS NULL OR lower(ship_type) IN ('undefined', 'unknown', 'other'))
         GROUP BY mmsi
@@ -301,7 +301,7 @@ def population_crosscheck(con: duckdb.DuckDBPyConnection | None = None) -> dict:
 def run_all(**hull_map_kwargs) -> dict:
     """Phase 3 end to end over the ingested Parquet."""
     for table in ("vessel_day", "ais_static"):
-        if not _has(table):
+        if not has_table(table):
             raise SystemExit(f"no {table} parquet; run `make ingest-dma` first")
     con = connect()
     out = {"hull_map": hull_map(con, **hull_map_kwargs), "identity_intervals": identity_intervals(con),
@@ -311,5 +311,5 @@ def run_all(**hull_map_kwargs) -> dict:
     from shadowfleet.util import probes, report
     probes.write("identity", out)
     report.write_phase3(out)
-    out["report"] = _rel(config.REPORTS_DIR / "phase3.md")
+    out["report"] = rel_path(config.REPORTS_DIR / "phase3.md")
     return out

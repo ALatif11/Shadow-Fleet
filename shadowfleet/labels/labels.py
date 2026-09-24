@@ -313,7 +313,7 @@ def population_imos_by_cutoff(cutoffs: list[date], con: duckdb.DuckDBPyConnectio
     `ais_static` messages with `observed_at <= T`, so the mapping itself is point-in-time.
     """
     from shadowfleet.ingest.dma import connect
-    from shadowfleet.phase1 import _glob
+    from shadowfleet.util.store import glob_table
 
     con = con or connect()
     out: dict[date, list[int]] = {}
@@ -321,11 +321,11 @@ def population_imos_by_cutoff(cutoffs: list[date], con: duckdb.DuckDBPyConnectio
         start = T - timedelta(days=feature_window_days)
         rows = con.execute(f"""
             WITH seen AS (
-              SELECT DISTINCT mmsi FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)
+              SELECT DISTINCT mmsi FROM read_parquet('{glob_table('vessel_day')}', hive_partitioning=true)
               WHERE kept AND day BETWEEN DATE '{start}' AND DATE '{T}'
             ), imo AS (
               SELECT mmsi, mode(imo) AS imo
-              FROM read_parquet('{_glob('ais_static')}', hive_partitioning=true)
+              FROM read_parquet('{glob_table('ais_static')}', hive_partitioning=true)
               WHERE imo IS NOT NULL AND imo > 0 AND observed_at <= TIMESTAMP '{T} 23:59:59'
               GROUP BY mmsi
             )

@@ -14,33 +14,12 @@ import duckdb
 
 from shadowfleet import config
 from shadowfleet.ingest.dma import connect
+from shadowfleet.util.store import glob_table, has_table, haversine_km_sql, rel_path
 
 log = logging.getLogger(__name__)
 GRID_DEG = 0.1  # coverage-edge grid (phase1-prompt task 6)
 GAP_HOURS = 6
 EDGE_NEIGHBOURS = 8  # a cell with fewer occupied neighbours than this sits on the coverage boundary
-
-
-def _rel(p: Path) -> str:
-    """Repo-relative when possible; tests point the paths elsewhere."""
-    try:
-        return str(p.relative_to(config.REPO_ROOT))
-    except ValueError:
-        return str(p)
-
-
-def _haversine(lat1: str, lon1: str, lat2: str, lon2: str) -> str:
-    """Great-circle km between two SQL expressions."""
-    return (f"2 * 6371.0088 * asin(sqrt(pow(sin(radians({lat2} - {lat1}) / 2), 2) + "
-            f"cos(radians({lat1})) * cos(radians({lat2})) * pow(sin(radians({lon2} - {lon1}) / 2), 2)))")
-
-
-def _glob(table: str) -> str:
-    return (config.PARQUET_DIR / table / "dt=*" / "*.parquet").as_posix()
-
-
-def _has(table: str) -> bool:
-    return any((config.PARQUET_DIR / table).glob("dt=*/*.parquet"))
 
 
 def population(con: duckdb.DuckDBPyConnection | None = None) -> dict:
@@ -58,7 +37,7 @@ def population(con: duckdb.DuckDBPyConnection | None = None) -> dict:
             mode(length) AS modal_length, mode(width) AS modal_width,
             mode(imo) FILTER (WHERE imo > 0) AS modal_imo, mode(name) AS modal_name,
             sum(n_rows) FILTER (WHERE lower(mobile_type) = 'class b') / sum(n_rows) AS share_class_b
-          FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)
+          FROM read_parquet('{glob_table('vessel_day')}', hive_partitioning=true)
           GROUP BY mmsi ORDER BY mmsi
         ) TO '{out.as_posix()}' (FORMAT parquet, COMPRESSION zstd)
     """)
@@ -67,7 +46,7 @@ def population(con: duckdb.DuckDBPyConnection | None = None) -> dict:
           count(DISTINCT mmsi) FILTER (WHERE tanker_today) AS tanker_mmsi,
           count(DISTINCT mmsi) FILTER (WHERE kept) AS kept_mmsi,
           count(DISTINCT mmsi) AS all_vessel_mmsi, count(DISTINCT day) AS days
-        FROM read_parquet('{_glob('vessel_day')}', hive_partitioning=true)
+        FROM read_parquet('{glob_table('vessel_day')}', hive_partitioning=true)
         GROUP BY month ORDER BY month
     """).fetchall()
     csv_path = config.REPORTS_DIR / "phase1_population_by_month.csv"
@@ -81,7 +60,7 @@ def population(con: duckdb.DuckDBPyConnection | None = None) -> dict:
         FROM read_parquet('{out.as_posix()}')
     """).fetchone()
     return {"mmsi_total": totals[0], "mmsi_ever_tanker_class": totals[1], "mmsi_with_imo": totals[2],
-            "months": len(monthly), "by_month_csv": _rel(csv_path)}
+            "months": len(monthly), "by_month_csv": rel_path(csv_path)}
 
 
 def type_changes(con: duckdb.DuckDBPyConnection | None = None) -> dict:
@@ -93,7 +72,7 @@ def type_changes(con: duckdb.DuckDBPyConnection | None = None) -> dict:
           WITH s AS (
             SELECT mmsi, observed_at, ship_type, cargo_type,
               lag(ship_type) OVER w AS prev_ship_type, lag(cargo_type) OVER w AS prev_cargo_type
-            FROM read_parquet('{_glob('ais_static')}', hive_partitioning=true)
+            FROM read_parquet('{glob_table('ais_static')}', hive_partitioning=true)
             WINDOW w AS (PARTITION BY mmsi ORDER BY observed_at)
           )
           SELECT mmsi, observed_at, prev_ship_type, ship_type, prev_cargo_type, cargo_type
@@ -124,7 +103,7 @@ def gap_evidence(con: duckdb.DuckDBPyConnection | None = None, sample: int = 500
         CREATE OR REPLACE TEMP TABLE cells AS
         SELECT CAST(floor(lat / {GRID_DEG}) AS INTEGER) AS cy, CAST(floor(lon / {GRID_DEG}) AS INTEGER) AS cx,
                count(*) AS n
-        FROM read_parquet('{_glob('ais_dynamic')}', hive_partitioning=true)
+        FROM read_parquet('{glob_table('ais_dynamic')}', hive_partitioning=true)
         GROUP BY cy, cx
     """)
     con.execute("""
@@ -140,7 +119,7 @@ def gap_evidence(con: duckdb.DuckDBPyConnection | None = None, sample: int = 500
         WITH d AS (
           SELECT mmsi, observed_at, lat, lon,
             lead(observed_at) OVER w AS next_at, lead(lat) OVER w AS end_lat, lead(lon) OVER w AS end_lon
-          FROM read_parquet('{_glob('ais_dynamic')}', hive_partitioning=true)
+          FROM read_parquet('{glob_table('ais_dynamic')}', hive_partitioning=true)
           WINDOW w AS (PARTITION BY mmsi ORDER BY observed_at)
         )
         SELECT mmsi, observed_at AS gap_start, next_at AS gap_end,
@@ -151,7 +130,7 @@ def gap_evidence(con: duckdb.DuckDBPyConnection | None = None, sample: int = 500
     """)
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE gsample AS
-        SELECT *, {_haversine('lat', 'lon', 'end_lat', 'end_lon')} AS displacement_km
+        SELECT *, {haversine_km_sql('lat', 'lon', 'end_lat', 'end_lon')} AS displacement_km
         FROM gaps USING SAMPLE {sample} ROWS
     """)
     n_gaps, median_h, p90_h = con.execute(
@@ -167,7 +146,7 @@ def gap_evidence(con: duckdb.DuckDBPyConnection | None = None, sample: int = 500
           count(*) FILTER (WHERE km <= 10), count(*) FILTER (WHERE km <= 25),
           median(km), median(displacement_km), count(*) FILTER (WHERE displacement_km > 50)
         FROM (
-          SELECT g.rowid AS id, min({_haversine('g.lat', 'g.lon', 'e.lat', 'e.lon')}) AS km,
+          SELECT g.rowid AS id, min({haversine_km_sql('g.lat', 'g.lon', 'e.lat', 'e.lon')}) AS km,
                  any_value(g.displacement_km) AS displacement_km
           FROM gsample g CROSS JOIN e GROUP BY g.rowid
         )
@@ -213,7 +192,7 @@ def _plot_gaps(con: duckdb.DuckDBPyConnection, n_gaps: int, share: float | None)
     out = config.REPORTS_DIR / "phase1_gaps.png"
     fig.savefig(out, dpi=120)
     plt.close(fig)
-    return _rel(out)
+    return rel_path(out)
 
 
 def sts_readiness(day: date, con: duckdb.DuckDBPyConnection | None = None,
@@ -266,7 +245,7 @@ def sts_readiness(day: date, con: duckdb.DuckDBPyConnection | None = None,
                    WHERE lat BETWEEN {box['lat'][0]} AND {box['lat'][1]}
                      AND lon BETWEEN {box['lon'][0]} AND {box['lon'][1]}) AS mmsi_in_box,
                   (SELECT min(m) FROM (
-                     SELECT min({_haversine('a.lat', 'a.lon', 'b.lat', 'b.lon')}) * 1000 AS m
+                     SELECT min({haversine_km_sql('a.lat', 'a.lon', 'b.lat', 'b.lon')}) * 1000 AS m
                      FROM slow a JOIN slow b ON a.minute = b.minute AND a.mmsi < b.mmsi
                      GROUP BY a.mmsi, b.mmsi)) AS closest_pair_m
                 FROM slow
@@ -286,13 +265,13 @@ def run_all(sts_day: date | None = None) -> dict:
     for name, fn, table in (("population", population, "vessel_day"),
                             ("type_changes", type_changes, "ais_static"),
                             ("gap_evidence", gap_evidence, "ais_dynamic")):
-        if not _has(table):
+        if not has_table(table):
             out[name] = {"error": f"no {table} partitions yet"}
             continue
         log.info("phase1", extra={"step": name})
         out[name] = fn(con)
     if sts_day is None:
-        fullres = sorted(Path(config.PARQUET_DIR / "ais_fullres").glob("dt=*")) if _has("ais_fullres") else []
+        fullres = sorted(Path(config.PARQUET_DIR / "ais_fullres").glob("dt=*")) if has_table("ais_fullres") else []
         sts_day = date.fromisoformat(fullres[-1].name.removeprefix("dt=")) if fullres else None
     out["sts_readiness"] = sts_readiness(sts_day, con) if sts_day else {"error": "no ais_fullres day ingested"}
     return out

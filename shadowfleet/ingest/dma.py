@@ -31,6 +31,7 @@ import pyarrow.parquet as pq
 
 from shadowfleet import config
 from shadowfleet.util import disk, net, probes
+from shadowfleet.util.store import haversine_km_sql
 
 log = logging.getLogger(__name__)
 
@@ -280,13 +281,6 @@ def _hazard_expr(col: str) -> str:
     return "(" + " OR ".join(parts) + ")"
 
 
-def _haversine_km(lat1: str, lon1: str, lat2: str, lon2: str) -> str:
-    return (
-        f"2 * 6371.0088 * asin(sqrt(pow(sin(radians({lat2} - {lat1}) / 2), 2) + "
-        f"cos(radians({lat1})) * cos(radians({lat2})) * pow(sin(radians({lon2} - {lon1}) / 2), 2)))"
-    )
-
-
 def connect() -> duckdb.DuckDBPyConnection:
     config.TMP_DIR.mkdir(parents=True, exist_ok=True)
     con = duckdb.connect()
@@ -441,7 +435,7 @@ def process_day(
     """).fetchone()[0]
 
     # ---- jumps over all vessels at full resolution (needed for jump_baseline; ADR-14)
-    dist = _haversine_km("plat", "plon", "lat", "lon")
+    dist = haversine_km_sql("plat", "plon", "lat", "lon")
     step = config.JUMP_CELL_DEG
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE j AS
