@@ -233,6 +233,16 @@ shadowfleet/
 
 **ADR-21 Hull ids are withheld during a vessel's first window (added Sep 23).** Context: Phase 3 assigns `hull_id` from a majority IMO vote over 30-day windows. The prompt's design votes within each window and lets a vessel's first window take effect immediately. That leaks: a cutoff falling inside a vessel's first window would read static messages from after the cutoff, and month-end cutoffs do fall there. Options: accept the leak and disclose it; date the votes and use the previous window; make the vote cumulative and effective only once a window has closed. Choice: cumulative vote, effective the day after the window closes, and **no hull id at all** during a vessel's first 30 days. Records from that warm-up are dropped by the detectors rather than given an MMSI-derived id, because a synthetic id would split the hull's history at the boundary and its first real transition would fall between two different ids and vanish (this actually happened: a 4 m draught change became invisible). Why acceptable: the warm-up always precedes a vessel's first eligible cutoff, so nothing evaluable is lost, and `coverage` reports the warm-up share separately from the resolver's own hit rate. Revisit if: the warm-up share of MMSI-days is large enough on real data to pull `share_by_imo` under the 80 percent acceptance bar on its own.
 
+**ADR-22 SHAP comes from LightGBM, not from the `shap` package (added Sep 24).** Context: Phase 6 needs
+per-(hull, T) SHAP contributions for the brief bundler and the flagged lists, and the plan listed
+`shap>=0.45` in the `model` extra. Options: use the `shap` package's `TreeExplainer`; use LightGBM's own
+`predict(..., pred_contrib=True)`. Choice: LightGBM's. It is the same TreeSHAP algorithm implemented by the
+same people who wrote the booster, returns an (n_rows, n_features + 1) array with the bias in the last
+column, and needs no extra dependency; `shap` would add a numba toolchain to a single-machine project for
+identical numbers. `shap` is removed from the extra. Why it matters beyond the dependency count: one fewer
+package that can disagree with the model about feature ordering. Revisit if: a non-tree model ever needs
+explaining (KernelExplainer has no LightGBM equivalent), which on the current plan never happens.
+
 
 **ADR-11 addendum (window arithmetic, Sep 17).** Let W be the first ingested day and D the last day whose horizon is closed (today minus 182 d). Cutoffs run from the first month-end at or after W + 180 d to the last month-end at or before D. Supervised scoring needs T' + 182 d <= T, so the first supervised cutoff is about 12 months after W. On Sep 17 2026, D is about Mar 19 2026, so the last evaluable cutoff is Feb 28 2026. A window starting Sep 2024 gives 12 evaluable cutoffs (Mar 2025 to Feb 2026) and 6 supervised ones (Sep 2025 to Feb 2026); each month the project runs adds one of each. A window starting Jun 2025 gives 3 and 0. Every day the bulk ingest is delayed loses a day at the front if DMA deletes on a rolling basis.
 

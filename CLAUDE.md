@@ -77,7 +77,7 @@ shadowfleet/
 - Backtest: monthly cutoffs, 180 d feature window, 182 d horizon, expanding-window training on cutoffs whose horizon closed before T. Metrics per cutoff, monthly and quarterly aggregates, stratified by the B1 Russia-port rule, plus a first-appearance evaluation (each hull scored only at its first eligible cutoff).
 - Lead time is event-study: designation date minus the earliest cutoff at which the hull ranked in the top k. Per-cutoff lead time is a supplement.
 - Metrics: precision@k and recall@k (k = 25/50/100), PR-AUC, alert volume needed for 50 percent recall, FPR at the operating point, calibration; mandatory qualitative review of the top 20 non-listed flags per cutoff with a labelled reason.
-- Models: rules B0/B1/B1b/B2, logistic regression, LightGBM, isolation forest; per-cutoff PSI drift check and performance by training-window age. Graph PPR only as stretch. No GNN.
+- Models: rules B0/B1/B1b/B2, logistic regression, LightGBM, isolation forest; SHAP from LightGBM's own `pred_contrib` (TreeSHAP), not the `shap` package (ADR-22); per-cutoff PSI drift check and performance by training-window age. Graph PPR only as stretch. No GNN.
 - LLM: llama.cpp server, Gemma 4 12B Q4_K_M (fallback Qwen3-14B Q4_K_M), 8k context, JSON-schema constrained output, briefs cite evidence ids. Judge is a different model family from the generator; judge-vs-human kappa on a 30-finding audit is the credibility number.
 
 ## Known limitations to keep visible

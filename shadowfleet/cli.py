@@ -230,8 +230,10 @@ def features_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM
 
 
 @app.command("backtest")
-def backtest_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM-DD; default = all")) -> None:
-    """Phase 5b: rules baselines over every cutoff. Runs the leakage suite first and stops if it fails."""
+def backtest_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM-DD; default = all"),
+                 full: bool = typer.Option(False, "--full",
+                                           help="Phase 6: ablations, drift, SHAP, flagged lists")) -> None:
+    """Phase 5b (and Phase 6 with --full). Runs the leakage suite first and stops if it fails."""
     import subprocess
 
     logs.setup("backtest")
@@ -241,9 +243,9 @@ def backtest_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM
     from shadowfleet.backtest import harness
 
     picked = [_d(c.strip()) for c in cutoffs.split(",")] if cutoffs else None
-    out = harness.run(picked)
+    out = harness.run(picked, full=full)
     _print({k: v for k, v in out.items() if k != "per_cutoff"})
-    typer.echo(f"wrote {config.REPORTS_DIR / 'phase5b.md'}", err=True)
+    typer.echo(f"wrote {config.REPORTS_DIR / ('phase6.md' if full else 'phase5b.md')}", err=True)
 
 
 @app.command("probe-opensanctions")

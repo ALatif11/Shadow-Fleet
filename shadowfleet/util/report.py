@@ -595,3 +595,101 @@ def write_phase5b(out: dict | None = None) -> str:
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORTS_DIR / "phase5b.md").write_text(text)
     return text
+
+
+# ---------------------------------------------------------------------------- Phase 6
+def _verdict_vs_rules(agg: list[dict]) -> list[str]:
+    """The paragraph the Phase 6 acceptance criteria demand: does ML beat rules, and by how much.
+
+    Written from the numbers rather than around them. Either answer is acceptable (CLAUDE.md rule 8); the
+    unacceptable thing is a report that does not say which one happened.
+    """
+    primary = {a["model"]: a for a in agg if a["label_set"] == "union" and a["stratum"] == "b1"}
+    lgbm, best_rule = primary.get("LGBM"), None
+    # B3 is a BASELINE in PREREG section 6, not a competing model. Leaving it out of this comparison
+    # would let LightGBM be declared a winner over the weaker rules while losing to the logistic one.
+    for name in ("B3_logistic", "B2_weighted", "B1_russia_port", "B0_random"):
+        cand = primary.get(name)
+        if cand and (best_rule is None or (cand["precision_at_50"] or 0) > (best_rule["precision_at_50"] or 0)):
+            best_rule = cand
+    if not lgbm or lgbm.get("precision_at_50") is None:
+        return ["- LightGBM was not scored at any cutoff with a closed training horizon, so there is no "
+                "comparison to make yet. The rules baselines above stand alone."]
+    if not best_rule or best_rule.get("precision_at_50") is None:
+        return ["- No rules baseline produced a precision@50, so there is nothing to compare against."]
+    delta = lgbm["precision_at_50"] - best_rule["precision_at_50"]
+    direction = "beats" if delta > 0 else ("ties" if delta == 0 else "does NOT beat")
+    return [f"- **LightGBM {direction} the best rules baseline** (`{best_rule['model']}`) on the "
+            f"pre-registered endpoint: precision@50 {lgbm['precision_at_50']} vs "
+            f"{best_rule['precision_at_50']}, a difference of {delta:+.4f}, macro-averaged over "
+            f"{lgbm['cutoffs']} cutoffs in the B1 stratum under the union label.",
+            f"- PR-AUC: {lgbm['pr_auc']} vs {best_rule['pr_auc']}.",
+            "- If that difference is small, the finding is that a hand-weighted rule captures most of what "
+            "is learnable from these features, which is a result about the data, not a failure of the "
+            "model (CLAUDE.md rule 8)."]
+
+
+def render_phase6(out: dict | None = None) -> str:
+    p = out or probes.read("backtest")
+    if not p or not p.get("phase6"):
+        return "# Phase 6 report\n\n" + NOT_RUN + " - run `make phase6`.\n"
+    p6 = p["phase6"]
+    scored = [a for a in p6.get("per_cutoff") or [] if a.get("ablations")]
+    lines = [f"# Phase 6 report (generated {date.today().isoformat()} by `make phase6`)", "",
+             "LightGBM and the isolation forest join the harness here; everything else in this report is "
+             "reporting only and never drives a change to the feature set (PREREG section 7).", "",
+             "## Does the model beat the rules", ""] + _verdict_vs_rules(p.get("aggregate") or []) + [
+             "", "## Ablations", "",
+             "Each arm retrains LightGBM on a restricted column set. Means over the "
+             f"{len(scored)} cutoffs with a closed training horizon.", ""]
+    arms = sorted({a for c in scored for a in (c.get("ablations") or {})})
+    if scored:
+        lines += ["| arm | PR-AUC | precision@50 |", "|---|---:|---:|"]
+        for arm in arms:
+            vals = [c["ablations"][arm] for c in scored if c.get("ablations", {}).get(arm)]
+            pr = [v["pr_auc"] for v in vals if v.get("pr_auc") is not None]
+            pk = [v["precision_at_50"] for v in vals if v.get("precision_at_50") is not None]
+            lines.append(f"| `{arm}` | {round(sum(pr) / len(pr), 4) if pr else 'n/a'} | "
+                         f"{round(sum(pk) / len(pk), 4) if pk else 'n/a'} |")
+        empty_gfw = any(c.get("gfw_features_all_zero") for c in scored)
+        lines += ["", "`gfw_only` against `self_built_only` is the arm this project exists to report (R14): "
+                  "it separates what Global Fishing Watch detected from what this project detected."]
+        if empty_gfw:
+            lines.append("**Every GFW feature was zero at every scored cutoff, so `gfw_only` had nothing to "
+                         "learn from and its number is the base rate, not a measurement of GFW's value.** "
+                         "Phase 4a has to run before that arm means anything.")
+    else:
+        lines.append("No cutoff had a closed training horizon, so no arm ran.")
+    lines += ["", "## Drift (PSI by family), split at the pre-registered Hormuz break", "",
+              "| side | cutoffs | PSI by family |", "|---|---:|---|"]
+    for side, v in (p6.get("drift_by_side") or {}).items():
+        psi = ", ".join(f"`{f}` {val}" for f, val in (v.get("psi") or {}).items()) or "n/a"
+        lines.append(f"| {side} | {v.get('cutoffs')} | {psi} |")
+    lines += ["", "Under 0.1 is stable, 0.1 to 0.25 moderate, over 0.25 large. The break is "
+              f"{config.REGIME_BREAKS['hormuz_closure']} and is never a feature and never a window bound "
+              "(ADR-17).", "",
+              "## Per-hull explanations", "",
+              f"- SHAP tables: `data/parquet/shap/cutoff=*/` for {sum(1 for a in scored if a.get('shap'))} "
+              "cutoffs. Contributions come from LightGBM's own `pred_contrib` (TreeSHAP), so the `shap` "
+              "package is not a dependency: it would be a second implementation of the same algorithm.",
+              f"- Ranked lists: `reports/flagged_<cutoff>.csv`, top {100} per cutoff with the five largest "
+              "drivers per hull.",
+              f"- False-positive review sheets for Adam: {p6.get('fp_review') or 'none written'}. The "
+              "`reason` column is deliberately blank; a pre-filled guess would be a fabricated review.", "",
+              "## Assumptions to confirm", "",
+              "- LightGBM's validation split is the tail of the training rows, which are in cutoff order, "
+              "so the held-out fold is the most recent cutoff as PREREG section 4 asks. A random split "
+              "would put rows from one cutoff on both sides and flatter early stopping.",
+              "- The isolation forest is fitted on each cutoff's own feature matrix, so it needs no history "
+              "and is available at cutoffs where the supervised models are not.",
+              "- Calibration is reported as the Brier score inside the per-cutoff metrics for the "
+              "probability models. There is no reliability-diagram figure yet.",
+              "- The top-20 false-positive review per quarter is generated but not yet filled in.", ""]
+    return "\n".join(lines)
+
+
+def write_phase6(out: dict | None = None) -> str:
+    text = render_phase6(out)
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (config.REPORTS_DIR / "phase6.md").write_text(text)
+    return text

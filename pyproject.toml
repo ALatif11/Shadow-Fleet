@@ -21,7 +21,9 @@ dependencies = [
 
 [project.optional-dependencies]
 # Installed from Phase 5b on; kept out of Phase 0 so setup stays fast.
-model = ["lightgbm>=4.3", "scikit-learn>=1.5", "shap>=0.45", "python-igraph>=0.11"]
+# shap is deliberately absent: LightGBM's pred_contrib is TreeSHAP, so the package would be a
+# second implementation of the same algorithm plus a numba toolchain (ADR-22).
+model = ["lightgbm>=4.3", "scikit-learn>=1.5", "python-igraph>=0.11"]
 dev = ["pytest>=8", "ruff>=0.5"]
 
 [project.scripts]

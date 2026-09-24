@@ -14,15 +14,16 @@ from datetime import date, timedelta
 import numpy as np
 
 from shadowfleet import config
-from shadowfleet.backtest import metrics
+from shadowfleet.backtest import drift, explain, metrics
 from shadowfleet.features import asof
 from shadowfleet.labels import labels as lab
-from shadowfleet.models import rules
+from shadowfleet.models import anomaly, rules, tabular
 from shadowfleet.util.store import rel_path
 
 log = logging.getLogger(__name__)
 
 LABEL_SETS = {"union": lab.SOURCES, "ofac_only": ("OFAC",)}
+PRIMARY_LABEL_SET = "union"  # PREREG section 3; the Phase 6 artefacts follow the primary endpoint only
 
 
 def _label_vector(T: date, rows: list[dict], sources: tuple[str, ...]) -> np.ndarray:
@@ -46,18 +47,33 @@ def usable_history(history: list[tuple[date, list[dict], np.ndarray]], T: date,
     return [(rows, y) for t0, rows, y in history if t0 + timedelta(days=horizon_days) <= T]
 
 
-def _scores(T: date, rows: list[dict],
-            history: list[tuple[date, list[dict], np.ndarray]]) -> dict[str, np.ndarray | None]:
+def _scores(T: date, rows: list[dict], history: list[tuple[date, list[dict], np.ndarray]],
+            supervised: bool = True) -> tuple[dict[str, np.ndarray | None], dict]:
+    """Every model's score at T, plus the extras the Phase 6 artefacts need (boosters, columns, training)."""
     out: dict[str, np.ndarray | None] = {name: fn(rows) for name, fn in rules.RULES.items()}
+    out["ISO_forest"] = anomaly.score(rows)  # unsupervised, so available at every cutoff
     usable = usable_history(history, T)
     train_rows = [r for h, _ in usable for r in h]
     train_y = np.concatenate([y for _, y in usable]) if usable else np.array([])
-    out["B3_logistic"] = rules.b3_logistic(train_rows, train_y, rows) if usable else None
-    return out
+    extra: dict = {"train_rows": train_rows, "train_y": train_y}
+    if not (usable and supervised):
+        out["B3_logistic"] = None
+        out["LGBM"] = None
+        return out, extra
+    out["B3_logistic"] = rules.b3_logistic(train_rows, train_y, rows)
+    score, boosters, cols = tabular.train_and_score(train_rows, train_y, rows,
+                                                    explain.numeric_columns())
+    out["LGBM"] = score
+    extra.update(boosters=boosters, columns=cols)
+    return out, extra
 
 
-def run(cutoffs: list[date] | None = None, label_sets: dict | None = None) -> dict:
-    """Score every cutoff for every label set. Returns the whole table; also writes CSVs and the report."""
+def run(cutoffs: list[date] | None = None, label_sets: dict | None = None, full: bool = False) -> dict:
+    """Score every cutoff for every label set. Returns the whole table; also writes CSVs and the report.
+
+    `full` adds the Phase 6 passes: ablation arms, PSI drift, SHAP tables, flagged lists and the
+    false-positive review sheets. They are separate because they cost several times the base loop.
+    """
     w = config.load_window()
     cutoffs = cutoffs or config.monthly_cutoffs(w, date.today())
     label_sets = label_sets or LABEL_SETS
@@ -66,6 +82,7 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None) -> di
     first_seen: dict[str, date] = {}
     history: dict[str, list[tuple[date, list[dict], np.ndarray]]] = {k: [] for k in label_sets}
     b2_terms: dict[str, int] = {}
+    artefacts: list[dict] = []
     label_history: dict[str, list[tuple[date, list[dict], np.ndarray]]] = {}
 
     for T in cutoffs:
@@ -82,7 +99,7 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None) -> di
 
         for label_name, sources in label_sets.items():
             y = _label_vector(T, rows, sources)
-            scored = _scores(T, rows, history[label_name])
+            scored, extra = _scores(T, rows, history[label_name])
             for model, score in scored.items():
                 base = {"cutoff": T.isoformat(), "label_set": label_name, "model": model,
                         "hulls_without_imo": n_syn}
@@ -95,6 +112,9 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None) -> di
                     per_cutoff.append({**base, "stratum": stratum, "not_scored": False,
                                        **metrics.summary(y[mask], score[mask],
                                                          calibrated=model == "B3_logistic")})
+            if full and label_name == PRIMARY_LABEL_SET:
+                artefacts.append(_phase6(T, rows, y, scored, extra, per_cutoff))
+
             # every cutoff joins the history; `usable_history` decides which of them a later cutoff may
             # actually train on, because that depends on the cutoff being scored, not on the run's end
             history[label_name].append((T, rows, y))
@@ -111,6 +131,10 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None) -> di
            "b2_live_terms": b2_terms, "dead_b2_terms": [k for k, v in b2_terms.items() if v == 0],
            "not_scored": sum(1 for r in per_cutoff if r.get("not_scored")),
            "per_cutoff": per_cutoff, "aggregate": _aggregate(per_cutoff)}
+    if full:
+        out["phase6"] = {"per_cutoff": artefacts, "arms": sorted(explain.ablation_arms()),
+                         "fp_review": _fp_sheets(artefacts),
+                         "drift_by_side": _drift_sides(artefacts)}
     out["csv"] = _write_csv(per_cutoff)
     if failed:  # PREREG section 10: a failing leakage test means no metrics are reported at all
         log.error("leakage tests failed: %s", failed)
@@ -118,6 +142,8 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None) -> di
 
     probes.write("backtest", out)
     report.write_phase5b(out)
+    if full:
+        report.write_phase6(out)
     return out
 
 
@@ -231,3 +257,64 @@ def entity_resolution_delta() -> dict:
             "note": ("no hull id depends on a GFW model, so disabling GFW merges changes nothing"
                      if gfw_merges == 0 else
                      "GFW merges exist; this arm must now recompute features with them disabled")}
+
+
+# ------------------------------------------------------------------------------------- Phase 6 passes
+def _phase6(T: date, rows: list[dict], y: np.ndarray, scored: dict, extra: dict,
+            per_cutoff: list[dict]) -> dict:
+    """Ablations, drift, SHAP, flagged list. Only for the primary label set (PREREG section 3)."""
+    out: dict = {"cutoff": T.isoformat(), "hormuz_side": drift.hormuz_side(T.isoformat())}
+    train_rows, train_y = extra["train_rows"], extra["train_y"]
+
+    if len(train_y) and train_y.sum():
+        arms = {}
+        for arm, cols in explain.ablation_arms().items():
+            score, _, _ = tabular.train_and_score(train_rows, train_y, rows, cols)
+            arms[arm] = ({"pr_auc": None, "precision_at_50": None} if score is None else
+                         {"pr_auc": metrics.pr_auc(y, score),
+                          "precision_at_50": metrics.precision_at_k(y, score, 50)})
+        out["ablations"] = arms
+        out["drift_psi"] = drift.by_family(train_rows, rows, asof.FEATURES)
+        # an arm whose columns are all zero produces the base rate, which is not the same as "this source
+        # adds nothing"; the report has to be able to tell those two apart
+        gfw_cols = explain.numeric_columns({f for f, src in explain.SOURCE_OF_FAMILY.items()
+                                            if src == "gfw"})
+        out["gfw_features_all_zero"] = not any(r.get(c) for r in rows for c in gfw_cols)
+
+    if scored.get("LGBM") is not None and extra.get("boosters"):
+        contribs = tabular.contributions(extra["boosters"], rows, extra["columns"])
+        out["shap"] = explain.write_shap(T, contribs)
+        out["flagged"] = explain.write_flagged(T, rows, scored["LGBM"], y, contribs)
+        order = np.argsort(-scored["LGBM"])
+        out["top_non_listed"] = [
+            {"cutoff": T.isoformat(), "rank": rank, "hull_id": rows[i]["hull_id"],
+             "score": round(float(scored["LGBM"][i]), 6),
+             "top_drivers": "; ".join(d["feature"] for d in
+                                      (next((c for c in contribs if c["hull_id"] == rows[i]["hull_id"]),
+                                            {}) or {}).get("top", [])[:3])}
+            for rank, i in enumerate(order, start=1) if y[i] == 0][:explain.FP_REVIEW_N]
+    # calibration: Brier is only meaningful for the probability models, and metrics.summary already carries
+    # it for those; nothing extra to compute here, which is why there is no reliability-plot writer yet
+    out["primary_model_scored"] = scored.get("LGBM") is not None
+    return out
+
+
+def _fp_sheets(artefacts: list[dict]) -> list[str]:
+    """One review sheet per quarter, from the top non-listed flags of that quarter's cutoffs."""
+    by_quarter: dict[str, list[dict]] = {}
+    for a in artefacts:
+        q = explain.quarter_of(date.fromisoformat(a["cutoff"]))
+        by_quarter.setdefault(q, []).extend(a.get("top_non_listed") or [])
+    return [explain.write_fp_review(q, rows) for q, rows in sorted(by_quarter.items()) if rows]
+
+
+def _drift_sides(artefacts: list[dict]) -> dict:
+    """Mean PSI per family, split at the pre-registered Hormuz break (PREREG section 8)."""
+    out: dict = {}
+    for side in ("pre_break", "post_break"):
+        rows = [a["drift_psi"] for a in artefacts if a.get("drift_psi") and a["hormuz_side"] == side]
+        families = sorted({f for r in rows for f in r})
+        out[side] = {"cutoffs": len(rows),
+                     "psi": {f: round(float(np.mean([r[f] for r in rows if r.get(f) is not None])), 4)
+                             for f in families if any(r.get(f) is not None for r in rows)}}
+    return out
