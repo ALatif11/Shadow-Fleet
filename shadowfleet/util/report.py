@@ -465,3 +465,51 @@ def write_phase4b(out: dict | None = None) -> str:
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORTS_DIR / "phase4b.md").write_text(text)
     return text
+
+
+# ---------------------------------------------------------------------------- Phase 5a
+def render_phase5a(out: dict | None = None) -> str:
+    p = out or probes.read("features")
+    if not p:
+        return "# Phase 5a report\n\n" + NOT_RUN + " - run `make features`.\n"
+    from shadowfleet.features.asof import FEATURES, SOURCE_OF_FAMILY, TRANSIT_GAP_HOURS
+
+    by_family: dict[str, list[str]] = {}
+    for name, (family, _) in FEATURES.items():
+        by_family.setdefault(family, []).append(name)
+    lines = [f"# Phase 5a report (generated {date.today().isoformat()} by `make features`)", "",
+             f"{len(FEATURES)} features in {len(by_family)} frozen families. The registry is the contract: "
+             "`tests/test_leakage.py` fails if its families stop matching PREREG section 7.", "",
+             "| family | source | features |", "|---|---|---|"]
+    lines += [f"| `{f}` | {SOURCE_OF_FAMILY[f]} | {', '.join(f'`{n}`' for n in sorted(ns))} |"
+              for f, ns in sorted(by_family.items())]
+    lines += ["", "## Feature matrix", "", "| cutoff | hulls | seconds |", "|---|---:|---:|"]
+    lines += [f"| {c['cutoff']} | {c['hulls']} | {c['seconds']} |" for c in p.get("cutoffs") or []]
+    gfw = p.get("gfw_present")
+    lines += ["", f"- Table: `{p.get('table')}`.",
+              f"- GFW events present: **{gfw}**." + ("" if gfw else " The three `gfw_*` families are at "
+              "their defaults (zero, or null where a null is meaningful) until Phase 4a runs. That is "
+              "reported, never faked, and Phase 6's GFW-only ablation arm will be empty until it does."), "",
+              "## Leakage suite", "",
+              "- (a) `features(h, T)` from the live store equals `features(h, T)` from a store physically "
+              "truncated at T. Tested.",
+              "- (b) static analysis: nothing under `features/` imports label construction, no feature name "
+              "mentions sanctions except the partner feature, no GFW registry ownership field is read. Tested.",
+              "- (c) permutation, (d) reverse-time, (e) entity-resolution sensitivity: these need a fitted "
+              "model, so they are Phase 5b harness hooks. They are named here so their absence is visible.", "",
+              "## Assumptions to confirm", "",
+              "- A transit is a contiguous run of DMA positions; a gap over "
+              f"{TRANSIT_GAP_HOURS} h starts a new "
+              "one. On terrestrial AIS that means one transit per visit to coverage, which is the intent.",
+              "- Laden is judged per transit against the hull's own 75th-percentile draught, so hull size "
+              "does not decide it.",
+              "- `dwt` has no source: DMA does not carry it, so the column is null until one exists.",
+              "- `vessel_age_years` is null until Phase 4a brings the GFW registry build year.", ""]
+    return "\n".join(lines)
+
+
+def write_phase5a(out: dict | None = None) -> str:
+    text = render_phase5a(out)
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (config.REPORTS_DIR / "phase5a.md").write_text(text)
+    return text

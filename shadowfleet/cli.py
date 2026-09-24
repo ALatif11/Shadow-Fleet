@@ -213,6 +213,22 @@ def detect_cmd() -> None:
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase4b.md'}", err=True)
 
 
+@app.command("features")
+def features_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM-DD; default = all")) -> None:
+    """Phase 5a: write feature_matrix/cutoff=T/ for every monthly cutoff."""
+    from shadowfleet.features import asof
+
+    logs.setup("features")
+    from shadowfleet.util import probes, report
+
+    picked = [_d(c.strip()) for c in cutoffs.split(",")] if cutoffs else None
+    out = asof.build(picked)
+    probes.write("features", out)
+    _print(out)
+    report.write_phase5a(out)
+    typer.echo(f"wrote {config.REPORTS_DIR / 'phase5a.md'}", err=True)
+
+
 @app.command("probe-opensanctions")
 def probe_opensanctions() -> None:
     """Phase 0 task 7."""
