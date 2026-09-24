@@ -108,3 +108,16 @@ def test_free_gb_is_capped_by_host_drive(tmp_path, monkeypatch):
     assert round(disk.free_gb(tmp_path)) == 23
     monkeypatch.setattr(config, "HOST_DISK_PATH", "")
     assert round(disk.free_gb(tmp_path)) == 940
+
+
+def test_flag_lists_are_real_iso3_codes():
+    """45 codes typed off a web page; one transposition would silently disable a feature."""
+    import pycountry
+
+    for name in ("CONVENIENCE_FLAGS", "ITF_FOC_FLAGS_SENSITIVITY"):
+        codes = getattr(config, name)
+        assert len(codes) == len(set(codes)), f"{name} has duplicates"
+        for c in codes:
+            assert pycountry.countries.get(alpha_3=c) is not None, f"{name}: {c} is not an ISO3 code"
+    # every shadow-fleet registry except Guyana is also ITF-declared; that gap is deliberate and documented
+    assert set(config.CONVENIENCE_FLAGS) - set(config.ITF_FOC_FLAGS_SENSITIVITY) == {"GUY"}

@@ -142,8 +142,12 @@ JUMP_CELL_DEG = 0.5
 BBOX_LAT = (48.0, 72.0)
 BBOX_LON = (-12.0, 35.0)
 
-# PLACEHOLDER (refined in Phase 4b from observed anchoring clusters): rough box around the Skagen
-# anchorage east of Grenen, used only for the Phase 1 STS-readiness count.
+# Rough box around the Skagen ("Skaw Road") anchorage east of Grenen. The pilot marks Saga Shipping
+# publishes for Skaw Road sit at 57 47.5N 10 46.0E, 57 49.0N 10 46.0E and 57 44.0N 10 52.0E
+# (saga-shipping.dk/en/skaw-road, read 2026-09-23), so the box contains the working anchorage with room to
+# spare. Used ONLY by the Phase 1 STS-readiness count. Phase 4b deliberately does not use it: its detectors
+# record each event's own position and report the clusters (`detect.sts.by_cell`, `detect.loitering.by_cell`),
+# so the anchorages are derived from the data instead of asserted from a chart.
 SKAGEN_ANCHORAGE_BBOX = {"lat": (57.55, 57.90), "lon": (10.45, 11.00)}
 
 # --------------------------------------------------------------------------- GFW (ADR-3, ADR-16)
@@ -203,9 +207,30 @@ MID_SOURCE_URL = "https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/mid.aspx"
 MID_CSV = REPO_ROOT / "shadowfleet" / "ingest" / "mid.csv"
 
 # --------------------------------------------------------------------------- domain lists
-# PLACEHOLDER (sourced in Phase 3): list from the Sep 10 plan; each entry needs a citation before 5a freezes.
+# Registries that absorbed shadow-fleet tonnage from 2022 on, from the Sep 10 plan. Checked against the ITF
+# Fair Practices Committee's declared flags of convenience (itfseafarers.org/en/issues/flags-of-convenience/
+# current-registries-listed-focs, 48 registries, read 2026-09-23): Gabon, Cameroon, Comoros, Sierra Leone,
+# Eswatini, Cook Islands, Palau and Vanuatu are all on it. Guyana is not, and is kept because it appears in
+# shadow-fleet reporting; that is a deliberate departure from the ITF list, not an oversight.
+#
+# Why not the ITF list itself, which would be the more objective source: it is dominated by Liberia, Malta,
+# Marshall Islands, Panama and Cyprus, where a large share of the world's legitimate tanker fleet is flagged,
+# so "changed flag into a convenience registry" would fire on ordinary commercial reflagging and carry almost
+# no signal. The ITF list also changed during the window (Gabon and Eswatini were added mid-window), so using
+# it as of today would itself look ahead. This list is fixed, small, and selected before any model scored
+# anything; PREREG section 11 already discloses that feature design is not blind to the test period, and
+# Phase 6 reports the ITF-list variant as a sensitivity (reporting only, per PREREG section 7).
+# ADAM: this is the one judgement call in Phase 3 that is yours. Say the word and it becomes the ITF 48.
 CONVENIENCE_FLAGS = ["GAB", "CMR", "COM", "SLE", "SWZ", "GUY", "COK", "PLW", "VUT"]
-# Plan R3 / Phase 4a. Polygons are added in Phase 4a with sources.
+# The ITF-declared registries that overlap the tanker fleet, for the Phase 6 sensitivity arm only. Never a
+# feature input: see the note above.
+ITF_FOC_FLAGS_SENSITIVITY = ["ATG", "BHS", "BRB", "BLZ", "BMU", "BOL", "CMR", "CYM", "COM", "COK", "CUW",
+                             "CYP", "DMA", "GNQ", "SWZ", "FRO", "GAB", "GMB", "GEO", "GIB", "GNB", "HND",
+                             "JAM", "LBN", "LBR", "MLT", "MHL", "MUS", "MDA", "MNG", "MMR", "PRK", "NIU",
+                             "PLW", "PAN", "SMR", "STP", "SLE", "KNA", "VCT", "LKA", "TZA", "TGO", "TUV",
+                             "VUT"]
+# Plan R3 / Phase 4a: matched by name against GFW port visits, which is why these are names and not
+# polygons. All of them are outside the DMA footprint, so no Phase 4b detector needs their geometry.
 RUSSIAN_PORTS = ["Primorsk", "Ust-Luga", "Vysotsk", "St Petersburg", "Novorossiysk", "Tuapse", "Taman",
                  "Murmansk", "Kozmino"]
 
