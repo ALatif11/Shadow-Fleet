@@ -516,6 +516,35 @@ def write_phase5a(out: dict | None = None) -> str:
 
 
 # ---------------------------------------------------------------------------- Phase 5b
+def _leakage(p: dict) -> list[str]:
+    leak = p.get("leakage") or {}
+    failed = p.get("leakage_failed") or []
+    if failed:
+        verdict = ("FAILED: " + ", ".join(failed) + ". PREREG section 10 says no metrics may be reported "
+                   "while a leakage test fails, so treat every number above as void until this is green.")
+    else:
+        # only (c), (d) and (e) run here; saying "all five" would credit this report with two checks it
+        # did not perform
+        verdict = "(c), (d) and (e) pass."
+    head = [f"**{verdict}**", "",
+            "(a) truncation equality and (b) static analysis run in `tests/test_leakage.py`, which "
+            "`make backtest` executes before it reports anything.", ""]
+    rows = ["| test | result |", "|---|---|"]
+    names = {"permutation": "(c) permutation", "reverse_time": "(d) reverse time",
+             "entity_resolution": "(e) entity-resolution sensitivity"}
+    for key, label in names.items():
+        v = leak.get(key) or {}
+        if v.get("skipped"):
+            rows.append(f"| {label} | skipped: {v['skipped']} |")
+        else:
+            mark = "pass" if v.get("passes") else "**FAIL**"
+            detail = ", ".join(f"{k} {round(v[k], 4) if isinstance(v[k], float) else v[k]}"
+                               for k in ("ratio", "pr_auc_shuffled", "pr_auc_forward", "pr_auc_backward",
+                                         "pr_auc_delta") if v.get(k) is not None)
+            rows.append(f"| {label} | {mark} ({detail or v.get('note', '')}) |")
+    return head + rows
+
+
 def render_phase5b(out: dict | None = None) -> str:
     p = out or probes.read("backtest")
     if not p:
@@ -542,6 +571,7 @@ def render_phase5b(out: dict | None = None) -> str:
               f"{a['pr_auc']} | {a['recall_at_50']} | {a['fpr_at_50']} |"
               for a in sorted(agg, key=lambda a: (a["label_set"], a["stratum"], a["model"]))]
     lines += ["", f"- Per-cutoff rows: `{p.get('csv')}`.", "",
+              "## Leakage suite", ""] + _leakage(p) + ["",
               "## What is not contributing yet", "",
               f"- B2 term firing counts at the last cutoff: {p.get('b2_live_terms')}."]
     if dead:
@@ -555,9 +585,8 @@ def render_phase5b(out: dict | None = None) -> str:
               "- `current_flag` is dropped from the B3 design matrix rather than label-encoded: an "
               "arbitrary integer ordering of flags is a worse lie than leaving the column out.",
               "- B0 is seeded, so the random baseline is reproducible.",
-              "- Leakage tests (c) permutation, (d) reverse-time and (e) entity-resolution sensitivity are "
-              "still not wired into this harness. They are acceptance criteria for this phase and must land "
-              "before any of these numbers goes in the README.", ""]
+              "- (a) and (b) of the leakage suite run in `tests/test_leakage.py`, which `make backtest` "
+              "executes before anything here; (c), (d) and (e) run in the harness and are above.", ""]
     return "\n".join(lines)
 
 

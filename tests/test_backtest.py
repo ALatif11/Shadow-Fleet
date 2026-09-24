@@ -91,3 +91,67 @@ def test_precision_at_k_never_exceeds_one_or_divides_by_zero(k):
     p = metrics.precision_at_k(y, np.arange(4, dtype=float), k)
     assert p is not None and 0.0 <= p <= 1.0
     assert metrics.precision_at_k(np.array([]), np.array([]), k) is None
+
+
+def _rows(n: int, signal: np.ndarray) -> list[dict]:
+    return [{"n_transits": float(s), "gap_hours_total": 0.0, "n_name_changes": 0.0} for s in signal[:n]]
+
+
+def test_permutation_check_passes_when_nothing_leaks():
+    rng = np.random.default_rng(1)
+    tr_y = (rng.random(200) < 0.15).astype(int)
+    ev_y = (rng.random(200) < 0.15).astype(int)
+    out = harness.permutation_check(_rows(200, rng.random(200)), tr_y,
+                                   _rows(200, rng.random(200)), ev_y)
+    assert out["passes"] is True
+    assert out["base_rate"] == pytest.approx(ev_y.mean(), abs=1e-5)  # judged against the eval cutoff
+
+
+def test_permutation_check_fires_when_the_score_knows_the_answer(monkeypatch):
+    """The guard's arithmetic, tested by handing it a scorer that has the eval labels."""
+    rng = np.random.default_rng(3)
+    tr_y = (rng.random(100) < 0.2).astype(int)
+    ev_y = (rng.random(100) < 0.2).astype(int)
+    monkeypatch.setattr(rules, "b3_logistic", lambda *a, **k: ev_y.astype(float))
+    out = harness.permutation_check(_rows(100, rng.random(100)), tr_y, _rows(100, rng.random(100)), ev_y)
+    assert out["passes"] is False and out["pr_auc_shuffled"] == 1.0
+
+
+def test_permutation_check_skips_rather_than_lying_when_there_are_no_positives():
+    zeros = np.zeros(50, dtype=int)
+    out = harness.permutation_check(_rows(50, np.zeros(50)), zeros, _rows(50, np.zeros(50)), zeros)
+    assert out.get("skipped")
+
+
+def test_reverse_time_check_compares_both_directions():
+    rng = np.random.default_rng(2)
+    a_y = (rng.random(120) < 0.2).astype(int)
+    b_y = (rng.random(120) < 0.2).astype(int)
+    out = harness.reverse_time_check([(date(2025, 1, 31), _rows(120, rng.random(120)), a_y),
+                                      (date(2025, 6, 30), _rows(120, rng.random(120)), b_y)])
+    assert out["passes"] is True and out["early"] == "2025-01-31" and out["late"] == "2025-06-30"
+
+
+def test_reverse_time_check_needs_two_cutoffs_with_positives():
+    assert harness.reverse_time_check([]).get("skipped")
+    assert harness.reverse_time_check(
+        [(date(2025, 1, 31), _rows(10, np.zeros(10)), np.zeros(10, dtype=int))]).get("skipped")
+
+
+def test_entity_resolution_arm_is_a_declared_no_op_while_no_gfw_merge_exists(tmp_data):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    from shadowfleet.resolve.identity import HULL_MAP
+
+    config.PARQUET_DIR.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.table({"method": ["imo_majority", "imo_majority", "syn"]}),
+                   config.PARQUET_DIR / HULL_MAP)
+    out = harness.entity_resolution_delta()
+    assert out["passes"] is True and out["windows_from_a_gfw_merge"] == 0 and out["pr_auc_delta"] == 0.0
+
+    # the moment a GFW merge appears, the arm must stop claiming a zero delta
+    pq.write_table(pa.table({"method": ["imo_majority", "gfw_vessel_id"]}),
+                   config.PARQUET_DIR / HULL_MAP)
+    out = harness.entity_resolution_delta()
+    assert out["passes"] is False and out["pr_auc_delta"] is None
