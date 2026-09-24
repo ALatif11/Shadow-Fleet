@@ -643,6 +643,8 @@ def render_phase6(out: dict | None = None) -> str:
     p = out or probes.read("backtest")
     if not p or not p.get("phase6"):
         return "# Phase 6 report\n\n" + NOT_RUN + " - run `make phase6`.\n"
+    from shadowfleet.backtest import explain
+
     p6 = p["phase6"]
     scored = [a for a in p6.get("per_cutoff") or [] if a.get("ablations")]
     lines = [f"# Phase 6 report (generated {date.today().isoformat()} by `make phase6`)", "",
@@ -682,8 +684,8 @@ def render_phase6(out: dict | None = None) -> str:
               f"- SHAP tables: `data/parquet/shap/cutoff=*/` for {sum(1 for a in scored if a.get('shap'))} "
               "cutoffs. Contributions come from LightGBM's own `pred_contrib` (TreeSHAP), so the `shap` "
               "package is not a dependency: it would be a second implementation of the same algorithm.",
-              f"- Ranked lists: `reports/flagged_<cutoff>.csv`, top {100} per cutoff with the five largest "
-              "drivers per hull.",
+              f"- Ranked lists: `reports/flagged_<cutoff>.csv`, top {explain.TOP_FLAGGED} per cutoff, "
+              "with the five largest drivers per hull.",
               f"- False-positive review sheets for Adam: {p6.get('fp_review') or 'none written'}. The "
               "`reason` column is deliberately blank; a pre-filled guess would be a fabricated review.", "",
               "## Assumptions to confirm", "",

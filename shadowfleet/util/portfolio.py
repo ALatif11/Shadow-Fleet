@@ -138,15 +138,12 @@ def render_portfolio() -> str:
     det = probes.read("detect") or {}
     ing = probes.read("phase1") or {}
 
-    def bullet(text: str) -> str:
-        return f"- {text}"
-
     return "\n".join([
         f"# Portfolio material (generated {date.today().isoformat()} by `make readme`)", "",
         "Every figure is pulled from `reports/probes/`. A bullet that still shows "
         f"\"{MISSING}\" is not ready to put on a resume.", "",
         "## Resume bullets", "",
-        bullet(f"Built a point-in-time backtested sanctions-evasion indicator model over "
+        "- " + (f"Built a point-in-time backtested sanctions-evasion indicator model over "
                f"{_n((ing.get('population') or {}).get('mmsi_ever_tanker_class'), 'make phase1')} tanker "
                f"hulls transiting the Baltic exit from open AIS and watchlist data; best model "
                f"`{best.get('model', MISSING)}` reached precision@50 "
@@ -154,20 +151,20 @@ def render_portfolio() -> str:
                f"any list, a median "
                f"{_n(lead.get('median_weeks'), 'make backtest')} weeks before listing, under a "
                f"pre-registered evaluation."),
-        bullet(f"Engineered a leakage-tested as-of feature store (DuckDB/Parquet) with "
+        "- " + (f"Engineered a leakage-tested as-of feature store (DuckDB/Parquet) with "
                f"{_n(feats.get('features'), 'make features')} features in "
                f"{len(feats.get('families') or []) or '?'} frozen families, enforced by five leakage "
                f"tests that block metric reporting on failure."),
-        bullet(f"Resolved vessel identity across MMSI reassignments and renames by IMO majority vote over "
+        "- " + (f"Resolved vessel identity across MMSI reassignments and renames by IMO majority vote over "
                f"AIS static messages, reaching "
                f"{_n((ident.get('coverage') or {}).get('share_by_imo'), 'make identity')} of MMSI-days on "
                f"an IMO-based hull id, with the resolver's own hit rate reported separately from the "
                f"unavoidable warm-up."),
-        bullet(f"Built the project's own detection layer on raw AIS tracks rather than consuming a "
+        "- " + (f"Built the project's own detection layer on raw AIS tracks rather than consuming a "
                f"vendor's: {_n((det.get('sts') or {}).get('candidates'), 'make detect')} ship-to-ship "
                f"transfer candidates and {_n((det.get('loitering') or {}).get('events'), 'make detect')} "
                f"loitering events, with ablations isolating their contribution from Global Fishing Watch's."),
-        bullet(f"Generated analyst briefs with a locally hosted LLM under schema-constrained decoding; "
+        "- " + (f"Generated analyst briefs with a locally hosted LLM under schema-constrained decoding; "
                f"{_n((briefs.get('faithfulness') or {}).get('share_clean'), 'make briefs')} passed "
                f"deterministic citation and numeric-grounding checks, with claim-level entailment "
                f"{_n(judge.get('entailment_rate'), 'make judge')} under a cross-family judge and "
