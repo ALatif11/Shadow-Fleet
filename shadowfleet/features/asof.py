@@ -18,7 +18,6 @@ from shadowfleet.features import identity as fid
 from shadowfleet.ingest.dma import connect
 from shadowfleet.labels import labels as lab
 from shadowfleet.resolve.identity import INTERVALS, as_of_hull
-from shadowfleet.util.ids import imo_valid
 from shadowfleet.util.store import glob_table, has_table, rel_path
 
 TRANSIT_GAP_HOURS = 12  # a hull out of DMA coverage this long and back is a new transit
@@ -59,8 +58,12 @@ FEATURES: dict[str, tuple[str, str]] = {
 }
 SOURCE_OF_FAMILY = {"identity": "dma", "ais": "dma", "gfw_gaps": "gfw", "gfw_encounters": "gfw",
                     "gfw_ports": "gfw", "detect": "self_built", "static": "dma"}
-ZERO_DEFAULT = {n for n, (f, _) in FEATURES.items()
-                if n.startswith(("n_", "gap_hours", "loitering_hours", "anchorage_", "share_", "max_"))}
+# Everything defaults to 0, because "nothing observed" is a real zero. These are the exceptions, where a
+# zero would be a lie. Listed explicitly rather than inferred from the name: a prefix rule would quietly
+# give a newly added feature the wrong default.
+NULLABLE = {"days_since_last_identity_change", "current_flag", "days_since_last_russian_port_visit",
+            "vessel_age_years", "dwt", "mean_transit_speed_kn", "spoof_jump_rate_excess",
+            "share_russian_destination", "max_gap_distance_km"}
 
 
 def _ts(T: date) -> str:
@@ -84,7 +87,7 @@ def population(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[st
 def _identity(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     if not (config.PARQUET_DIR / INTERVALS).exists():
         return {}
-    return {r.pop("hull_id"): r for r in (dict(x) for x in fid.features(T, con))}
+    return {r["hull_id"]: r for r in fid.features(T, con)}
 
 
 def _ais(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
@@ -162,14 +165,10 @@ def _detect(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     out: dict[str, dict] = {}
     if has_table(sts.TABLE):
         for hull, n in con.execute(f"""
-            SELECT hull, count(*) FROM (
-              SELECT hull_a AS hull, observed_at FROM read_parquet('{glob_table(sts.TABLE)}',
-                     hive_partitioning=true)
-              UNION ALL
-              SELECT hull_b AS hull, observed_at FROM read_parquet('{glob_table(sts.TABLE)}',
-                     hive_partitioning=true))
+            SELECT unnest([hull_a, hull_b]) AS hull, count(*)
+            FROM read_parquet('{glob_table(sts.TABLE)}', hive_partitioning=true)
             WHERE observed_at BETWEEN TIMESTAMP '{start} 00:00:00' AND {_ts(T)}
-            GROUP BY hull
+            GROUP BY 1
         """).fetchall():
             out.setdefault(hull, {})["n_sts_candidates"] = n
     if has_table(loitering.TABLE):
@@ -220,7 +219,7 @@ def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict
             row.update(part.get(h) or {})
         for name in FEATURES:
             if name not in row:
-                row[name] = 0 if name in ZERO_DEFAULT else None
+                row[name] = None if name in NULLABLE else 0
         rows.append({k: row[k] for k in ["hull_id", "cutoff", *FEATURES]})
     return rows
 
@@ -242,21 +241,12 @@ def build(cutoffs: list[date] | None = None) -> dict:
         t0 = time.time()
         rows = features(T, con)
         d = config.PARQUET_DIR / "feature_matrix" / f"cutoff={T.isoformat()}"
-        d.mkdir(parents=True, exist_ok=True)
-        pq.write_table(pa.Table.from_pylist(rows or [_empty_row()]).slice(0, len(rows)),
-                       d / "part-0.parquet", compression="zstd")
+        if rows:  # a cutoff with no population writes nothing; readers glob the partitions
+            d.mkdir(parents=True, exist_ok=True)
+            pq.write_table(pa.Table.from_pylist(rows), d / "part-0.parquet", compression="zstd")
         out["cutoffs"].append({"cutoff": T.isoformat(), "hulls": len(rows),
                                "seconds": round(time.time() - t0, 1)})
     out["table"] = rel_path(config.PARQUET_DIR / "feature_matrix")
     return out
 
 
-def _empty_row() -> dict:
-    """A typed template so an empty cutoff still writes a Parquet file with the right schema."""
-    return {"hull_id": "", "cutoff": date(2000, 1, 1),
-            **{n: (0 if n in ZERO_DEFAULT else None) for n in FEATURES}}
-
-
-def sanctioned_imo_set(T: date) -> set[int]:
-    """The only label-derived thing a feature may read (leakage test b): partner listed-as-of-T status."""
-    return {i for i in lab.listed_as_of(T) if imo_valid(i)}
