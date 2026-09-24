@@ -16,6 +16,7 @@ dependencies = [
   "shapely>=2.0",
   "pyproj>=3.6",
   "matplotlib>=3.8",
+  "numpy>=1.26",        # metrics and rules; was only present transitively via pyarrow
 ]
 
 [project.optional-dependencies]

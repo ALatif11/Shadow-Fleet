@@ -229,6 +229,23 @@ def features_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase5a.md'}", err=True)
 
 
+@app.command("backtest")
+def backtest_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM-DD; default = all")) -> None:
+    """Phase 5b: rules baselines over every cutoff. Runs the leakage suite first and stops if it fails."""
+    import subprocess
+
+    logs.setup("backtest")
+    leak = subprocess.run(["python", "-m", "pytest", "-q", "tests/test_leakage.py"], cwd=config.REPO_ROOT)
+    if leak.returncode != 0:
+        raise SystemExit("leakage suite failed; no metrics reported (PREREG section 10)")
+    from shadowfleet.backtest import harness
+
+    picked = [_d(c.strip()) for c in cutoffs.split(",")] if cutoffs else None
+    out = harness.run(picked)
+    _print({k: v for k, v in out.items() if k != "per_cutoff"})
+    typer.echo(f"wrote {config.REPORTS_DIR / 'phase5b.md'}", err=True)
+
+
 @app.command("probe-opensanctions")
 def probe_opensanctions() -> None:
     """Phase 0 task 7."""

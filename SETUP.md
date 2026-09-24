@@ -104,3 +104,15 @@ Keep the PC awake while ingesting (Windows Settings, Power, Screen and sleep: "N
 ## 8. Disk housekeeping
 - The ingest pauses on its own when free space drops below 25 GB (`SHADOWFLEET_MIN_FREE_GB` in `.env`) and resumes at 30 GB.
 - The WSL virtual disk grows but does not shrink by itself. After big deletions (**PowerShell**): `wsl --shutdown`, then `wsl --manage Ubuntu-24.04 --set-sparse true` on recent WSL, or compact the `ext4.vhdx` with `diskpart` (`select vdisk file=...`, `compact vdisk`).
+
+## Phase 5b onward: the model extra
+
+`make backtest` and everything after it need scikit-learn and LightGBM, which are the `model`
+extra rather than core deps so Phase 0 setup stays fast:
+
+```bash
+[WSL] cd ~/shadowfleet && uv sync --extra model
+```
+
+`shadowfleet.backtest.metrics` imports sklearn lazily, so the rules-only paths still import
+without it; `make backtest` will fail with an ImportError if the extra is missing.

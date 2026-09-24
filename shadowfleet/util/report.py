@@ -513,3 +513,56 @@ def write_phase5a(out: dict | None = None) -> str:
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORTS_DIR / "phase5a.md").write_text(text)
     return text
+
+
+# ---------------------------------------------------------------------------- Phase 5b
+def render_phase5b(out: dict | None = None) -> str:
+    p = out or probes.read("backtest")
+    if not p:
+        return "# Phase 5b report\n\n" + NOT_RUN + " - run `make backtest`.\n"
+    agg = p.get("aggregate") or []
+    dead = p.get("dead_b2_terms") or []
+    lines = [f"# Phase 5b report (generated {date.today().isoformat()} by `make backtest`)", "",
+             f"{p.get('cutoffs_scored')} cutoffs scored. Macro-averaged over cutoffs, per PREREG section 3: "
+             "a cutoff with more hulls must not dominate.", "",
+             "## The pre-registered primary endpoint", ""]
+    primary = [a for a in agg if a["label_set"] == "union" and a["stratum"] == "b1"]
+    lines += ["| model | precision@50 | PR-AUC | recall@50 | cutoffs | of those, with a positive |",
+              "|---|---:|---:|---:|---:|---:|"]
+    lines += [f"| `{a['model']}` | **{a['precision_at_50']}** | {a['pr_auc']} | {a['recall_at_50']} | "
+              f"{a['cutoffs']} | {a['cutoffs_with_a_positive']} |"
+              for a in sorted(primary, key=lambda a: -(a["precision_at_50"] or 0))]
+    lines += ["", "PREREG section 3 fixes this table as the headline: precision@50 in the B1 stratum, union "
+              "label. LightGBM is not here yet (Phase 6); the best row is currently a baseline, and if it "
+              "stays that way after Phase 6 that is the finding, not a failure to report.", "",
+              "## Every arm", "",
+              "| label set | stratum | model | precision@50 | PR-AUC | recall@50 | FPR@50 |",
+              "|---|---|---|---:|---:|---:|---:|"]
+    lines += [f"| {a['label_set']} | {a['stratum']} | `{a['model']}` | {a['precision_at_50']} | "
+              f"{a['pr_auc']} | {a['recall_at_50']} | {a['fpr_at_50']} |"
+              for a in sorted(agg, key=lambda a: (a["label_set"], a["stratum"], a["model"]))]
+    lines += ["", f"- Per-cutoff rows: `{p.get('csv')}`.", "",
+              "## What is not contributing yet", "",
+              f"- B2 term firing counts at the last cutoff: {p.get('b2_live_terms')}."]
+    if dead:
+        lines.append(f"- **Dead B2 terms: {', '.join(f'`{d}`' for d in dead)}.** Their weights are "
+                     "pre-registered and stay as they are; they contribute nothing until the phase that "
+                     "feeds them has run (GFW terms need Phase 4a, `old_vessel` needs the registry build "
+                     "year). Reported rather than silently reweighted.")
+    lines += ["", "## Assumptions to confirm", "",
+              "- A `syn:` hull has no IMO, so it can never be a positive. The per-cutoff rows carry "
+              "`hulls_without_imo` so that recall ceiling is visible.",
+              "- `current_flag` is dropped from the B3 design matrix rather than label-encoded: an "
+              "arbitrary integer ordering of flags is a worse lie than leaving the column out.",
+              "- B0 is seeded, so the random baseline is reproducible.",
+              "- Leakage tests (c) permutation, (d) reverse-time and (e) entity-resolution sensitivity are "
+              "still not wired into this harness. They are acceptance criteria for this phase and must land "
+              "before any of these numbers goes in the README.", ""]
+    return "\n".join(lines)
+
+
+def write_phase5b(out: dict | None = None) -> str:
+    text = render_phase5b(out)
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (config.REPORTS_DIR / "phase5b.md").write_text(text)
+    return text
