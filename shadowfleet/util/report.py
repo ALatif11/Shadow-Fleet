@@ -738,3 +738,50 @@ def write_phase8(out: dict | None = None) -> str:
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORTS_DIR / "phase8.md").write_text(text)
     return text
+
+
+# ---------------------------------------------------------------------------- Phase 9
+def render_phase9(out: dict | None = None) -> str:
+    p = out or probes.read("judge")
+    if not p:
+        return "# Phase 9 report\n\n" + NOT_RUN + " - run `make judge`.\n"
+    k = p.get("kappa") or {}
+    lines = [f"# Phase 9 report (generated {date.today().isoformat()} by `make judge`)", "",
+             f"Generator: `{p.get('generator_model')}`. Judge: `{p.get('judge_model')}`. Different "
+             "families by construction; the command refuses to run otherwise, because a model grading its "
+             "own output agrees with its own blind spots (ADR-10).", "",
+             "## Claim-level entailment", "",
+             f"- {p.get('findings')} findings judged. **Entailment rate {p.get('entailment_rate')}.**",
+             f"- Judge errors (server or schema): {p.get('errors', 0)}.", "",
+             "The judge sees only the records a finding cited, never the whole bundle. Given the whole "
+             "bundle it can justify a claim from evidence the brief never pointed at, which is the failure "
+             "being measured.", ""]
+    for name, key in (("By severity", "by_severity"), ("By cutoff", "by_cutoff")):
+        rows = p.get(key) or {}
+        if rows:
+            lines += [f"### {name}", "", "| | entailment |", "|---|---:|"]
+            lines += [f"| {kk} | {vv} |" for kk, vv in rows.items()] + [""]
+    lines += ["## Judge versus human", ""]
+    if k.get("skipped"):
+        lines.append(f"- Not available: {k['skipped']}. This is the credibility number for the whole brief "
+                     "layer, so until the sheet is filled in, the entailment rate above is one model's "
+                     "opinion of another's.")
+    else:
+        lines += [f"- {k.get('n')} findings audited by hand. Raw agreement {k.get('raw_agreement')}, "
+                  f"**Cohen's kappa {k.get('kappa')}**." + (f" {k['note']}" if k.get("note") else "")]
+    lines += ["", "## Assumptions to confirm", "",
+              "- Family detection is the first word of the model name, which is enough to catch Gemma "
+              "judging Gemma and no more than that.",
+              "- A finding whose cited ids are missing from the bundle is graded `not_entailed` without "
+              "asking the model; the deterministic verifier already calls that a dangling citation.",
+              "- Agreement is computed as a two-way question (supported or not), because the audit sheet "
+              "carries the verifier's pass/fail until a judge column exists. Three-class kappa needs the "
+              "judge verdicts written into the sheet first.", ""]
+    return "\n".join(lines)
+
+
+def write_phase9(out: dict | None = None) -> str:
+    text = render_phase9(out)
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (config.REPORTS_DIR / "phase9.md").write_text(text)
+    return text

@@ -265,6 +265,29 @@ def briefs_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM-D
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase8.md'}", err=True)
 
 
+@app.command("judge")
+def judge_cmd(cutoff: str = typer.Option(None, help="YYYY-MM-DD; default = every cutoff with briefs"),
+              url: str = typer.Option(None, help="llama.cpp server running the JUDGE model")) -> None:
+    """Phase 9: grade every finding with a cross-family judge, then report agreement with the audit sheet."""
+    import json as _json
+
+    from shadowfleet.briefs import judge as jd
+    from shadowfleet.util import probes, report
+
+    logs.setup("judge")
+    root = config.REPORTS_DIR / "briefs"
+    dirs = [root / cutoff] if cutoff else sorted(d for d in root.glob("*") if d.is_dir())
+    briefs = [_json.loads(f.read_text()) for d in dirs for f in sorted(d.glob("*.json"))]
+    if not briefs:
+        raise SystemExit(f"no briefs under {root}; run `make briefs` first")
+    out = jd.judge_all(briefs, url=url)
+    out["kappa"] = jd.kappa_from_sheet()
+    probes.write("judge", out)
+    _print({k: v for k, v in out.items() if k != "rows"})
+    report.write_phase9(out)
+    typer.echo(f"wrote {config.REPORTS_DIR / 'phase9.md'}", err=True)
+
+
 @app.command("probe-opensanctions")
 def probe_opensanctions() -> None:
     """Phase 0 task 7."""

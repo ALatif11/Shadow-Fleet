@@ -6,7 +6,7 @@ FULLRES ?= 0
 
 .PHONY: setup test lint doctor probe probe-dma probe-gfw probe-ofac probe-opensanctions probe-mid \
         window-gate ingest-dma ingest-dma-bg ingest-dma-status ingest-dma-check ingest-day llm-smoke \
-        report-phase0 cutoffs phase1 labels identity detect features backtest phase6 briefs
+        report-phase0 cutoffs phase1 labels identity detect features backtest phase6 briefs judge
 
 setup:
 	uv sync --extra dev
@@ -95,3 +95,6 @@ phase6:
 
 briefs:
 	$(CLI) briefs
+
+judge:
+	$(CLI) judge
