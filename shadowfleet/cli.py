@@ -248,6 +248,23 @@ def backtest_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM
     typer.echo(f"wrote {config.REPORTS_DIR / ('phase6.md' if full else 'phase5b.md')}", err=True)
 
 
+@app.command("briefs")
+def briefs_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM-DD; default = all"),
+               top_k: int = typer.Option(50, help="flagged hulls per cutoff"),
+               url: str = typer.Option(None, help="llama.cpp server; default config.LLAMA_SERVER_URL")) -> None:
+    """Phase 8/9: evidence bundles, briefs from the local LLM, and the deterministic faithfulness check."""
+    from shadowfleet.briefs import generate as gen
+    from shadowfleet.util import probes, report
+
+    logs.setup("briefs")
+    picked = [_d(c.strip()) for c in cutoffs.split(",")] if cutoffs else None
+    out = gen.run_batch(picked, top_k=top_k, url=url)
+    probes.write("briefs", out)
+    _print({k: v for k, v in out.items() if k != "verified"})
+    report.write_phase8(out)
+    typer.echo(f"wrote {config.REPORTS_DIR / 'phase8.md'}", err=True)
+
+
 @app.command("probe-opensanctions")
 def probe_opensanctions() -> None:
     """Phase 0 task 7."""

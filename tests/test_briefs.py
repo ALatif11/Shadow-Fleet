@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import json
 from datetime import timedelta
 
 import pytest
@@ -179,3 +181,90 @@ def test_a_name_that_is_in_the_bundle_is_accepted():
                           "evidence_ids": ["E1"], "severity": "medium"}])
     out = verify.verify(b, bun, render(b, bun))
     assert out["ungrounded_names"] == [], out
+
+
+# ---------------------------------------------------------------- generation, with a stubbed server
+def _stub(content: str):
+    def completer(messages, schema=None, url=None):
+        assert schema and schema["properties"]["findings"], "the schema must be sent for constrained decoding"
+        assert messages[0]["role"] == "system" and "only facts that appear" in messages[0]["content"]
+        return content, {"completion_tokens": 120}
+    return completer
+
+
+def test_generate_returns_a_validated_brief():
+    from shadowfleet.briefs import generate as gen
+
+    good = json.dumps({"summary": "A" * 40, "risk_level": "low",
+                       "findings": [{"claim": "B" * 20, "evidence_ids": ["E1"], "severity": "low"}],
+                       "caveats": []})
+    brief, meta = gen.generate(_bundle(), completer=_stub(good))
+    assert brief and brief["risk_level"] == "low" and meta["attempts"] == 1
+
+
+def test_generate_retries_once_then_gives_up_rather_than_returning_raw_output():
+    from shadowfleet.briefs import generate as gen
+
+    brief, meta = gen.generate(_bundle(), completer=_stub('{"summary": "too short"}'))
+    assert brief is None and meta["attempts"] == gen.RETRIES + 1 and meta["errors"]
+
+
+def test_generate_never_returns_output_that_fails_the_schema():
+    from shadowfleet.briefs import generate as gen
+
+    # valid JSON, invalid brief: a finding with no evidence ids
+    bad = json.dumps({"summary": "A" * 40, "risk_level": "low",
+                      "findings": [{"claim": "B" * 20, "evidence_ids": [], "severity": "low"}],
+                      "caveats": []})
+    brief, _ = gen.generate(_bundle(), completer=_stub(bad))
+    assert brief is None
+
+
+def test_audit_sheet_puts_failures_first_and_leaves_the_human_columns_blank(tmp_data):
+    from shadowfleet.briefs import generate as gen
+
+    results = ([{"cutoff": "2025-03-31", "hull_id": f"bad{i}", "passes": False,
+                 "ungrounded_numbers": ["9.9"]} for i in range(4)]
+               + [{"cutoff": "2025-03-31", "hull_id": f"ok{i}", "passes": True} for i in range(40)])
+    gen._write_audit_sheet(results, n=10)
+    got = list(csv.DictReader((config.REPORTS_DIR / "audit_sheet.csv").read_text().splitlines()))
+    assert len(got) == 10
+    assert sum(1 for r in got if r["verifier_passed"] == "False") == 4  # every failure is included
+    assert all(r["human_verdict"] == "" and r["error_type"] == "" for r in got)
+    assert "9.9" in got[0]["verifier_failures"]
+
+
+def test_run_batch_writes_briefs_and_verifies_every_one(store):
+    from shadowfleet.briefs import generate as gen
+
+    feat = {r["hull_id"]: r for r in asof.features(T, store)}
+    # a flagged list is what run_batch reads, so write one the way Phase 6 would
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    with open(config.REPORTS_DIR / f"flagged_{T.isoformat()}.csv", "w", newline="") as f:
+        wr = csv.writer(f)
+        wr.writerow(["rank", "hull_id", "score", "label", "designation_date"])
+        for i, hull in enumerate(feat, start=1):
+            wr.writerow([i, hull, 0.9, 0, ""])
+    good = json.dumps({"summary": "A" * 40, "risk_level": "medium",
+                       "findings": [{"claim": "B" * 20, "evidence_ids": ["E1"], "severity": "low"}],
+                       "caveats": []})
+    out = gen.run_batch([T], top_k=5, completer=_stub(good))
+    assert out["cutoffs"][0]["briefs"] == len(feat)
+    assert len(out["verified"]) == len(feat)
+    assert out["faithfulness"]["briefs"] == len(feat)
+    d = config.REPORTS_DIR / "briefs" / T.isoformat()
+    assert (d / f"{IMO_A}.md").exists() and (d / f"{IMO_A}.json").exists()
+    assert "Risk level: medium" in (d / f"{IMO_A}.md").read_text()
+
+
+def test_phase8_report_states_the_deterministic_half_only(store):
+    from shadowfleet.util import report
+
+    text = report.render_phase8({"faithfulness": {"briefs": 4, "clean": 3, "share_clean": 0.75,
+                                                  "briefs_with": {"ungrounded_numbers": 1}},
+                                 "seconds": 12.0, "cutoffs": [{"cutoff": "2025-03-31", "briefs": 4,
+                                                               "dir": "x"}],
+                                 "failed": []})
+    assert "3 of 4 briefs have zero verifier failures" in text
+    assert "deterministic half only" in text  # the judge is missing and the report must say so
+    assert "audit_sheet.csv" in text

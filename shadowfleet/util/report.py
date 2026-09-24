@@ -693,3 +693,48 @@ def write_phase6(out: dict | None = None) -> str:
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORTS_DIR / "phase6.md").write_text(text)
     return text
+
+
+# ---------------------------------------------------------------------------- Phase 8/9
+def render_phase8(out: dict | None = None) -> str:
+    p = out or probes.read("briefs")
+    if not p:
+        return "# Phase 8/9 report\n\n" + NOT_RUN + " - run `make briefs`.\n"
+    f = p.get("faithfulness") or {}
+    lines = [f"# Phase 8/9 report (generated {date.today().isoformat()} by `make briefs`)", "",
+             f"{f.get('briefs', 0)} briefs in {p.get('seconds')} s. Every one was generated under a "
+             "pydantic-derived JSON schema and then checked by the deterministic verifier; nothing that "
+             "failed validation was written to disk.", "",
+             "## Deterministic faithfulness", "",
+             f"- **{f.get('clean', 0)} of {f.get('briefs', 0)} briefs have zero verifier failures "
+             f"({f.get('share_clean')}).**", ""]
+    counts = f.get("briefs_with") or {}
+    if counts:
+        lines += ["| failure | briefs |", "|---|---:|"]
+        lines += [f"| {k.replace('_', ' ')} | {v} |" for k, v in sorted(counts.items())]
+    lines += ["", "The four checks: every cited evidence id exists; each of the top-5 SHAP drivers has a "
+              "cited record from the family it comes from; every number and date in the prose appears in "
+              "the bundle; every capitalised name in the prose appears in the bundle.", ""]
+    if p.get("failed"):
+        lines += [f"- {len(p['failed'])} briefs failed generation after a retry and were recorded rather "
+                  "than faked. First few: "
+                  + "; ".join(f"{x['hull_id']} ({(x.get('errors') or ['?'])[0]})" for x in p["failed"][:3]),
+                  ""]
+    lines += ["## Per cutoff", "", "| cutoff | briefs | directory |", "|---|---:|---|"]
+    lines += [f"| {c['cutoff']} | {c.get('briefs', 0)} | {c.get('dir') or c.get('skipped', '')} |"
+              for c in p.get("cutoffs") or []]
+    lines += ["", "## Still outstanding", "",
+              "- The LLM judge (Phase 9 task 2) is not built. It must be a different model family from the "
+              "generator, and judge-versus-human agreement on `reports/audit_sheet.csv` is the credibility "
+              "number for this whole layer (ADR-10), so the faithfulness figure above is the deterministic "
+              "half only.",
+              "- `reports/audit_sheet.csv` is generated with 30 findings, failures first, and blank human "
+              "columns. It means nothing until Adam fills it in.", ""]
+    return "\n".join(lines)
+
+
+def write_phase8(out: dict | None = None) -> str:
+    text = render_phase8(out)
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (config.REPORTS_DIR / "phase8.md").write_text(text)
+    return text
