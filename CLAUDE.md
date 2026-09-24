@@ -38,6 +38,7 @@ shadowfleet/
     briefs/   bundle.py generate.py verify.py
     util/     disk.py net.py logs.py ids.py probes.py doctor.py report.py
     phase1.py                 # population, type changes, gap evidence, STS readiness (reads Parquet only)
+    util/store.py             # glob_table / has_table / haversine_km_sql / rel_path, shared by every phase
     cli.py                    # `python -m shadowfleet.cli <command>`
   config/window.json          # written by `make window-gate` in Phase 0; committed
   tests/  tests/fixtures/
@@ -66,7 +67,9 @@ shadowfleet/
 - Population membership: tanker by AIS-reported type OR by GFW vessel classification OR by dimensions consistent with a tanker; hulls that change reported type are tracked in a table.
 - Global gaps, encounters, loitering, port visits from GFW Events API v3, population-limited, cached. All public gap events are intentional since Aug 2025 (no separate intentional feature). GFW registry ownership fields are as-of-now and never features. Self-built detectors on DMA tracks (STS candidates, anchorage loitering, draught inconsistency, MMSI-IMO churn) so the project owns at least one detection layer; ablations report GFW-only vs self-built-only vs both.
 - DMA gaps are coverage, not evasion; dark-gap features come only from GFW GAP events.
-- Spoof-jump counts are normalised per day and 0.5-degree cell by the share of all vessels jumping, so GNSS-interference days wash out.
+- Spoof-jump counts are normalised per day and 0.5-degree cell by the share of all vessels jumping, so GNSS-interference days wash out. Both sides of that subtraction are per-vessel incidences, never per-row rates (ADR-20).
+- Self-built detectors use no port or anchorage polygons: "at a berth" is the hull's own `nav_status` of Moored, hulls at anchor are kept, and the anchorages are reported from the output rather than asserted in advance (ADR-19).
+- A hull has no `hull_id` until its first 30-day window closes, and records from that warm-up are dropped rather than given an MMSI-derived id (ADR-21).
 - Labels: OFAC add dates from SDN advanced XML `EntryEvent/Date` (every current entry is dated), cross-checked against the yearly change archive, which is still required for removals and for vessels no longer listed (2024 onward is PDF-only there). EU = Annex XLII to Reg 833/2014, from `eu_sanctions_map` (programId `EU-MARE`, dates in `startDate`, CELEX fallback), not `eu_fsf`. UK = `gb_fcdo_sanctions` (dates in `startDate`). Dated OpenSanctions exports are paid-only, so dates are cross-checked against CELEX/Official Journal and manual spot checks. Headline label OFAC∪EU∪UK; OFAC-only reported as a sensitivity table.
 - Hull identity = IMO by majority vote over DMA static messages; GFW identity linking used as fallback only, with a silver test set from OpenSanctions and GFW IMO-MMSI pairs and a sensitivity arm that disables GFW-based merges.
 - Window (decided Sep 17 2026): 2024-03-01 (first daily DMA file) to the latest file; monthly-archive backfill is optional and needs the stage-2 day-column optimisation first.
