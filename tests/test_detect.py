@@ -8,6 +8,7 @@ from shadowfleet import config
 from shadowfleet.detect import churn, draught, loitering, spoof, sts
 from shadowfleet.ingest import dma
 from shadowfleet.resolve import identity
+from shadowfleet.util.ids import imo_valid
 from shadowfleet.util.store import glob_table
 from tests.conftest import DAY, HEADER_V1, row, write_zip
 
@@ -115,26 +116,50 @@ def test_draught_change_is_flagged_and_an_sts_between_is_recorded(resolved):
     assert out["coinciding_with_sts"] >= 1
 
 
-def test_spoof_excess_washes_out_when_the_whole_cell_jumps(resolved):
-    """A hull that jumps on a day when its cell's baseline is just as high scores no excess."""
-    imos = {777: IMO_A, 888: IMO_B, 999: IMO_C}
+def test_spoof_excess_is_an_incidence_difference_not_a_row_rate(resolved):
+    """Two 0.5-degree cells, four hulls each, every hull staying inside its own cell all day.
+
+    Cell B: all four jump, so each one is doing exactly what its cell does and the excess is zero.
+    Cell A: one of four jumps, so the baseline is 0.25 and the jumper stands out by 0.75 while the three
+    quiet hulls sit at -0.25. Those numbers are only reachable if both sides of the subtraction are
+    per-vessel incidences; a per-row jump rate cannot produce them.
+    """
+    imos, v = [], 9300000
+    while len(imos) < 8:  # computed, not typed: an invalid check digit would land the hull on a syn id
+        if imo_valid(v):
+            imos.append(str(v))
+        v += 1
+    cell_a, cell_b = imos[:4], imos[4:]
     days = {}
     for off in range(6):
         t0 = (DAY + timedelta(days=off)).replace(hour=3)
         rows = []
-        for mmsi, imo in imos.items():  # every vessel in the cell teleports once, every day
-            rows += [row(t0, "Class A", mmsi, 55.10, 12.10, sog=8.0, name=f"J{mmsi}", imo=imo),
-                     row(t0 + timedelta(seconds=60), "Class A", mmsi, 55.10, 13.90, sog=8.0,
-                         name=f"J{mmsi}", imo=imo)]
+        for idx, imo in enumerate(imos):
+            in_a = imo in cell_a
+            mmsi = 219000100 + idx
+            lat, lon = (55.10, 12.10) if in_a else (56.10, 13.10)
+            jumps = (not in_a) or idx == 0  # everyone in B, only the first hull in A
+            # a slow crawl, so nothing jumps by accident; both positions stay in the same 0.5 degree cell
+            rows += [row(t0 + timedelta(minutes=k), "Class A", mmsi, lat, lon + k * 0.001, sog=9.0,
+                         name=f"S{idx}", imo=imo) for k in range(20)]
+            if jumps:  # 19.8 km in 60 s, still inside the cell
+                rows += [row(t0 + timedelta(hours=1), "Class A", mmsi, lat, lon, sog=9.0,
+                             name=f"S{idx}", imo=imo),
+                         row(t0 + timedelta(hours=1, seconds=60), "Class A", mmsi, lat, lon + 0.31,
+                             sog=9.0, name=f"S{idx}", imo=imo)]
         days[off] = rows
-    _ingest(days, fullres=True)
+    _ingest(days)
     con = resolved()
-    out = spoof.run(con)
-    assert out["hull_days"] >= 1
-    assert out["with_any_jump"] >= 1
-    worst = con.execute(f"SELECT max(excess) FROM read_parquet('{glob_table(spoof.TABLE)}',"
-                        f" hive_partitioning=true)").fetchone()[0]
-    assert worst == pytest.approx(0.0, abs=1e-9)  # jump rate equals the cell baseline
+    spoof.run(con)
+    got = dict(con.execute(f"""
+        SELECT hull_id, round(avg(excess), 6) FROM read_parquet('{glob_table(spoof.TABLE)}',
+               hive_partitioning=true) GROUP BY hull_id
+    """).fetchall())
+    for imo in cell_b:
+        assert got[imo] == pytest.approx(0.0, abs=1e-6), f"{imo} matches its cell exactly"
+    assert got[cell_a[0]] == pytest.approx(0.75, abs=1e-6)  # jumps where only a quarter of the cell does
+    for imo in cell_a[1:]:
+        assert got[imo] == pytest.approx(-0.25, abs=1e-6)  # quiet in a cell where someone else jumps
 
 
 def test_churn_records_the_mmsi_moving_under_one_hull(resolved):

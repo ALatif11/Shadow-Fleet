@@ -51,11 +51,19 @@ def run(con: duckdb.DuckDBPyConnection | None = None) -> dict:
             FROM cells LEFT JOIN read_parquet('{glob_table('jump_baseline')}', hive_partitioning=true) b
               ON b.cell_id = cells.cell_id AND b.day = cells.day
           )
+          -- Units have to match, and this is where the first version got it wrong. `jump_baseline.frac_jumped`
+          -- is an INCIDENCE: the share of vessels in that cell that jumped at all that day. So the hull's own
+          -- side must be an incidence too -- did this hull jump today, yes or no -- not its share of rows that
+          -- were jumps. Subtracting a per-row rate from a per-vessel share made the whole fleet look quieter
+          -- than its own cells; the scale rehearsal showed it as a mean excess of -0.05 across 40,000
+          -- hull-days, which is not a thing that can be true of a difference from a fleet-wide baseline.
+          -- Aggregated over a 180-day feature window this becomes PREREG's `spoof_jump_rate_excess`: the
+          -- share of days the hull jumped minus the share expected from where it was.
           SELECT hull_id, any_value(mmsi) AS mmsi, day, any_value(observed_at) AS observed_at,
-            any_value(n_rows_fullres) AS n_rows, any_value(n_jumps) AS n_jumps,
-            any_value(n_jumps)::DOUBLE / any_value(n_rows_fullres) AS jump_rate,
-            sum(cell_frac * rows_in_cell) / sum(rows_in_cell) AS expected_rate,
-            any_value(n_jumps)::DOUBLE / any_value(n_rows_fullres)
+            sum(rows_in_cell) AS n_rows, any_value(n_rows_fullres) AS n_rows_fullres,
+            any_value(n_jumps) AS n_jumps, any_value(n_jumps) > 0 AS jumped,
+            sum(cell_frac * rows_in_cell) / sum(rows_in_cell) AS expected_incidence,
+            CAST(any_value(n_jumps) > 0 AS INTEGER)
               - sum(cell_frac * rows_in_cell) / sum(rows_in_cell) AS excess,
             count(*) AS cells_visited
           FROM joined GROUP BY hull_id, day ORDER BY day, hull_id
