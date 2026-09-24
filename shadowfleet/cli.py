@@ -288,6 +288,28 @@ def judge_cmd(cutoff: str = typer.Option(None, help="YYYY-MM-DD; default = every
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase9.md'}", err=True)
 
 
+@app.command("forward-score")
+def forward_score_cmd(cutoff: str = typer.Option(None, help="YYYY-MM-DD; default = the ADR-17 date"),
+                      model: str = typer.Option(None, help="force B2_weighted to skip the fitted model")
+                      ) -> None:
+    """Phase F: write and hash the ranked top 50. Commit it the same day; the timestamp is the evidence."""
+    from shadowfleet.backtest import forward
+
+    logs.setup("forward_score")
+    _print(forward.score(_d(cutoff), model=model))
+
+
+@app.command("forward-eval")
+def forward_eval_cmd(cutoff: str = typer.Argument(..., help="the scoring date of the committed list"),
+                     as_of: str = typer.Option(None, help="evaluate with designations known by this date")
+                     ) -> None:
+    """Phase F: score the committed list against designations. Read-only; refuses an edited list."""
+    from shadowfleet.backtest import forward
+
+    logs.setup("forward_eval")
+    _print(forward.evaluate(_d(cutoff), _d(as_of)))
+
+
 @app.command("probe-opensanctions")
 def probe_opensanctions() -> None:
     """Phase 0 task 7."""

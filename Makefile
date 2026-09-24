@@ -6,7 +6,7 @@ FULLRES ?= 0
 
 .PHONY: setup test lint doctor probe probe-dma probe-gfw probe-ofac probe-opensanctions probe-mid \
         window-gate ingest-dma ingest-dma-bg ingest-dma-status ingest-dma-check ingest-day llm-smoke \
-        report-phase0 cutoffs phase1 labels identity detect features backtest phase6 briefs judge
+        report-phase0 cutoffs phase1 labels identity detect features backtest phase6 briefs judge forward-score forward-eval
 
 setup:
 	uv sync --extra dev
@@ -98,3 +98,10 @@ briefs:
 
 judge:
 	$(CLI) judge
+
+forward-score:
+	$(CLI) forward-score
+
+# make forward-eval T=2026-10-01
+forward-eval:
+	$(CLI) forward-eval $(T)
