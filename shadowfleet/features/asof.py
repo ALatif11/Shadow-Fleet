@@ -73,6 +73,10 @@ def _ts(T: date) -> str:
 def population(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[str]:
     """Hulls with a DMA position in [T-180d, T] and not listed by any of OFAC, EU or UK as of T (rule 3)."""
     con = con or connect()
+    # every feature family reads through this, so the "nothing ingested yet" guard belongs here rather
+    # than surfacing as a DuckDB parse error about a glob that matched no files
+    if not has_table("ais_dynamic"):
+        raise SystemExit("no ais_dynamic parquet; run `make ingest-dma` (Phase 1) first")
     start = T - timedelta(days=config.FEATURE_WINDOW_DAYS)
     src = (f"(SELECT mmsi, observed_at FROM read_parquet('{glob_table('ais_dynamic')}',"
            f" hive_partitioning=true) WHERE observed_at BETWEEN TIMESTAMP '{start} 00:00:00'"

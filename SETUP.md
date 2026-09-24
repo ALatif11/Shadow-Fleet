@@ -111,8 +111,11 @@ Keep the PC awake while ingesting (Windows Settings, Power, Screen and sleep: "N
 extra rather than core deps so Phase 0 setup stays fast:
 
 ```bash
-[WSL] cd ~/shadowfleet && uv sync --extra model
+[WSL] cd ~/shadowfleet && uv sync --extra model --extra dev
 ```
 
+Both extras, not just `model`: `make backtest` runs the leakage suite through pytest before it
+reports anything, and `--extra model` on its own removes pytest from the venv.
+
 `shadowfleet.backtest.metrics` imports sklearn lazily, so the rules-only paths still import
-without it; `make backtest` will fail with an ImportError if the extra is missing.
+without it; `make backtest` will fail with a named error if either extra is missing.

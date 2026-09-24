@@ -266,9 +266,16 @@ def evaluation_limit(today: date) -> date:
     return today - timedelta(days=HORIZON_DAYS)
 
 
-def monthly_cutoffs(window: Window, today: date) -> list[date]:
+def monthly_cutoffs(window: Window | None, today: date) -> list[date]:
     """Cutoff rule (PREREG): last day of every calendar month T with
-    window.start + feature window <= T <= min(window.end, today - horizon)."""
+    window.start + feature window <= T <= min(window.end, today - horizon).
+
+    Every phase from 2 on reaches the cutoff list through here, so the "you have not run the window gate
+    yet" guard lives here too: without it a missing config/window.json surfaces six frames down as
+    `AttributeError: 'NoneType' object has no attribute 'start'`.
+    """
+    if window is None:
+        raise SystemExit("no config/window.json; run `make window-gate` (Phase 0) first")
     first_allowed = window.start + timedelta(days=FEATURE_WINDOW_DAYS)
     last_allowed = min(window.end, evaluation_limit(today))
     out: list[date] = []

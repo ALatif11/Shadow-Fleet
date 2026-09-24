@@ -121,3 +121,30 @@ def test_flag_lists_are_real_iso3_codes():
             assert pycountry.countries.get(alpha_3=c) is not None, f"{name}: {c} is not an ISO3 code"
     # every shadow-fleet registry except Guyana is also ITF-declared; that gap is deliberate and documented
     assert set(config.CONVENIENCE_FLAGS) - set(config.ITF_FOC_FLAGS_SENSITIVITY) == {"GUY"}
+
+
+def test_running_a_phase_out_of_order_names_the_command_you_skipped(tmp_data):
+    """A fresh machine runs these in the wrong order. Each guard must say what to run, not raise
+    AttributeError six frames down or a DuckDB parse error about a glob that matched nothing."""
+    from datetime import date
+
+    import pytest
+
+    from shadowfleet.features import asof
+
+    with pytest.raises(SystemExit) as no_window:
+        config.monthly_cutoffs(config.load_window(), date.today())
+    assert "make window-gate" in str(no_window.value)
+
+    with pytest.raises(SystemExit) as no_ingest:
+        asof.population(date(2025, 3, 31))
+    assert "make ingest-dma" in str(no_ingest.value)
+
+
+def test_the_declared_dependencies_are_the_ones_actually_imported():
+    """pdfplumber was declared and unused while pypdfium2 was used and undeclared, so a clean install
+    worked only because the unused one happened to pull the used one in."""
+    text = (config.REPO_ROOT / "pyproject.toml").read_text()
+    assert "pypdfium2" in text, "the PDF parser's actual dependency must be declared"
+    for gone in ("polars", "shapely", "pyproj", "pdfplumber"):
+        assert f'"{gone}' not in text, f"{gone} is declared but nothing imports it"

@@ -234,10 +234,21 @@ def backtest_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM
                  full: bool = typer.Option(False, "--full",
                                            help="Phase 6: ablations, drift, SHAP, flagged lists")) -> None:
     """Phase 5b (and Phase 6 with --full). Runs the leakage suite first and stops if it fails."""
+    import importlib.util
     import subprocess
+    import sys
 
     logs.setup("backtest")
-    leak = subprocess.run(["python", "-m", "pytest", "-q", "tests/test_leakage.py"], cwd=config.REPO_ROOT)
+    # "pytest is missing" and "the leakage suite failed" are completely different problems, and reporting
+    # the first as the second sends you hunting a leak that is not there. `uv sync --extra model` alone
+    # drops the dev extra, which is exactly how this happens.
+    if importlib.util.find_spec("pytest") is None:
+        raise SystemExit("pytest is not installed, so the leakage suite cannot run: "
+                         "`uv sync --extra model --extra dev`")
+    # sys.executable, not "python": the venv's interpreter is the one that has the project installed,
+    # and a bare "python" resolves against PATH, which is not the same thing outside `uv run`
+    leak = subprocess.run([sys.executable, "-m", "pytest", "-q", "tests/test_leakage.py"],
+                          cwd=config.REPO_ROOT)
     if leak.returncode != 0:
         raise SystemExit("leakage suite failed; no metrics reported (PREREG section 10)")
     from shadowfleet.backtest import harness
