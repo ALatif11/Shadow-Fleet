@@ -148,3 +148,19 @@ def test_the_declared_dependencies_are_the_ones_actually_imported():
     assert "pypdfium2" in text, "the PDF parser's actual dependency must be declared"
     for gone in ("polars", "shapely", "pyproj", "pdfplumber"):
         assert f'"{gone}' not in text, f"{gone} is declared but nothing imports it"
+
+
+def test_util_never_imports_a_phase(tmp_data):
+    """util/ is a leaf. The dependency arrow runs phase -> report, and it used to run both ways: report
+    reached into features.asof and backtest.explain for constants, which is a cycle that only worked
+    because the imports were hidden inside functions. Constants travel in the probe dict instead."""
+    import ast
+    from pathlib import Path
+
+    banned = {"shadowfleet.features", "shadowfleet.backtest", "shadowfleet.detect", "shadowfleet.models",
+              "shadowfleet.resolve", "shadowfleet.briefs", "shadowfleet.labels"}
+    for path in (Path(config.REPO_ROOT) / "shadowfleet" / "util").glob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                assert not any(node.module.startswith(b) for b in banned), \
+                    f"{path.name} imports {node.module}: util/ must not depend on a phase"

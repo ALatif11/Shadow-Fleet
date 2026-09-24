@@ -143,6 +143,7 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None, full:
            "per_cutoff": per_cutoff, "aggregate": _aggregate(per_cutoff)}
     if full:
         out["phase6"] = {"per_cutoff": artefacts, "arms": sorted(explain.ablation_arms()),
+                         "top_flagged": explain.TOP_FLAGGED,
                          "fp_review": _fp_sheets(artefacts),
                          "drift_by_side": _drift_sides(artefacts)}
     out["lead_time"] = lead_time(top_k_seen, _designations_in_window(cutoffs))

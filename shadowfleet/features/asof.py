@@ -241,7 +241,11 @@ def build(cutoffs: list[date] | None = None) -> dict:
     cutoffs = cutoffs or config.monthly_cutoffs(config.load_window(), date.today())
     out: dict = {"cutoffs": [], "features": len(FEATURES),
                  "families": sorted({f for f, _ in FEATURES.values()}),
-                 "gfw_present": has_table("gfw_events")}
+                 "gfw_present": has_table("gfw_events"),
+                 # published for the report, so `util.report` never has to import a phase: the arrow runs
+                 # phase -> report only, and util/ stays a leaf
+                 "registry": {n: [f, d] for n, (f, d) in FEATURES.items()},
+                 "source_of_family": SOURCE_OF_FAMILY, "transit_gap_hours": TRANSIT_GAP_HOURS}
     for T in cutoffs:
         t0 = time.time()
         rows = features(T, con)

@@ -472,16 +472,17 @@ def render_phase5a(out: dict | None = None) -> str:
     p = out or probes.read("features")
     if not p:
         return "# Phase 5a report\n\n" + NOT_RUN + " - run `make features`.\n"
-    from shadowfleet.features.asof import FEATURES, SOURCE_OF_FAMILY, TRANSIT_GAP_HOURS
-
+    registry = p.get("registry") or {}
+    source_of = p.get("source_of_family") or {}
     by_family: dict[str, list[str]] = {}
-    for name, (family, _) in FEATURES.items():
+    for name, (family, _desc) in registry.items():
         by_family.setdefault(family, []).append(name)
     lines = [f"# Phase 5a report (generated {date.today().isoformat()} by `make features`)", "",
-             f"{len(FEATURES)} features in {len(by_family)} frozen families. The registry is the contract: "
-             "`tests/test_leakage.py` fails if its families stop matching PREREG section 7.", "",
+             f"{p.get('features', len(registry))} features in {len(by_family)} frozen families. The "
+             "registry is the contract: `tests/test_leakage.py` fails if its families stop matching "
+             "PREREG section 7.", "",
              "| family | source | features |", "|---|---|---|"]
-    lines += [f"| `{f}` | {SOURCE_OF_FAMILY[f]} | {', '.join(f'`{n}`' for n in sorted(ns))} |"
+    lines += [f"| `{f}` | {source_of.get(f, '?')} | {', '.join(f'`{n}`' for n in sorted(ns))} |"
               for f, ns in sorted(by_family.items())]
     lines += ["", "## Feature matrix", "", "| cutoff | hulls | seconds |", "|---|---:|---:|"]
     lines += [f"| {c['cutoff']} | {c['hulls']} | {c['seconds']} |" for c in p.get("cutoffs") or []]
@@ -499,7 +500,7 @@ def render_phase5a(out: dict | None = None) -> str:
               "model, so they are Phase 5b harness hooks. They are named here so their absence is visible.", "",
               "## Assumptions to confirm", "",
               "- A transit is a contiguous run of DMA positions; a gap over "
-              f"{TRANSIT_GAP_HOURS} h starts a new "
+              f"{p.get('transit_gap_hours', '?')} h starts a new "
               "one. On terrestrial AIS that means one transit per visit to coverage, which is the intent.",
               "- Laden is judged per transit against the hull's own 75th-percentile draught, so hull size "
               "does not decide it.",
@@ -643,8 +644,6 @@ def render_phase6(out: dict | None = None) -> str:
     p = out or probes.read("backtest")
     if not p or not p.get("phase6"):
         return "# Phase 6 report\n\n" + NOT_RUN + " - run `make phase6`.\n"
-    from shadowfleet.backtest import explain
-
     p6 = p["phase6"]
     scored = [a for a in p6.get("per_cutoff") or [] if a.get("ablations")]
     lines = [f"# Phase 6 report (generated {date.today().isoformat()} by `make phase6`)", "",
@@ -684,7 +683,7 @@ def render_phase6(out: dict | None = None) -> str:
               f"- SHAP tables: `data/parquet/shap/cutoff=*/` for {sum(1 for a in scored if a.get('shap'))} "
               "cutoffs. Contributions come from LightGBM's own `pred_contrib` (TreeSHAP), so the `shap` "
               "package is not a dependency: it would be a second implementation of the same algorithm.",
-              f"- Ranked lists: `reports/flagged_<cutoff>.csv`, top {explain.TOP_FLAGGED} per cutoff, "
+              f"- Ranked lists: `reports/flagged_<cutoff>.csv`, top {p6.get('top_flagged', '?')} per cutoff, "
               "with the five largest drivers per hull.",
               f"- False-positive review sheets for Adam: {p6.get('fp_review') or 'none written'}. The "
               "`reason` column is deliberately blank; a pre-filled guess would be a fabricated review.", "",
