@@ -6,7 +6,7 @@ FULLRES ?= 0
 
 .PHONY: setup test lint doctor probe probe-dma probe-gfw probe-ofac probe-opensanctions probe-mid \
         window-gate ingest-dma ingest-dma-bg ingest-dma-status ingest-dma-check ingest-day llm-smoke \
-        report-phase0 cutoffs phase1 labels identity detect features backtest phase6 briefs judge forward-score forward-eval
+        report-phase0 cutoffs phase1 labels identity detect features backtest phase6 briefs judge forward-score forward-eval readme all
 
 setup:
 	uv sync --extra dev
@@ -98,6 +98,17 @@ briefs:
 
 judge:
 	$(CLI) judge
+
+readme:
+	$(CLI) readme
+
+# Everything that does not need a decision, in dependency order. Each step is resumable and skips work it
+# has already done; `ingest-dma` is the long one and can be interrupted and restarted.
+all: ingest-dma phase1 labels identity detect features
+	$(CLI) backtest --full
+	$(CLI) briefs || echo "briefs need llama-server on :8080 (SETUP.md section 8); skipped"
+	$(CLI) judge || echo "judge needs the second model loaded; skipped"
+	$(CLI) readme
 
 forward-score:
 	$(CLI) forward-score

@@ -310,6 +310,18 @@ def forward_eval_cmd(cutoff: str = typer.Argument(..., help="the scoring date of
     _print(forward.evaluate(_d(cutoff), _d(as_of)))
 
 
+@app.command("readme")
+def readme_cmd() -> None:
+    """Phase 10: regenerate README.md and reports/portfolio.md from reports/probes/ (rule 4)."""
+    from shadowfleet.util import portfolio
+
+    logs.setup("readme")
+    out = portfolio.write()
+    _print(out)
+    if out["unmeasured"]:
+        typer.echo(f"{out['unmeasured']} values are still unmeasured and are marked as such", err=True)
+
+
 @app.command("probe-opensanctions")
 def probe_opensanctions() -> None:
     """Phase 0 task 7."""

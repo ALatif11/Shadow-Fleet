@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+from shadowfleet import config
+from shadowfleet.util import portfolio, probes
+
+
+def test_an_unmeasured_lead_time_does_not_render_as_nested_bold(tmp_data):
+    """`**not measured yet** (...) weeks**` is broken markdown and reads as a number that is not there."""
+    probes.write("backtest", {"aggregate": [
+        {"label_set": "union", "stratum": "b1", "model": "LGBM", "precision_at_50": 0.4, "pr_auc": 0.3,
+         "recall_at_50": 0.2, "cutoffs": 4}], "lead_time": {"LGBM": {"median_weeks": None,
+                                                                    "flagged_before_designation": 0,
+                                                                    "designated_in_window": 7}}})
+    text = portfolio.render_readme()
+    assert "weeks**" not in text.split("## What was built")[0].replace("**9.4 weeks**", "")
+    assert portfolio.MISSING in text
+
+
+def test_an_unmeasured_number_renders_as_a_marker_naming_its_command(tmp_data):
+    """Rule 4: a half-finished README must read as half-finished, not as a modest result."""
+    text = portfolio.render_readme()
+    assert portfolio.MISSING in text
+    assert "`make backtest`" in text and "`make identity`" in text
+    assert "0.0" not in text.split("## Limitations")[0], "no zero may stand in for an unmeasured value"
+
+
+def test_measured_numbers_come_from_the_probe_files(tmp_data):
+    probes.write("backtest", {"aggregate": [
+        {"label_set": "union", "stratum": "b1", "model": "LGBM", "precision_at_50": 0.42,
+         "pr_auc": 0.31, "recall_at_50": 0.2, "cutoffs": 12},
+        {"label_set": "union", "stratum": "b1", "model": "B2_weighted", "precision_at_50": 0.30,
+         "pr_auc": 0.2, "recall_at_50": 0.1, "cutoffs": 12}],
+        "lead_time": {"LGBM": {"median_weeks": 9.4, "flagged_before_designation": 18,
+                               "designated_in_window": 40}}})
+    probes.write("identity", {"coverage": {"share_by_imo": 0.87}})
+    text = portfolio.render_readme()
+    assert "`LGBM` at precision@50 0.42" in text  # the best row, not the first
+    assert "**9.4 weeks**" in text and "18 of 40 designated hulls" in text
+    assert "0.87 of MMSI-days" in text
+
+
+def test_the_headline_picks_the_best_model_not_the_alphabetically_first(tmp_data):
+    probes.write("backtest", {"aggregate": [
+        {"label_set": "union", "stratum": "b1", "model": "AAA", "precision_at_50": 0.1, "pr_auc": 0.1,
+         "recall_at_50": 0.1, "cutoffs": 3},
+        {"label_set": "union", "stratum": "b1", "model": "ZZZ", "precision_at_50": 0.9, "pr_auc": 0.9,
+         "recall_at_50": 0.9, "cutoffs": 3}]})
+    assert "`ZZZ` at precision@50 0.9" in portfolio.render_readme()
+
+
+def test_the_wrong_stratum_or_label_set_never_becomes_the_headline(tmp_data):
+    probes.write("backtest", {"aggregate": [
+        {"label_set": "ofac_only", "stratum": "b1", "model": "CHEAT", "precision_at_50": 0.99,
+         "pr_auc": 0.9, "recall_at_50": 0.9, "cutoffs": 3},
+        {"label_set": "union", "stratum": "all", "model": "ALSOCHEAT", "precision_at_50": 0.98,
+         "pr_auc": 0.9, "recall_at_50": 0.9, "cutoffs": 3}]})
+    text = portfolio.render_readme()
+    assert "CHEAT" not in text, "PREREG fixes the headline as union label, B1 stratum"
+
+
+def test_the_limitations_section_always_survives(tmp_data):
+    """The parts a reader most needs are the parts most likely to be dropped in a rewrite."""
+    text = portfolio.render_readme()
+    for must in ("R3", "R12", "R9", "R8", "not blind to the test period", "right-censored"):
+        assert must in text, must
+
+
+def test_portfolio_bullets_refuse_to_be_resume_ready_while_unmeasured(tmp_data):
+    out = portfolio.write()
+    assert out["unmeasured"] > 0
+    text = (config.REPORTS_DIR / "portfolio.md").read_text()
+    assert "not ready to put on a resume" in text
+    assert "ownership sits behind shell companies" in text  # the limitation leads the spoken version
