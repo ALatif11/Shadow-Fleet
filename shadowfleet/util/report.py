@@ -396,3 +396,73 @@ def write_phase3(out: dict | None = None) -> str:
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (config.REPORTS_DIR / "phase3.md").write_text(text)
     return text
+
+
+# ---------------------------------------------------------------------------- Phase 4b
+def _cells(rows: list[dict], value: str) -> list[str]:
+    if not rows:
+        return ["(none)"]
+    out = [f"| lat | lon | events | {value} |", "|---:|---:|---:|---:|"]
+    return out + [f"| {r['lat']} | {r['lon']} | {r.get('events') or r.get('candidates')} | {r[value]} |"
+                  for r in rows[:10]]
+
+
+def render_phase4b(out: dict | None = None) -> str:
+    p = out or probes.read("detect")
+    if not p:
+        return "# Phase 4b report\n\n" + NOT_RUN + " - run `make detect`.\n"
+    s, lo = p.get("sts") or {}, p.get("loitering") or {}
+    dr, sp, ch = p.get("draught") or {}, p.get("spoof") or {}, p.get("churn") or {}
+    lines = [f"# Phase 4b report (generated {date.today().isoformat()} by `make detect`)", "",
+             "Detection layers built on DMA tracks only. No GFW field is read here, which is what lets "
+             "Phase 6 report a self-built-only arm against a GFW-only arm.", "",
+             "## STS candidates", "",
+             f"- {s.get('candidates')} candidates over {s.get('months')} months, at "
+             f"{s.get('radius_m')} m / {s.get('max_sog')} kn / {s.get('min_hours')} h.",
+             f"- Table: `{s.get('table')}`. `observed_at` is when the transfer ended.", "",
+             "Where they cluster (this replaces the hand-drawn Skagen anchorage box; the clusters come out "
+             "of the data):", ""] + _cells(p.get("sts_cells") or [], "hours") + ["",
+             "## Anchorage loitering", "",
+             f"- {lo.get('events')} stretches under {lo.get('max_sog')} kn for over "
+             f"{lo.get('min_hours')} h, excluding hulls reporting Moored.",
+             f"- Table: `{lo.get('table')}`.", ""] + _cells(p.get("loitering_cells") or [], "hours") + ["",
+             "## Draught inconsistency", "",
+             f"- {dr.get('changes')} declared-draught changes of at least {dr.get('min_change_m')} m over "
+             f"{dr.get('hulls')} hulls.",
+             f"- {dr.get('unexplained')} with neither a berth call nor an STS candidate in between "
+             f"(the lightering signal); {dr.get('coinciding_with_sts')} coincide with an STS candidate; "
+             f"{dr.get('after_a_berth_call')} follow a Moored report.", "",
+             "## Spoof-jump excess", ""]
+    if sp.get("skipped"):
+        lines.append(f"- Skipped: {sp['skipped']}.")
+    else:
+        lines += [f"- {sp.get('hull_days')} hull-days over {sp.get('hulls')} hulls; "
+                  f"{sp.get('with_any_jump')} had at least one jump and "
+                  f"{sp.get('with_positive_excess')} exceeded their cells' baseline.",
+                  f"- Mean excess {sp.get('mean_excess')}, max {sp.get('max_excess')}. A hull that jumps "
+                  f"only as much as everything else in its cell that day scores zero, which is the point."]
+    lines += ["", "## MMSI-IMO churn", "",
+              f"- {ch.get('changes')} changes: {ch.get('by_kind')}.", "",
+              "## Assumptions to confirm", "",
+              "- \"Outside port polygons\" is implemented as \"not reporting Moored\". DMA carries the "
+              "vessel's own nav_status, so this needs no polygon set; hulls *at anchor* are kept on purpose, "
+              "because the Skagen transfers happen at anchor. Phase 4a's GFW port visits will add a second "
+              "predicate.",
+              "- A candidate needs 2 h elapsed and qualifying minutes covering at least half of it, so a "
+              "sparse pair does not qualify on two distant minutes.",
+              "- Runs tolerate a 10 min gap (STS) and 30 min (loitering) so one missed minute does not split "
+              "an event in two.",
+              "- Records from a hull's resolver warm-up are dropped rather than given an MMSI-based id: a "
+              "synthetic id would split the hull's history at the boundary and hide its first transition.",
+              "- STS rows do not store each hull's draught 48 h either side, as the prompt suggested; "
+              "`detect_draught` already joins the two, so storing it twice would be duplicate state.",
+              "- Hand-check of 10 candidates and the Skagen monthly plot are still outstanding; both need "
+              "the real tables.", ""]
+    return "\n".join(lines)
+
+
+def write_phase4b(out: dict | None = None) -> str:
+    text = render_phase4b(out)
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    (config.REPORTS_DIR / "phase4b.md").write_text(text)
+    return text

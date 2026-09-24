@@ -129,7 +129,7 @@ def hull_map(con: duckdb.DuckDBPyConnection | None = None, window_days: int = WI
             "min_support": min_support, "file": rel_path(out)}
 
 
-def _as_of_hull(src: str, ts_col: str) -> str:
+def as_of_hull(src: str, ts_col: str) -> str:
     """ASOF join of `src` to the hull_map window in force at `ts_col` (see the module docstring)."""
     return (f"{src} ASOF LEFT JOIN read_parquet('{(config.PARQUET_DIR / HULL_MAP).as_posix()}') hm"
             f" ON x.mmsi = hm.mmsi AND CAST(x.{ts_col} AS DATE) >= hm.effective_from")
@@ -152,7 +152,7 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
           SELECT hm.hull_id, x.mmsi, x.observed_at,
             nullif(upper(trim(regexp_replace(x.name, '\\s+', ' ', 'g'))), '') AS name_raw,
             nullif(upper(trim(x.callsign)), '') AS callsign_raw, mid.iso3 AS flag_raw
-          FROM {_as_of_hull(static_src, 'observed_at')}
+          FROM {as_of_hull(static_src, 'observed_at')}
           -- a 9-digit MMSI beginning 2-7 is a ship station; its first three digits are the MID
           LEFT JOIN mid ON length(CAST(x.mmsi AS VARCHAR)) = 9
             AND substr(CAST(x.mmsi AS VARCHAR), 1, 1) BETWEEN '2' AND '7'
@@ -192,7 +192,7 @@ def coverage(con: duckdb.DuckDBPyConnection | None = None) -> dict:
     total, by_imo, unmapped = con.execute(f"""
         SELECT count(*), count(*) FILTER (WHERE hm.method = 'imo_majority'),
                count(*) FILTER (WHERE hm.hull_id IS NULL)
-        FROM {_as_of_hull(_kept_days(), 'day')}
+        FROM {as_of_hull(_kept_days(), 'day')}
     """).fetchone()
     mapped = total - unmapped
     return {"mmsi_days": total, "mmsi_days_by_imo": by_imo, "mmsi_days_unmapped": unmapped,
@@ -213,7 +213,7 @@ def coverage_by_threshold(con: duckdb.DuckDBPyConnection | None = None) -> list[
         total, by_imo = con.execute(f"""
             SELECT count(*), count(*) FILTER (WHERE hm.n_imo_days >= {min_days}
                                                 AND hm.support >= {min_support})
-            FROM {_as_of_hull(_kept_days(), 'day')}
+            FROM {as_of_hull(_kept_days(), 'day')}
         """).fetchone()
         out.append({"min_imo_days": min_days, "min_support": min_support,
                     "share_by_imo": round(by_imo / total, 4) if total else None,

@@ -203,6 +203,16 @@ def identity_cmd() -> None:
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase3.md'}", err=True)
 
 
+@app.command("detect")
+def detect_cmd() -> None:
+    """Phase 4b: STS candidates, loitering, draught inconsistency, spoof excess, MMSI-IMO churn."""
+    from shadowfleet import detect
+
+    logs.setup("detect")
+    _print(detect.run_all())
+    typer.echo(f"wrote {config.REPORTS_DIR / 'phase4b.md'}", err=True)
+
+
 @app.command("probe-opensanctions")
 def probe_opensanctions() -> None:
     """Phase 0 task 7."""
