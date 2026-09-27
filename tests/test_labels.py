@@ -177,7 +177,7 @@ def test_phase2_report_renders_from_the_probe_file(tmp_data):
                                                      "ofac_adds_in_horizon_all": 78,
                                                      "ofac_adds_already_eu_uk_listed": 30}],
                             "positives_csv": "reports/phase2_positives.csv"})
-    text = report.write_phase2()
+    text = report.write_report("phase2")
     assert "| 2024-12-31 | 2681 | 2599 | 82 | 164 | 48 | 78 | 30 |" in text
     assert "R12 is real" in text
 

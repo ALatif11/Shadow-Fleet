@@ -62,7 +62,7 @@ def test_report_renders_not_run_and_window(tmp_data, monkeypatch):
     probes.write("dma", fake_probe())
     monkeypatch.setattr(disk, "free_gb", lambda p: 300.0)
     window.run(today=date(2026, 9, 17))
-    text = report.write()
+    text = report.write_report("phase0")
     assert "2024-09-17 to 2026-09-15" in text and (config.REPORTS_DIR / "phase0.md").exists()
 
 
@@ -128,3 +128,19 @@ def test_gate_defaults_to_first_daily_file_and_guards_monthly():
     assert d.start == "2023-01-01"
     d = window.decide(p, free_gb=86, today=date(2026, 9, 17), start=date(2024, 6, 1))
     assert d.start == "2024-06-01"
+
+
+def test_every_phase_has_exactly_one_writer_and_an_unknown_phase_fails_loudly(tmp_data):
+    """The registry is the point: adding a renderer without a writer used to be possible, and a caller
+    naming a phase that does not exist wrote nothing and returned quietly."""
+    import pytest
+
+    from shadowfleet.util import report
+
+    for phase, renderer in report.RENDERERS.items():
+        assert callable(renderer), phase
+        text = report.write_report(phase)
+        assert (config.REPORTS_DIR / f"{phase}.md").read_text() == text
+        assert text.strip(), f"{phase} rendered nothing at all"
+    with pytest.raises(KeyError, match="no renderer for"):
+        report.write_report("phase7")

@@ -153,9 +153,9 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None, full:
     from shadowfleet.util import probes, report
 
     probes.write("backtest", out)
-    report.write_phase5b(out)
+    report.write_report("phase5b", out)
     if full:
-        report.write_phase6(out)
+        report.write_report("phase6", out)
     return out
 
 

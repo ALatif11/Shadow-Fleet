@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from inspect import signature
 
 from shadowfleet import config
 from shadowfleet.ingest import dma
@@ -207,12 +208,6 @@ def render() -> str:
     return "\n".join(parts)
 
 
-def write() -> str:
-    text = render()
-    (config.REPORTS_DIR / "phase0.md").write_text(text)
-    return text
-
-
 # ---------------------------------------------------------------------------- Phase 1
 def render_phase1() -> str:
     p = probes.read("phase1")
@@ -255,13 +250,6 @@ def render_phase1() -> str:
               "detection.",
               "- The Skagen box in config is still a placeholder.", ""]
     return "\n".join(lines)
-
-
-def write_phase1() -> str:
-    text = render_phase1()
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (config.REPORTS_DIR / "phase1.md").write_text(text)
-    return text
 
 
 # ---------------------------------------------------------------------------- Phase 2
@@ -328,13 +316,6 @@ def render_phase2() -> str:
     return "\n".join(lines)
 
 
-def write_phase2() -> str:
-    text = render_phase2()
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (config.REPORTS_DIR / "phase2.md").write_text(text)
-    return text
-
-
 # ---------------------------------------------------------------------------- Phase 3
 def render_phase3(out: dict | None = None) -> str:
     p = out or probes.read("identity")
@@ -389,13 +370,6 @@ def render_phase3(out: dict | None = None) -> str:
               "- `vessel_age_years` stays null until Phase 4a brings the GFW registry build year.",
               "- Null static fields are carried forward, so a message that omits a field is not a change.", ""]
     return "\n".join(lines)
-
-
-def write_phase3(out: dict | None = None) -> str:
-    text = render_phase3(out)
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (config.REPORTS_DIR / "phase3.md").write_text(text)
-    return text
 
 
 # ---------------------------------------------------------------------------- Phase 4b
@@ -460,13 +434,6 @@ def render_phase4b(out: dict | None = None) -> str:
     return "\n".join(lines)
 
 
-def write_phase4b(out: dict | None = None) -> str:
-    text = render_phase4b(out)
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (config.REPORTS_DIR / "phase4b.md").write_text(text)
-    return text
-
-
 # ---------------------------------------------------------------------------- Phase 5a
 def render_phase5a(out: dict | None = None) -> str:
     p = out or probes.read("features")
@@ -507,13 +474,6 @@ def render_phase5a(out: dict | None = None) -> str:
               "- `dwt` has no source: DMA does not carry it, so the column is null until one exists.",
               "- `vessel_age_years` is null until Phase 4a brings the GFW registry build year.", ""]
     return "\n".join(lines)
-
-
-def write_phase5a(out: dict | None = None) -> str:
-    text = render_phase5a(out)
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (config.REPORTS_DIR / "phase5a.md").write_text(text)
-    return text
 
 
 # ---------------------------------------------------------------------------- Phase 5b
@@ -599,13 +559,6 @@ def render_phase5b(out: dict | None = None) -> str:
               "- (a) and (b) of the leakage suite run in `tests/test_leakage.py`, which `make backtest` "
               "executes before anything here; (c), (d) and (e) run in the harness and are above.", ""]
     return "\n".join(lines)
-
-
-def write_phase5b(out: dict | None = None) -> str:
-    text = render_phase5b(out)
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (config.REPORTS_DIR / "phase5b.md").write_text(text)
-    return text
 
 
 # ---------------------------------------------------------------------------- Phase 6
@@ -699,13 +652,6 @@ def render_phase6(out: dict | None = None) -> str:
     return "\n".join(lines)
 
 
-def write_phase6(out: dict | None = None) -> str:
-    text = render_phase6(out)
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (config.REPORTS_DIR / "phase6.md").write_text(text)
-    return text
-
-
 # ---------------------------------------------------------------------------- Phase 8/9
 def render_phase8(out: dict | None = None) -> str:
     p = out or probes.read("briefs")
@@ -742,13 +688,6 @@ def render_phase8(out: dict | None = None) -> str:
               "- `reports/audit_sheet.csv` is generated with 30 findings, failures first, and blank human "
               "columns. It means nothing until Adam fills it in.", ""]
     return "\n".join(lines)
-
-
-def write_phase8(out: dict | None = None) -> str:
-    text = render_phase8(out)
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (config.REPORTS_DIR / "phase8.md").write_text(text)
-    return text
 
 
 # ---------------------------------------------------------------------------- Phase 9
@@ -791,8 +730,25 @@ def render_phase9(out: dict | None = None) -> str:
     return "\n".join(lines)
 
 
-def write_phase9(out: dict | None = None) -> str:
-    text = render_phase9(out)
+# ---------------------------------------------------------------------------- one writer for every phase
+# Nine functions used to sit here, each four identical lines around its renderer. A registry instead, so
+# adding a phase cannot mean forgetting to add its writer -- and so a caller naming a phase that does not
+# exist fails immediately instead of writing nothing.
+RENDERERS = {
+    "phase0": render, "phase1": render_phase1, "phase2": render_phase2, "phase3": render_phase3,
+    "phase4b": render_phase4b, "phase5a": render_phase5a, "phase5b": render_phase5b,
+    "phase6": render_phase6, "phase8": render_phase8, "phase9": render_phase9,
+}
+
+
+def write_report(phase: str, out: dict | None = None) -> str:
+    """Render one phase's report to `reports/<phase>.md` and return the text."""
+    if phase not in RENDERERS:
+        raise KeyError(f"no renderer for {phase!r}; known phases: {sorted(RENDERERS)}")
+    renderer = RENDERERS[phase]
+    # the early renderers read their probe file themselves and take no argument; ask the signature rather
+    # than keeping a hardcoded list of which ones, because that list is what drifts
+    text = renderer(out) if signature(renderer).parameters else renderer()
     config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    (config.REPORTS_DIR / "phase9.md").write_text(text)
+    (config.REPORTS_DIR / f"{phase}.md").write_text(text)
     return text

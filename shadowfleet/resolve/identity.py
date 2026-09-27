@@ -310,6 +310,6 @@ def run_all(**hull_map_kwargs) -> dict:
            "coverage_by_threshold": coverage_by_threshold(con)}
     from shadowfleet.util import probes, report
     probes.write("identity", out)
-    report.write_phase3(out)
+    report.write_report("phase3", out)
     out["report"] = rel_path(config.REPORTS_DIR / "phase3.md")
     return out

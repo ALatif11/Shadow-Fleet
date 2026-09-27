@@ -49,5 +49,5 @@ def run_all() -> dict:
     out["sts_cells"] = by_cell(sts.TABLE, "count(DISTINCT hull_a) AS hulls", con)
     out["loitering_cells"] = by_cell(loitering.TABLE, "count(DISTINCT hull_id) AS hulls", con)
     probes.write("detect", out)
-    report.write_phase4b(out)
+    report.write_report("phase4b", out)
     return out

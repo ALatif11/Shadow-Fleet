@@ -97,7 +97,7 @@ def test_run_all_and_report(ingested):
 
     out = phase1.run_all()
     probes.write("phase1", out)
-    text = report.write_phase1()
+    text = report.write_report("phase1")
     assert "coverage" in text and "STS readiness" in text
     assert out["sts_readiness"]["pairs_fullres"] == 1
 

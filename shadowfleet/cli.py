@@ -168,7 +168,7 @@ def phase1_cmd(sts_day: str = typer.Option(None, help="day with ais_fullres; def
     if report:
         from shadowfleet.util import report as rep
 
-        rep.write_phase1()
+        rep.write_report("phase1")
         typer.echo(f"wrote {config.REPORTS_DIR / 'phase1.md'}", err=True)
 
 
@@ -188,7 +188,7 @@ def labels_cmd(years: str = typer.Option(None, help="archive years, e.g. 2022-20
     _print(out)
     from shadowfleet.util import report as rep
 
-    rep.write_phase2()
+    rep.write_report("phase2")
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase2.md'}", err=True)
 
 
@@ -225,7 +225,7 @@ def features_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM
     out = asof.build(picked)
     probes.write("features", out)
     _print(out)
-    report.write_phase5a(out)
+    report.write_report("phase5a", out)
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase5a.md'}", err=True)
 
 
@@ -272,7 +272,7 @@ def briefs_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM-D
     out = gen.run_batch(picked, top_k=top_k, url=url)
     probes.write("briefs", out)
     _print({k: v for k, v in out.items() if k != "verified"})
-    report.write_phase8(out)
+    report.write_report("phase8", out)
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase8.md'}", err=True)
 
 
@@ -295,7 +295,7 @@ def judge_cmd(cutoff: str = typer.Option(None, help="YYYY-MM-DD; default = every
     out["kappa"] = jd.kappa_from_sheet()
     probes.write("judge", out)
     _print({k: v for k, v in out.items() if k != "rows"})
-    report.write_phase9(out)
+    report.write_report("phase9", out)
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase9.md'}", err=True)
 
 
@@ -433,7 +433,7 @@ def report_phase0() -> None:
     """Render reports/phase0.md from probe files."""
     from shadowfleet.util import report
 
-    report.write()
+    report.write_report("phase0")
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase0.md'}")
 
 
