@@ -27,25 +27,36 @@ Everything runs in WSL2 Ubuntu on Adam's PC, with the repo and `data/` on the WS
 shadowfleet/
   data/raw/  data/parquet/  data/cache/gfw/     # all gitignored
   shadowfleet/
-    config.py                 # paths, window, cutoff rule, horizon, polygons, flag lists, port lists (single source of truth)
-    ingest/   dma.py gfw.py ofac.py opensanctions.py mid.py
-    resolve/  identity.py
-    detect/   sts.py loitering.py draught.py spoof.py     # self-built detectors on DMA tracks (Phase 4b)
-    features/ asof.py ais.py gfw.py identity.py detect.py graph.py
-    labels/   labels.py
-    models/   rules.py tabular.py anomaly.py
-    backtest/ harness.py metrics.py drift.py
-    briefs/   bundle.py generate.py verify.py
-    util/     disk.py net.py logs.py ids.py probes.py doctor.py report.py
-    phase1.py                 # population, type changes, gap evidence, STS readiness (reads Parquet only)
-    util/store.py             # glob_table / has_table / haversine_km_sql / rel_path, shared by every phase
-    cli.py                    # `python -m shadowfleet.cli <command>`
-  config/window.json          # written by `make window-gate` in Phase 0; committed
-  tests/  tests/fixtures/
-  notebooks/                  # exploration only, never imported
-  reports/                    # phaseN.md, metrics tables, figures, audit sheets
-  Makefile  pyproject.toml  README.md  SETUP.md  CLAUDE.md  PREREG.md  phase-prompts.md  phase1-prompt.md  shadow-fleet-plan.md
+    config.py                 # paths, window, cutoff rule, horizon, polygons, flag lists, ports
+    cli.py                    # `python -m shadowfleet.cli <command>`; imports each phase lazily so
+                              #   --help stays instant and a missing optional dep breaks one command
+    ingest/   dma.py gfw.py ofac.py opensanctions.py mid.py window.py
+    resolve/  identity.py     # Phase 3: hull_map, identity_intervals, as_of_hull
+    detect/   sts.py loitering.py draught.py spoof.py churn.py   # Phase 4b, DMA tracks only
+    features/ asof.py identity.py                                # Phase 5a: features(hull, T)
+    labels/   labels.py       # Phase 2: dated actions, listed_as_of, labels(T, horizon)
+    models/   rules.py tabular.py anomaly.py    # B0-B3, LightGBM, isolation forest
+    backtest/ harness.py      # the per-cutoff scoring loop, and nothing else
+              metrics.py      # precision@k, PR-AUC, alert volume; every number the reports quote
+              leakage.py      # PREREG section 10 tests (c) (d) (e); (a) (b) are in tests/
+              explain.py      # Phase 6 artefacts: ablation arms, SHAP tables, flagged lists, FP sheets
+              drift.py        # PSI per family, Hormuz split
+              forward.py      # Phase F: hash-stamped top 50, read-only evaluation
+    briefs/   bundle.py schema.py generate.py verify.py judge.py  # Phases 8 and 9
+    util/     store.py disk.py net.py logs.py ids.py probes.py doctor.py report.py portfolio.py
+                              # util/ is a LEAF: it must never import a phase. A test enforces this.
+    phase1.py                 # population, type changes, gap evidence, STS readiness
+  config/window.json          # written by `make window-gate`; committed
+  tests/                      # one file per phase, plus test_pipeline.py which runs them in order
+  reports/                    # phaseN.md, metrics CSVs, flagged lists, forward/, probes/ (gitignored)
+  Makefile  pyproject.toml  README.md (generated)  SETUP.md  CLAUDE.md  PREREG.md
+  shadow-fleet-plan.md  phase-prompts.md
 ```
+
+Dependency direction: `cli` -> phase -> `util`. Phases may import each other in that order (features reads
+detect, detect reads resolve), `util/` imports nothing from a phase, and constants a report needs travel in
+the probe dict rather than by import. Heavy or optional dependencies (lightgbm, sklearn, pyarrow) are
+imported inside the function that needs them so the rules-only paths work without the `model` extra.
 
 ## Phases (one Opus session each)
 0 probes, scaffold, frozen ingest schema, DMA one-day benchmark, bulk ingest start, llama.cpp smoke test, window gate · 1 DMA ingest completion, population, gap evidence, STS readiness · 2 labels and PREREG.md · 3 identity resolution · 4a GFW events · 4b self-built detectors · 5a feature store and leakage suite · 5b baselines and harness · 6 models, ablations, drift, SHAP · 7 graph layer (stretch only; skip unless ahead of schedule) · 8 briefs · 9 faithfulness · 10 report · F forward test (score on or after 2026-10-01, evaluate spring 2027).
