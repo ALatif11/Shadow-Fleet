@@ -4,7 +4,7 @@ Evasion-indicator scoring for tankers from cooperative data (terrestrial AIS and
 
 It is not dark-fleet detection. Every input is cooperative, and the evaluation is pre-registered in `PREREG.md`, committed before any label existed. Every number below is generated from `reports/` by `make readme`; nothing here is typed by hand.
 
-*Generated 2026-09-24.*
+*Generated 2026-09-27.*
 
 ## Headline result
 

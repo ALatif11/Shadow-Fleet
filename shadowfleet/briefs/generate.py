@@ -13,6 +13,7 @@ from datetime import date
 from pathlib import Path
 
 from shadowfleet import config
+from shadowfleet.backtest import explain
 from shadowfleet.briefs import bundle as bmod
 from shadowfleet.briefs import verify
 from shadowfleet.briefs.schema import BRIEF_SCHEMA, SYSTEM_PROMPT, Brief, render
@@ -66,18 +67,6 @@ def _flagged(cutoff: date, top_k: int) -> list[str]:
         return [r["hull_id"] for r in list(csv.DictReader(f))[:top_k]]
 
 
-def _shap_for(cutoff: date) -> dict[str, list[dict]]:
-    import duckdb
-
-    d = config.PARQUET_DIR / "shap" / f"cutoff={cutoff.isoformat()}" / "part-0.parquet"
-    if not d.exists():
-        return {}
-    rows = duckdb.connect().execute(
-        f"SELECT hull_id, features, values, contributions FROM '{d.as_posix()}'").fetchall()
-    return {r[0]: [{"feature": f, "value": v, "contribution": c}
-                   for f, v, c in zip(r[1], r[2], r[3], strict=True)] for r in rows}
-
-
 def run_batch(cutoffs: list[date] | None = None, top_k: int = TOP_K_PER_CUTOFF,
               completer=complete, url: str | None = None) -> dict:
     """Briefs for the top-k flagged hulls at each cutoff, with the verifier run on every one."""
@@ -95,7 +84,7 @@ def run_batch(cutoffs: list[date] | None = None, top_k: int = TOP_K_PER_CUTOFF,
         if not hulls:
             out["cutoffs"].append({"cutoff": T.isoformat(), "skipped": "no flagged list"})
             continue
-        shap = _shap_for(T)
+        shap = explain.read_shap(T)
         features = {r["hull_id"]: r for r in asof.features(T, con)}
         d = config.REPORTS_DIR / "briefs" / T.isoformat()
         d.mkdir(parents=True, exist_ok=True)

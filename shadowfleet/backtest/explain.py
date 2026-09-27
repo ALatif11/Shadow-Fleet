@@ -59,6 +59,24 @@ def write_shap(T: date, contribs: list[dict]) -> str | None:
     return rel_path(d)
 
 
+def read_shap(T: date) -> dict[str, list[dict]]:
+    """The SHAP table `write_shap` produced, as hull_id -> top contributions.
+
+    Lives next to the writer rather than in `briefs/`, where it started as a private function that
+    `backtest/forward.py` then imported through the underscore. Two callers reaching across packages for
+    a private name is how a module boundary stops meaning anything.
+    """
+    import duckdb
+
+    part = config.PARQUET_DIR / "shap" / f"cutoff={T.isoformat()}" / "part-0.parquet"
+    if not part.exists():
+        return {}
+    rows = duckdb.connect().execute(
+        f"SELECT hull_id, features, values, contributions FROM '{part.as_posix()}'").fetchall()
+    return {r[0]: [{"feature": f, "value": v, "contribution": c}
+                   for f, v, c in zip(r[1], r[2], r[3], strict=True)] for r in rows}
+
+
 def write_flagged(T: date, rows: list[dict], score: np.ndarray, y: np.ndarray,
                   contribs: list[dict], designations: dict[str, str] | None = None) -> str:
     """`reports/flagged_<cutoff>.csv`: rank, score, label and the top-5 drivers per hull."""

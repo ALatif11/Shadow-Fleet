@@ -16,7 +16,15 @@ import hashlib
 from datetime import date, timedelta
 from pathlib import Path
 
+import numpy as np
+
 from shadowfleet import config
+from shadowfleet.backtest import explain, harness, metrics
+from shadowfleet.features import asof
+from shadowfleet.features.asof import FEATURES
+from shadowfleet.ingest.dma import connect
+from shadowfleet.labels import labels as lab
+from shadowfleet.models import rules, tabular
 from shadowfleet.util.store import rel_path
 
 TOP_K = 50
@@ -36,7 +44,6 @@ def sha256(path: Path) -> str:
 
 def _drivers(hull: str, shap: dict[str, list[dict]]) -> list[str]:
     """Feature names only. A value would leak a GFW-derived number into a public file."""
-    from shadowfleet.features.asof import FEATURES
 
     return [d["feature"] for d in (shap.get(hull) or [])
             if FEATURES.get(d["feature"], ("", ""))[0] not in GFW_FAMILIES][:5]
@@ -49,13 +56,7 @@ def score(T: date | None = None, top_k: int = TOP_K, model: str | None = None) -
     rules baseline, because a dated prediction from a weaker model is worth more than a later one from a
     better model.
     """
-    import numpy as np
 
-    from shadowfleet.backtest import harness
-    from shadowfleet.briefs.generate import _shap_for
-    from shadowfleet.features import asof
-    from shadowfleet.ingest.dma import connect
-    from shadowfleet.models import rules
 
     T = T or date.fromisoformat(config.FORWARD_TEST_SCORING_DATE)
     if T < date.fromisoformat(config.FORWARD_TEST_SCORING_DATE):
@@ -72,13 +73,12 @@ def score(T: date | None = None, top_k: int = TOP_K, model: str | None = None) -
     if usable and model != "B2_weighted":
         train_rows = [r for h, _ in usable for r in h]
         train_y = np.concatenate([y for _, y in usable])
-        from shadowfleet.models import tabular
         scores, _, _ = tabular.train_and_score(train_rows, train_y, rows)
         used = "LGBM" if scores is not None else None
     if scores is None:
         scores, used = rules.b2_weighted(rows), "B2_weighted (rules baseline; no fitted model at scoring)"
 
-    shap = _shap_for(T)
+    shap = explain.read_shap(T)
     order = np.argsort(-scores)[:top_k]
     out_path = _dir() / f"top50_{T.isoformat()}.csv"
     with open(out_path, "w", newline="") as f:
@@ -99,10 +99,7 @@ def score(T: date | None = None, top_k: int = TOP_K, model: str | None = None) -
 def _history_for(T: date, con) -> list[tuple[date, list[dict], object]]:
     """Past cutoffs with their labels, for training the forward model. Only closed horizons are used, and
     `usable_history` enforces that, so this may safely return everything it can build."""
-    import numpy as np
 
-    from shadowfleet.features import asof
-    from shadowfleet.labels import labels as lab
 
     out = []
     for t in config.monthly_cutoffs(config.load_window(), T):
@@ -134,10 +131,7 @@ def _append_manifest(T: date, path: Path, digest: str, model: str, population: i
 
 def evaluate(T: date, as_of: date | None = None, ks: tuple[int, ...] = config.TOP_K) -> dict:
     """Score the committed list against designations known by `as_of`. Read-only, hash-checked."""
-    import numpy as np
 
-    from shadowfleet.backtest import metrics
-    from shadowfleet.labels import labels as lab
 
     as_of = as_of or date.today()
     path = _dir() / f"top50_{T.isoformat()}.csv"
