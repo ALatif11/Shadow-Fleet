@@ -9,6 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from shadowfleet import config
+from shadowfleet.models.rules import NUMERIC_EXCLUDED
 
 BINS = 10
 EPS = 1e-6  # PSI is undefined when a bin is empty on either side; the usual floor
@@ -39,7 +40,6 @@ def verdict(value: float | None) -> str:
 
 def by_family(train_rows: list[dict], rows: list[dict], features: dict) -> dict[str, float | None]:
     """Mean PSI over the numeric features in each family. Families with no numeric feature return None."""
-    from shadowfleet.models.rules import NUMERIC_EXCLUDED
 
     out: dict[str, float | None] = {}
     for family in sorted({f for f, _ in features.values()}):

@@ -10,7 +10,10 @@ from __future__ import annotations
 import csv
 from datetime import date
 
+import duckdb
 import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from shadowfleet import config
 from shadowfleet.features.asof import FEATURES, SOURCE_OF_FAMILY
@@ -46,8 +49,6 @@ def write_shap(T: date, contribs: list[dict]) -> str | None:
     """`data/parquet/shap/cutoff=T/` with one row per hull and its top contributions."""
     if not contribs:
         return None
-    import pyarrow as pa
-    import pyarrow.parquet as pq
 
     d = config.PARQUET_DIR / "shap" / f"cutoff={T.isoformat()}"
     d.mkdir(parents=True, exist_ok=True)
@@ -66,7 +67,6 @@ def read_shap(T: date) -> dict[str, list[dict]]:
     `backtest/forward.py` then imported through the underscore. Two callers reaching across packages for
     a private name is how a module boundary stops meaning anything.
     """
-    import duckdb
 
     part = config.PARQUET_DIR / "shap" / f"cutoff={T.isoformat()}" / "part-0.parquet"
     if not part.exists():

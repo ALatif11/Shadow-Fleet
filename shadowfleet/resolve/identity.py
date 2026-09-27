@@ -20,6 +20,7 @@ import duckdb
 from shadowfleet import config
 from shadowfleet.ingest import mid
 from shadowfleet.ingest.dma import connect
+from shadowfleet.util import probes, report
 from shadowfleet.util.ids import imo_valid_sql
 from shadowfleet.util.store import glob_table, has_table, rel_path
 
@@ -308,7 +309,6 @@ def run_all(**hull_map_kwargs) -> dict:
            "coverage": coverage(con), "fragmentation": fragmentation(con), "silver_set": silver_set(con),
            "crosscheck": population_crosscheck(con),
            "coverage_by_threshold": coverage_by_threshold(con)}
-    from shadowfleet.util import probes, report
     probes.write("identity", out)
     report.write_report("phase3", out)
     out["report"] = rel_path(config.REPORTS_DIR / "phase3.md")

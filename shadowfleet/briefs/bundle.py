@@ -8,6 +8,7 @@ a kilometre, which is all a brief needs.
 
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
 from typing import Any
 
@@ -115,7 +116,6 @@ def build(hull_id: str, T: date, feature_row: dict, shap_top: list[dict] | None 
           con: duckdb.DuckDBPyConnection | None = None, budget: int = TOKEN_BUDGET) -> dict:
     """One bundle. `shap_top` is the hull's SHAP list from Phase 6; without it the drivers are omitted
     rather than guessed, because a brief citing invented drivers is worse than one with none."""
-    import json
 
     records = evidence(hull_id, T, con)
     ids: dict[str, dict] = {}

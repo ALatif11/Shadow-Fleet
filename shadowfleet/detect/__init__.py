@@ -8,6 +8,11 @@ from __future__ import annotations
 
 import duckdb
 
+from shadowfleet import config
+from shadowfleet.detect import churn, draught, loitering, spoof, sts
+from shadowfleet.ingest.dma import connect
+from shadowfleet.resolve.identity import HULL_MAP
+from shadowfleet.util import probes, report
 from shadowfleet.util.store import glob_table, has_table
 
 
@@ -18,8 +23,6 @@ def by_cell(table: str, extra: str, con: duckdb.DuckDBPyConnection | None = None
     This is the honest version of the Skagen anchorage polygon: the clusters come out of the data
     instead of a box drawn from a pilot chart. `extra` names the third column to report per cell.
     """
-    from shadowfleet.ingest.dma import connect
-
     con = con or connect()
     rows = con.execute(f"""
         SELECT round(floor(lat / {cell_deg}) * {cell_deg}, 3) AS lat,
@@ -34,12 +37,6 @@ def by_cell(table: str, extra: str, con: duckdb.DuckDBPyConnection | None = None
 
 def run_all() -> dict:
     """Every detector, in dependency order: draught reads the STS table, churn reads Phase 3's outputs."""
-    from shadowfleet import config
-    from shadowfleet.detect import churn, draught, loitering, spoof, sts
-    from shadowfleet.ingest.dma import connect
-    from shadowfleet.resolve.identity import HULL_MAP
-    from shadowfleet.util import probes, report
-
     if not (config.PARQUET_DIR / HULL_MAP).exists():
         raise SystemExit("no hull_map.parquet; run `make identity` first")
     con = connect()

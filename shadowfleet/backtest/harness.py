@@ -18,6 +18,7 @@ from shadowfleet.backtest import drift, explain, leakage, metrics
 from shadowfleet.features import asof
 from shadowfleet.labels import labels as lab
 from shadowfleet.models import anomaly, rules, tabular
+from shadowfleet.util import probes, report
 from shadowfleet.util.store import rel_path
 
 log = logging.getLogger(__name__)
@@ -147,7 +148,6 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None, full:
     out["csv"] = _write_csv(per_cutoff)
     if failed:  # PREREG section 10: a failing leakage test means no metrics are reported at all
         log.error("leakage tests failed: %s", failed)
-    from shadowfleet.util import probes, report
 
     probes.write("backtest", out)
     report.write_report("phase5b", out)

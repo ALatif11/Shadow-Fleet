@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 
+from shadowfleet.features.asof import FEATURES
+
 # A "number" is anything that could be a fact: integers, decimals, dates, durations, coordinates. The
 # grounding check normalises before comparing, so 57.70 in the prose matches 57.7 in the bundle.
 NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
@@ -99,7 +101,6 @@ def verify(brief: dict, bundle: dict, prose: str, top_drivers: int = 5) -> dict:
     dangling = sorted({i for i in cited if i not in ids})
 
     # a driver is covered when some cited record comes from the evidence family that feature is built from
-    from shadowfleet.features.asof import FEATURES
 
     drivers = [d["feature"] for d in (bundle.get("drivers") or [])[:top_drivers]]
     cited_families = {(bundle["evidence"][i] or {}).get("family") for i in cited if i in ids}

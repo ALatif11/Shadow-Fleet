@@ -164,3 +164,42 @@ def test_util_never_imports_a_phase(tmp_data):
             if isinstance(node, ast.ImportFrom) and node.module:
                 assert not any(node.module.startswith(b) for b in banned), \
                     f"{path.name} imports {node.module}: util/ must not depend on a phase"
+
+
+def test_a_deferred_import_means_optional_heavy_or_platform_specific():
+    """There were 93 function-local imports, almost all of them me being quick rather than a design.
+
+    The survivors all have a reason: the module is an optional extra (lightgbm, sklearn), it is heavy or
+    platform-bound (matplotlib, pypdfium2, fcntl), or it would be imported for one branch of a parser.
+    cli.py is exempt on purpose: every command imports its phase lazily so `--help` is instant and a
+    missing optional dependency breaks one command instead of the whole CLI.
+    """
+    import ast
+    from pathlib import Path
+
+    allowed = {"lightgbm", "sklearn", "matplotlib", "pypdfium2", "fcntl", "xml", "shap",
+               "importlib", "subprocess", "sys"}
+    offenders = []
+
+    def probed(fn: ast.AST, node: ast.AST) -> bool:
+        """An import inside `try: ... except ImportError:` is asking whether the module is installed,
+        which is what `make doctor` exists to do. That is a structural reason, not a name to allowlist."""
+        for t in [n for n in ast.walk(fn) if isinstance(n, ast.Try)]:
+            if node in ast.walk(t) and any(
+                    isinstance(h.type, ast.Name) and h.type.id == "ImportError" for h in t.handlers):
+                return True
+        return False
+
+    for path in (Path(config.REPO_ROOT) / "shadowfleet").rglob("*.py"):
+        if path.name == "cli.py":
+            continue
+        tree = ast.parse(path.read_text())
+        for fn in [n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]:
+            for node in ast.walk(fn):
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    mod = (getattr(node, "module", None) or
+                           (node.names[0].name if node.names else "")).split(".")[0]
+                    if mod not in allowed and not probed(fn, node):
+                        offenders.append(f"{path.name}:{node.lineno} {mod}")
+    assert not offenders, "move these to module level, or add the module to `allowed` with a reason: " + \
+                          ", ".join(sorted(offenders))

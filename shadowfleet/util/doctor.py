@@ -8,10 +8,14 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import dataclass
 
+import httpx
+
 from shadowfleet import config
-from shadowfleet.util import disk
+from shadowfleet.util import disk, net
 
 OK, WARN, FAIL = "ok", "warn", "FAIL"
 
@@ -80,9 +84,7 @@ def checks(network: bool = True) -> list[Check]:
 
 def _probe_url(url: str, timeout: float) -> str:
     """Status line for one URL; reads headers only, never the body (the DMA index is large)."""
-    import httpx
 
-    from shadowfleet.util import net
 
     with net.client(timeout=httpx.Timeout(timeout)) as c, c.stream("GET", url) as r:
         return f"HTTP {r.status_code}"
@@ -91,8 +93,6 @@ def _probe_url(url: str, timeout: float) -> str:
 def network_checks(deadline_s: float = 30.0) -> list[Check]:
     """All network probes in parallel daemon threads with one overall deadline, so a DNS stall
     cannot hang doctor (ThreadPoolExecutor would still join the stuck thread at exit)."""
-    import threading
-    import time
 
     targets = {
         "net: DMA": config.DMA_INDEX_URLS[0],

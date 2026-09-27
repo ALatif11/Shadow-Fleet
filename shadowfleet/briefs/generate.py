@@ -9,14 +9,19 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import time
 from datetime import date
 from pathlib import Path
+
+import httpx
 
 from shadowfleet import config
 from shadowfleet.backtest import explain
 from shadowfleet.briefs import bundle as bmod
 from shadowfleet.briefs import verify
 from shadowfleet.briefs.schema import BRIEF_SCHEMA, SYSTEM_PROMPT, Brief, render
+from shadowfleet.features import asof
+from shadowfleet.ingest.dma import connect
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +34,6 @@ TOP_K_PER_CUTOFF = 50
 def complete(messages: list[dict], schema: dict | None = None, url: str | None = None,
              timeout: float = 180.0) -> tuple[str, dict]:
     """One chat completion. Returns (content, usage). The only function here that touches the network."""
-    import httpx
 
     base = (url or config.LLAMA_SERVER_URL).rstrip("/")
     payload: dict = {"messages": messages, "temperature": TEMPERATURE, "max_tokens": MAX_TOKENS}
@@ -70,10 +74,7 @@ def _flagged(cutoff: date, top_k: int) -> list[str]:
 def run_batch(cutoffs: list[date] | None = None, top_k: int = TOP_K_PER_CUTOFF,
               completer=complete, url: str | None = None) -> dict:
     """Briefs for the top-k flagged hulls at each cutoff, with the verifier run on every one."""
-    import time
 
-    from shadowfleet.features import asof
-    from shadowfleet.ingest.dma import connect
 
     con = connect()
     cutoffs = cutoffs or config.monthly_cutoffs(config.load_window(), date.today())

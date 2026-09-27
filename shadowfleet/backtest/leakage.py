@@ -9,11 +9,13 @@ from __future__ import annotations
 
 from datetime import date
 
+import duckdb
 import numpy as np
 
 from shadowfleet import config
 from shadowfleet.backtest import metrics
 from shadowfleet.models import rules
+from shadowfleet.resolve.identity import HULL_MAP
 
 PERMUTATION_TOLERANCE = 3.0  # shuffled PR-AUC may not exceed this multiple of the base rate
 REVERSE_TIME_TOLERANCE = 1.5  # backward PR-AUC may not exceed this multiple of forward
@@ -64,9 +66,7 @@ def entity_resolution_delta() -> dict:
     exactly zero. That is worth asserting rather than assuming: if a GFW fallback is ever added to
     `hull_map`, this starts reporting a real number instead of silently staying at zero.
     """
-    import duckdb
 
-    from shadowfleet.resolve.identity import HULL_MAP
 
     path = config.PARQUET_DIR / HULL_MAP
     if not path.exists():

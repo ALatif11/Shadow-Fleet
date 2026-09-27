@@ -12,8 +12,10 @@ Labels are derived only from this table, never from a current-snapshot flag (CLA
 
 from __future__ import annotations
 
+import csv
 import json
 import logging
+import random
 import re
 import xml.etree.ElementTree as ET
 from collections import Counter
@@ -27,7 +29,10 @@ import pyarrow.parquet as pq
 
 from shadowfleet import config
 from shadowfleet.ingest import ofac, opensanctions
+from shadowfleet.ingest.dma import connect
+from shadowfleet.util import net
 from shadowfleet.util.ids import extract_imos, imo_valid, normalize_imo
+from shadowfleet.util.store import glob_table
 
 log = logging.getLogger(__name__)
 
@@ -112,7 +117,6 @@ def _event_date(ev: ET.Element) -> date | None:
 
 def archive_rows(years: range) -> list[dict]:
     """Change-archive rows for vessels: removals, modifications and adds (cross-check for the XML)."""
-    from shadowfleet.util import net
 
     out: list[dict] = []
     with net.client(timeout=180) as c:
@@ -312,8 +316,6 @@ def population_imos_by_cutoff(cutoffs: list[date], con: duckdb.DuckDBPyConnectio
     Observed = a kept MMSI with a `vessel_day` row in [T - window, T]. IMO = the modal valid IMO from
     `ais_static` messages with `observed_at <= T`, so the mapping itself is point-in-time.
     """
-    from shadowfleet.ingest.dma import connect
-    from shadowfleet.util.store import glob_table
 
     con = con or connect()
     out: dict[date, list[int]] = {}
@@ -337,7 +339,6 @@ def population_imos_by_cutoff(cutoffs: list[date], con: duckdb.DuckDBPyConnectio
 
 def build(years: range | None = None) -> dict:
     """Phase 2 end to end: OFAC XML + archive, EU, UK -> sanctions_actions.parquet + the positives table."""
-    from shadowfleet.util import net
 
     rows: list[dict] = []
     stats: dict = {}
@@ -397,9 +398,8 @@ def build(years: range | None = None) -> dict:
         csv_path.parent.mkdir(parents=True, exist_ok=True)
         keys = list(stats["positives_by_cutoff"][0])
         with open(csv_path, "w", newline="") as f:
-            import csv as _csv
 
-            wr = _csv.DictWriter(f, fieldnames=keys)
+            wr = csv.DictWriter(f, fieldnames=keys)
             wr.writeheader()
             wr.writerows(stats["positives_by_cutoff"])
         stats["positives_csv"] = str(csv_path)
@@ -413,8 +413,6 @@ def spotcheck_sample(rows: list[dict] | None = None, n: int = 10, seed: int = 20
     Stratified across sources so the check covers all three parsers, and seeded so the same ten come back
     on a rerun; the point is a fixed list Adam can tick off, not a fresh sample every time.
     """
-    import csv as _csv
-    import random
 
     rows = rows if rows is not None else _actions()
     adds = [r for r in rows if r["action"] == "add" and r.get("imo") and r.get("name")]
@@ -427,7 +425,7 @@ def spotcheck_sample(rows: list[dict] | None = None, n: int = 10, seed: int = 20
     out = config.REPORTS_DIR / "phase2_spotcheck.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", newline="") as f:
-        wr = _csv.DictWriter(f, fieldnames=["source", "imo", "name", "date", "program",
+        wr = csv.DictWriter(f, fieldnames=["source", "imo", "name", "date", "program",
                                             "verified_y_n", "official_url", "note"])
         wr.writeheader()
         for r in sorted(picked, key=lambda r: (r["source"], r["date"])):

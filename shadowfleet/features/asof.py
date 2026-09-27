@@ -8,9 +8,12 @@ meaningful (`days_since_...`, `current_flag`, `vessel_age_years`).
 
 from __future__ import annotations
 
+import time
 from datetime import date, timedelta
 
 import duckdb
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from shadowfleet import config
 from shadowfleet.detect import churn, draught, loitering, spoof, sts
@@ -232,10 +235,7 @@ def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict
 def build(cutoffs: list[date] | None = None) -> dict:
     """Write `feature_matrix/cutoff=T/` for every monthly cutoff. GFW families stay at their defaults
     until Phase 4a lands `gfw_events`; that is reported, never faked."""
-    import time
 
-    import pyarrow as pa
-    import pyarrow.parquet as pq
 
     con = connect()
     cutoffs = cutoffs or config.monthly_cutoffs(config.load_window(), date.today())

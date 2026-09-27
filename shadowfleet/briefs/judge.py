@@ -12,12 +12,14 @@ justify a claim from evidence the brief never pointed at, which is precisely the
 
 from __future__ import annotations
 
+import csv
 import json
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from shadowfleet import config
+from shadowfleet.briefs.generate import complete
 
 Verdict = Literal["entailed", "partially", "not_entailed"]
 
@@ -73,8 +75,7 @@ def judge_all(briefs: list[dict], completer=None, url: str | None = None,
     if _family(judge_model) == _family(generator_model):
         raise SystemExit(f"judge and generator are the same family ({_family(judge_model)}); ADR-10 "
                          "requires a cross-family judge, so this would measure nothing")
-    if completer is None:
-        from shadowfleet.briefs.generate import complete as completer  # noqa: N813
+    completer = completer or complete
 
     rows: list[dict] = []
     for item in briefs:
@@ -107,7 +108,6 @@ def kappa_from_sheet(path=None) -> dict:
 
     Rows with a blank human verdict are skipped, so the sheet can be filled in a few at a time.
     """
-    import csv
 
     from sklearn.metrics import cohen_kappa_score
 
