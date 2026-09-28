@@ -12,20 +12,6 @@ reports/logs/
 # Probe output is raw source data (gfw.json holds GFW events, opensanctions.json holds vessel records), and
 # it is regenerable, so the whole directory stays local. The rendered reports/phase*.md are the deliverable.
 reports/probes/
-# Generated phase reports (reports/<phase>.md, written by `write_report`). They are the deliverable, but
-# only when rendered from real data on the machine that ran the phase: a copy rendered in a Cowork sandbox
-# reads `None` in every field, and being tracked it silently overwrote the real one on the next checkout.
-# Commit one only alongside the run that produced it. `reports/phase0-scaffold.md` is hand-written and stays.
-/reports/phase0.md
-/reports/phase1.md
-/reports/phase2.md
-/reports/phase3.md
-/reports/phase4b.md
-/reports/phase5a.md
-/reports/phase5b.md
-/reports/phase6.md
-/reports/phase8.md
-/reports/phase9.md
 reports/phase0_gfw_vessel.json
 reports/phase0_ofac_sample.txt
 reports/phase2_spotcheck.csv

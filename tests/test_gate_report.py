@@ -146,21 +146,26 @@ def test_every_phase_has_exactly_one_writer_and_an_unknown_phase_fails_loudly(tm
         report.write_report("phase7")
 
 
-def test_no_generated_phase_report_is_tracked_in_git():
-    """A sandbox-rendered report reads `None` in every field, and tracking one overwrites the real result.
+def test_no_committed_phase_report_was_rendered_without_data():
+    """A report rendered with no data reads `None` in every field, and tracking one overwrites a real result.
 
-    This happened: `reports/phase1.md` was committed from a session with no data, so `git reset --hard`
-    onto that commit replaced a real Phase 1 report with a file of `None`s. Reports go in the repo with the
-    run that produced them, never from a session that could not produce numbers.
+    This happened: `reports/phase1.md` was committed from a Cowork session that had no store, so a later
+    `git reset --hard` replaced a real Phase 1 report with a file of `None`s. The reports are the
+    deliverable and belong in the repo (CLAUDE.md rule 7's note), so the rule is not "never commit them" but
+    "never commit one that has nothing in it": they go in with the run that produced them.
     """
     import subprocess
 
     from shadowfleet import config
-    from shadowfleet.util.report import RENDERERS
+    from shadowfleet.util.report import NOT_RUN
 
-    tracked = set(subprocess.run(["git", "ls-files", "reports"], cwd=config.REPO_ROOT,
-                                 capture_output=True, text=True, check=True).stdout.split())
-    generated = {f"reports/{phase}.md" for phase in RENDERERS}
-    assert not (tracked & generated), (
-        f"generated reports are tracked: {sorted(tracked & generated)}; "
-        "add them to .gitignore or commit them from the machine that ran the phase")
+    tracked = subprocess.run(["git", "ls-files", "reports/*.md"], cwd=config.REPO_ROOT,
+                             capture_output=True, text=True, check=True).stdout.split()
+    empty = []
+    for rel in tracked:
+        text = (config.REPO_ROOT / rel).read_text(encoding="utf-8")
+        if NOT_RUN in text or "No window file." in text:
+            empty.append(rel)
+    assert not empty, (
+        f"committed with no data behind them: {empty}. Render these on the machine that ran the phase, or "
+        "leave them untracked until it has.")
