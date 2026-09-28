@@ -153,13 +153,36 @@ def probe() -> dict:
     return out
 
 
+# ITU allocates MID 306 to three Dutch Caribbean territories at once (Bonaire/Sint Eustatius/Saba, Curacao,
+# Sint Maarten), so an MMSI cannot tell them apart. Declared here rather than left to whichever row the page
+# happens to list last, because Curacao is the only one of the three with a substantial ship registry and the
+# only one on `config.ITF_FOC_FLAGS_SENSITIVITY`, so row order would silently flip that Phase 6 arm. Any
+# other duplicate MID is a new ambiguity and fails loudly.
+SHARED_MIDS = {306: "CUW"}
+
+
 @lru_cache(maxsize=1)
 def load() -> dict[int, str]:
     if not config.MID_CSV.exists():
         return {}
     with open(config.MID_CSV) as f:
         lines = [ln for ln in f if not ln.startswith("#")]
-    return {int(r["mid"]): r["iso3"] for r in csv.DictReader(lines) if r["iso3"]}
+    out: dict[int, str] = {}
+    clashes: dict[int, set[str]] = {}
+    for r in csv.DictReader(lines):
+        if not r["iso3"]:
+            continue
+        m = int(r["mid"])
+        if m in out and out[m] != r["iso3"]:
+            clashes.setdefault(m, {out[m]}).add(r["iso3"])
+            continue
+        out[m] = r["iso3"]
+    undeclared = {m: sorted(v) for m, v in clashes.items() if m not in SHARED_MIDS}
+    if undeclared:
+        raise SystemExit(f"MIDs allocated to more than one territory and not declared in SHARED_MIDS: "
+                         f"{undeclared}. Pick one and say why, or the flag depends on row order.")
+    out.update(SHARED_MIDS)
+    return out
 
 
 def flag_from_mmsi(mmsi: int) -> str | None:

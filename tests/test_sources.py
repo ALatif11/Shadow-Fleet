@@ -366,3 +366,37 @@ def test_probe_refuses_a_table_that_lost_the_major_registries(tmp_path, monkeypa
     with pytest.raises(SystemExit, match="major tanker registries are missing"):
         mid.probe()
     assert csv_path.read_text() == good
+
+
+def test_a_mid_shared_by_several_territories_is_declared_not_left_to_row_order(tmp_path, monkeypatch):
+    """ITU gives MID 306 to Bonaire/Sint Eustatius/Saba, Curacao and Sint Maarten at once.
+
+    Only Curacao is on `config.ITF_FOC_FLAGS_SENSITIVITY`, so letting the last row win would flip that
+    Phase 6 arm on whatever order the page happens to use.
+    """
+    from shadowfleet import config
+    from shadowfleet.ingest import mid
+
+    f = tmp_path / "mid.csv"
+    f.write_text("# source: test\nmid,itu_name,iso3\n"
+                 "306,Netherlands - Bonaire,BES\n306,Netherlands - Curacao,CUW\n"
+                 "306,Netherlands - Sint Maarten,SXM\n636,Liberia,LBR\n")
+    monkeypatch.setattr(config, "MID_CSV", f)
+    mid.load.cache_clear()
+    assert mid.load() == {306: "CUW", 636: "LBR"}
+    mid.load.cache_clear()
+
+
+def test_an_undeclared_shared_mid_fails_instead_of_picking_a_winner(tmp_path, monkeypatch):
+    import pytest
+
+    from shadowfleet import config
+    from shadowfleet.ingest import mid
+
+    f = tmp_path / "mid.csv"
+    f.write_text("# source: test\nmid,itu_name,iso3\n999,Somewhere,AAA\n999,Elsewhere,BBB\n")
+    monkeypatch.setattr(config, "MID_CSV", f)
+    mid.load.cache_clear()
+    with pytest.raises(SystemExit, match="not declared in SHARED_MIDS"):
+        mid.load()
+    mid.load.cache_clear()
