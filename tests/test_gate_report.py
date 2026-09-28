@@ -157,12 +157,15 @@ def test_no_committed_phase_report_was_rendered_without_data():
     import subprocess
 
     from shadowfleet import config
-    from shadowfleet.util.report import NOT_RUN
+    from shadowfleet.util.report import NOT_RUN, RENDERERS
 
+    # Only the paths `write_report` generates. A hand-written note that quotes a marker is not a finding,
+    # which this test learned by failing on the handoff note that documents it.
+    generated = {f"reports/{phase}.md" for phase in RENDERERS}
     tracked = subprocess.run(["git", "ls-files", "reports/*.md"], cwd=config.REPO_ROOT,
                              capture_output=True, text=True, check=True).stdout.split()
     empty = []
-    for rel in tracked:
+    for rel in (r for r in tracked if r in generated):
         text = (config.REPO_ROOT / rel).read_text(encoding="utf-8")
         if NOT_RUN in text or "No window file." in text:
             empty.append(rel)
