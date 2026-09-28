@@ -25,6 +25,20 @@ MANUAL_ISO3 = {
     "Tanzania": "TZA", "Venezuela": "VEN", "Viet Nam": "VNM", "Syrian Arab Republic": "SYR",
     "Lao People's Democratic Republic": "LAO", "Micronesia": "FSM", "Türkiye": "TUR", "Turkey": "TUR",
     "Vatican": "VAT", "Congo (Republic of the)": "COG", "Democratic Republic of the Congo": "COD",
+    # Dependencies with their own MID but no ISO3 of their own: they take the parent's code, because the
+    # feature asks which registry a hull flies under and these are not separate registries.
+    "Azores": "PRT", "Madeira": "PRT", "Alaska (State of)": "USA", "Alaska": "USA",
+    # French southern and antarctic territories share one ISO3.
+    "Adelie Land": "ATF", "Saint Paul and Amsterdam Islands": "ATF", "Crozet Archipelago": "ATF",
+    "Kerguelen Islands": "ATF",
+    # Ascension and Tristan da Cunha sit under Saint Helena in ISO 3166.
+    "Ascension Island": "SHN", "Tristan da Cunha": "SHN",
+    "Republic of Naoero": "NRU",  # ITU's spelling of Nauru
+    # Territories pycountry will not match under ITU's spelling. Each is a registry in its own right, and
+    # each one silently resolved to its parent (VIR->USA, PCN->GBR, WLF/REU/GUF->FRA, SHN->GBR) while the
+    # parent was still a fallback. That is why it no longer is.
+    "United States Virgin Islands": "VIR", "Pitcairn Island": "PCN",
+    "Wallis and Futuna Islands": "WLF", "Reunion": "REU", "Guiana": "GUF", "Saint Helena": "SHN",
 }
 
 
@@ -37,20 +51,42 @@ def parse_itu_html(text: str) -> list[tuple[int, str]]:
     return out
 
 
+def _strip_parens(name: str) -> str:
+    return re.sub(r"\s*\(.*?\)\s*", " ", name).strip(" -–")
+
+
 def to_iso3(name: str) -> str | None:
-    base = re.sub(r"\s*\(.*?\)\s*", " ", name).strip(" -–")
-    for key in (name, base):
+    """ISO3 for one ITU allocation name.
+
+    ITU writes a dependency as "Parent - Territory" ("Denmark - Faroe Islands",
+    "China (People's Republic of) - Hong Kong (Special Administrative Region of China)"). Matching the whole
+    string fails, which left 44 of 224 MIDs with no flag, among them Hong Kong, Gibraltar, Bermuda, the
+    Cayman Islands, Madeira and the Faroe Islands: major tanker registries, six of them on the ITF list. The
+    territory is the registry a hull flies under, so it is tried first and the parent only as a fallback.
+    """
+    territory = name.split(" - ")[-1].strip()  # the parent is NOT a fallback: see the note in MANUAL_ISO3
+    candidates = [territory, _strip_parens(territory)]
+
+    for key in candidates:
         if key in MANUAL_ISO3:
             return MANUAL_ISO3[key]
-    try:
-        return pycountry.countries.lookup(base).alpha_3
-    except LookupError:
-        pass
-    try:
-        hits = pycountry.countries.search_fuzzy(base)
-        return hits[0].alpha_3 if hits else None
-    except LookupError:
-        return None
+    for key in candidates:
+        if not key:
+            continue
+        try:
+            return pycountry.countries.lookup(key).alpha_3
+        except LookupError:
+            pass
+    for key in candidates:
+        if not key:
+            continue
+        try:
+            hits = pycountry.countries.search_fuzzy(key)
+            if hits:
+                return hits[0].alpha_3
+        except LookupError:
+            pass
+    return None
 
 
 def probe() -> dict:

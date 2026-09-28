@@ -108,6 +108,52 @@ def test_mid_parse_and_iso3():
     assert [mid.to_iso3(n) for _, n in rows] == ["RUS", "GAB", "PLW", "MHL"]
 
 
+# ITU writes a dependency as "Parent - Territory". All 44 of these came back unmatched on the first live
+# run, and six of them then resolved to the PARENT while it was still a fallback, which is worse than null:
+# a wrong ISO3 never shows up in the probe's `unmatched` list. Real names, copied from that run.
+ITU_DEPENDENCIES = {
+    "Portugal - Azores": "PRT", "Portugal - Madeira": "PRT",
+    "Denmark - Faroe Islands": "FRO", "Denmark - Greenland": "GRL",
+    "United States of America - Alaska (State of)": "USA",
+    "United States of America - United States Virgin Islands": "VIR",
+    "United Kingdom of Great Britain and Northern Ireland - Gibraltar": "GIB",
+    "United Kingdom of Great Britain and Northern Ireland - Bermuda": "BMU",
+    "United Kingdom of Great Britain and Northern Ireland - Cayman Islands": "CYM",
+    "United Kingdom of Great Britain and Northern Ireland - Pitcairn Island": "PCN",
+    "United Kingdom of Great Britain and Northern Ireland - Saint Helena": "SHN",
+    "United Kingdom of Great Britain and Northern Ireland - Ascension Island": "SHN",
+    "United Kingdom of Great Britain and Northern Ireland - Falkland Islands (Malvinas)": "FLK",
+    "Netherlands (Kingdom of the) - Cura\u00e7ao": "CUW",
+    "Netherlands (Kingdom of the) - Bonaire, Sint Eustatius and Saba": "BES",
+    "France - Reunion (French Department of)": "REU",
+    "France - Guiana (French Department of)": "GUF",
+    "France - Wallis and Futuna Islands": "WLF",
+    "France - Kerguelen Islands": "ATF", "France - Adelie Land": "ATF",
+    "Australia - Cocos (Keeling) Islands": "CCK",
+    "New Zealand - Cook Islands": "COK",
+    "Republic of Naoero": "NRU",
+    "China (People's Republic of) - Hong Kong (Special Administrative Region of China)": "HKG",
+    "China (People's Republic of) - Taiwan (Province of China)": "TWN",
+}
+
+
+def test_every_itu_dependency_resolves_to_its_own_registry_not_its_parent():
+    """Hong Kong, Gibraltar, Bermuda, the Caymans, Madeira and the Faroes are separate tanker registries.
+
+    Six of them are on `config.ITF_FOC_FLAGS_SENSITIVITY`, so folding them into GBR/USA/FRA/NLD would bias
+    `flag_to_convenience_registry` toward zero on exactly the hulls the project is about.
+    """
+    wrong = {n: f"got {mid.to_iso3(n)}, want {w}" for n, w in ITU_DEPENDENCIES.items()
+             if mid.to_iso3(n) != w}
+    assert not wrong, wrong
+
+
+def test_an_unrecognised_territory_is_null_rather_than_its_parent():
+    """Null shows up in the probe's `unmatched` list and gets fixed; a wrong parent code never does."""
+    assert mid.to_iso3("Netherlands (Kingdom of the) - Nowhereland") is None
+    assert mid.to_iso3("Cyprus (Republic of)") == "CYP", "a plain country name must still resolve"
+
+
 def test_flag_from_mmsi(tmp_path, monkeypatch):
     f = tmp_path / "mid.csv"
     f.write_text("# source: test\nmid,itu_name,iso3\n273,Russian Federation,RUS\n")
