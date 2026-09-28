@@ -147,28 +147,34 @@ def test_every_phase_has_exactly_one_writer_and_an_unknown_phase_fails_loudly(tm
 
 
 def test_no_committed_phase_report_was_rendered_without_data():
-    """A report rendered with no data reads `None` in every field, and tracking one overwrites a real result.
+    """A report rendered with no data is not a deliverable, and tracking one overwrites a real result.
 
-    This happened: `reports/phase1.md` was committed from a Cowork session that had no store, so a later
-    `git reset --hard` replaced a real Phase 1 report with a file of `None`s. The reports are the
-    deliverable and belong in the repo (CLAUDE.md rule 7's note), so the rule is not "never commit them" but
-    "never commit one that has nothing in it": they go in with the run that produced them.
+    This happened: `reports/phase1.md` was committed from a Cowork session with no store, so a later
+    `git reset --hard` replaced a real Phase 1 report with a file of `None`s. The reports ARE the deliverable
+    and belong in the repo, so the rule is "never commit one with nothing behind it", not "never commit one".
+
+    Two signatures, and only two, because the first version of this test failed on an honest Phase 0:
+      * a bare `None` anywhere. No renderer ever emits the word, so it is always an f-string that
+        interpolated a missing value instead of marking it, which is CLAUDE.md rule 4.
+      * `**NOT RUN**` directly under the title, which is what a renderer returns when the phase never ran.
+        The same marker under a `## ` heading is a section that has not been measured yet, which is rule 4
+        working correctly and must stay committable.
     """
+    import re
     import subprocess
 
     from shadowfleet import config
     from shadowfleet.util.report import NOT_RUN, RENDERERS
 
-    # Only the paths `write_report` generates. A hand-written note that quotes a marker is not a finding,
-    # which this test learned by failing on the handoff note that documents it.
     generated = {f"reports/{phase}.md" for phase in RENDERERS}
     tracked = subprocess.run(["git", "ls-files", "reports/*.md"], cwd=config.REPO_ROOT,
                              capture_output=True, text=True, check=True).stdout.split()
-    empty = []
+    bad = {}
     for rel in (r for r in tracked if r in generated):
         text = (config.REPO_ROOT / rel).read_text(encoding="utf-8")
-        if NOT_RUN in text or "No window file." in text:
-            empty.append(rel)
-    assert not empty, (
-        f"committed with no data behind them: {empty}. Render these on the machine that ran the phase, or "
-        "leave them untracked until it has.")
+        if re.match(r"^#[^\n]*\n\s*" + re.escape(NOT_RUN), text):
+            bad[rel] = "the phase never ran"
+        elif re.search(r"(?<![\w`])None(?![\w`])", text):
+            bad[rel] = "renders a bare None; rule 4 wants a marker naming the command"
+    assert not bad, (f"committed with no data behind them: {bad}. Render these on the machine that ran the "
+                     "phase, or leave them untracked until it has.")
