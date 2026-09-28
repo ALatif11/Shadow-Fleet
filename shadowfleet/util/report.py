@@ -81,10 +81,24 @@ def _dma() -> list[str]:
     lines += ["", f"- static rows per dynamic row: {diag.get('static_rows_per_dynamic_row')}; "
                   f"jumps (all vessels): {diag.get('jumps_total')}; kept MMSIs in Skagen box: "
                   f"{diag.get('skagen_bbox_kept_mmsi')}.",
-              f"- Ship type values: {diag.get('ship_type_values')}",
-              f"- Cargo type values: {diag.get('cargo_type_values')}",
-              f"- Mobile type values: {diag.get('mobile_type_values')}", ""]
+              _value_counts("Ship type", diag.get("ship_type_values")),
+              _value_counts("Cargo type", diag.get("cargo_type_values")),
+              _value_counts("Mobile type", diag.get("mobile_type_values")), ""]
     return lines
+
+
+def _value_counts(label: str, pairs: list | None) -> str:
+    """A `[[value, count], ...]` probe entry as a readable line.
+
+    These lines are how a reader checks `config.HAZARDOUS_CARGO_SUBSTRINGS` against what DMA actually
+    broadcasts (see ASSUMPTIONS), so they are read, not skimmed. They used to be `str()` of the raw list,
+    which put `[[None, 9315487], ...]` in a deliverable: a real value (no cargo type reported on 9.3 m rows)
+    dressed up as a missing one.
+    """
+    if not pairs:
+        return f"- {label} values: {NOT_RUN} - run `make probe-dma`."
+    parts = [f"{'not reported' if v is None or v == '' else v} {n:,}" for v, n in pairs]
+    return f"- {label} values: " + "; ".join(parts) + "."
 
 
 def _window() -> list[str]:

@@ -178,3 +178,13 @@ def test_no_committed_phase_report_was_rendered_without_data():
             bad[rel] = "renders a bare None; rule 4 wants a marker naming the command"
     assert not bad, (f"committed with no data behind them: {bad}. Render these on the machine that ran the "
                      "phase, or leave them untracked until it has.")
+
+
+def test_value_counts_render_a_reported_null_as_a_value_not_as_a_missing_number():
+    """`[[None, 9315487], ...]` in a deliverable read as a broken metric; it is 9.3 m rows with no cargo type."""
+    from shadowfleet.util.report import NOT_RUN, _value_counts
+
+    line = _value_counts("Cargo type", [[None, 9315487], ["Category X", 232033]])
+    assert line == "- Cargo type values: not reported 9,315,487; Category X 232,033."
+    assert "None" not in line, "a reported null must not render as the word None (rule 4 and the git guard)"
+    assert NOT_RUN in _value_counts("Ship type", None), "a missing probe entry gets the marker, not an empty list"
