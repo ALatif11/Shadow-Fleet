@@ -42,13 +42,39 @@ MANUAL_ISO3 = {
 }
 
 
-def parse_itu_html(text: str) -> list[tuple[int, str]]:
-    out = []
+# Ship-station MIDs live in 201-775 (ITU-R M.585). A 3-digit token outside that is not a MID.
+MID_MIN, MID_MAX = 201, 775
+
+# A MID table that cannot flag the largest tanker registries is not a MID table. These are the codes whose
+# absence the first two versions of this parser hid: Liberia, Panama, Malta, Marshall Islands, Cyprus,
+# Singapore, Bahamas and Russia, which between them fly most of the fleet this project looks at.
+REQUIRED_MIDS = {636: "LBR", 352: "PAN", 249: "MLT", 538: "MHL", 209: "CYP", 563: "SGP", 311: "BHS",
+                 273: "RUS"}
+
+
+def parse_itu_html(text: str) -> tuple[list[tuple[int, str]], list[str]]:
+    """`(rows, unparsed)`. One row per MID, and every cell it could not read.
+
+    ITU gives several MIDs to one country and puts them all in the first cell, newline-separated:
+    `'209\r\n\r\n        210'` is Cyprus. The first version matched a cell that was exactly three digits, so
+    every multi-MID country was dropped without a word: Liberia, Panama, Malta, Singapore, Cyprus, Denmark,
+    Norway, Sweden, the Netherlands, Greece, France, the UK. 224 rows parsed where there are about 380, and
+    the result looked entirely reasonable. Hence the second return value: a cell with digits in it that this
+    cannot read is reported, never skipped.
+    """
+    out: list[tuple[int, str]] = []
+    unparsed: list[str] = []
     for row in ROW.findall(text):
         cells = [html.unescape(TAG.sub("", c)).strip() for c in CELL.findall(row)]
-        if len(cells) >= 2 and re.fullmatch(r"\d{3}", cells[0]):
-            out.append((int(cells[0]), re.sub(r"\s+", " ", cells[1])))
-    return out
+        if len(cells) < 2 or not any(ch.isdigit() for ch in cells[0]):
+            continue  # header or a row with no MID in it at all
+        name = re.sub(r"\s+", " ", cells[1])
+        mids = [int(m) for m in re.findall(r"\d{3}", cells[0])]
+        if re.fullmatch(r"[\d\s]+", cells[0]) and mids and all(MID_MIN <= m <= MID_MAX for m in mids):
+            out += [(m, name) for m in mids]
+        else:
+            unparsed.append(f"{cells[0]!r} -> {name}")
+    return out, unparsed
 
 
 def _strip_parens(name: str) -> str:
@@ -93,14 +119,22 @@ def probe() -> dict:
     with net.client() as c:
         r = net.get(c, config.MID_SOURCE_URL)
         r.raise_for_status()
-    rows = parse_itu_html(r.text)
-    # Fail loudly. The first version wrote the header, found nothing, and reported rows: 0 as success, which
-    # left a mid.csv that exists and looks vendored while every flag stayed null for eleven days. A source
-    # that parses to nothing is a broken source, not an empty one.
+    rows, unparsed = parse_itu_html(r.text)
+    # Fail loudly, three ways, because this source has now broken quietly twice: once returning nothing
+    # (mid.csv kept its header and every flag stayed null), once returning a plausible 224-row subset with
+    # Liberia and Panama missing. mid.csv is left untouched on any of them.
     if not rows:
         raise SystemExit(
             f"parsed 0 MID rows from {config.MID_SOURCE_URL} ({len(r.text)} bytes). The page moved or its "
             "markup changed; fix parse_itu_html or MID_SOURCE_URL. mid.csv left untouched.")
+    if unparsed:
+        raise SystemExit(f"{len(unparsed)} MID cells could not be read, so the table would be incomplete: "
+                         + "; ".join(unparsed[:5]))
+    by_mid = dict(rows)
+    missing = {m: iso for m, iso in REQUIRED_MIDS.items() if m not in by_mid}
+    if missing:
+        raise SystemExit(f"parsed {len(rows)} MIDs but the major tanker registries are missing: {missing}. "
+                         "The page's layout changed; fix parse_itu_html.")
     unmatched = []
     tmp = config.MID_CSV.with_name(config.MID_CSV.name + ".part")  # swap in only once it parsed
     with open(tmp, "w", newline="") as f:

@@ -103,9 +103,38 @@ def test_mid_parse_and_iso3():
             "<tr><td>626</td><td>Gabonese Republic</td></tr>"
             "<tr><td>511</td><td>Palau (Republic of)</td></tr>"
             "<tr><td>538</td><td>Marshall Islands (Republic of the)</td></tr></table>")
-    rows = mid.parse_itu_html(html)
+    rows, unparsed = mid.parse_itu_html(html)
     assert rows[0] == (273, "Russian Federation")
+    assert not unparsed
     assert [mid.to_iso3(n) for _, n in rows] == ["RUS", "GAB", "PLW", "MHL"]
+
+
+def test_a_country_with_several_mids_yields_one_row_per_mid():
+    """ITU puts every MID for a country in one cell, newline-separated. Exact text from the live page.
+
+    Matching only a cell of exactly three digits dropped Liberia, Panama, Malta, Singapore, Cyprus, Denmark,
+    Norway, Sweden, the Netherlands, Greece, France and the UK, and reported 224 rows as a success.
+    """
+    html = ("<table>"
+            "<tr><td>209\r\n\r\n                        210</td><td>Cyprus (Republic of)</td></tr>"
+            "<tr><td>636\r\n\r\n                        637</td><td>Liberia (Republic of)</td></tr>"
+            "<tr><td>351</td><td>Panama (Republic of)</td></tr>"
+            "</table>")
+    rows, unparsed = mid.parse_itu_html(html)
+    assert not unparsed
+    assert rows == [(209, "Cyprus (Republic of)"), (210, "Cyprus (Republic of)"),
+                    (636, "Liberia (Republic of)"), (637, "Liberia (Republic of)"),
+                    (351, "Panama (Republic of)")]
+
+
+def test_a_mid_cell_that_cannot_be_read_is_reported_not_skipped():
+    """Silently skipping a row is how a 224-row table passed for a 380-row one."""
+    html = ("<table><tr><td>201</td><td>Albania</td></tr>"
+            "<tr><td>2xx to 3xx</td><td>Something new</td></tr>"
+            "<tr><td>999</td><td>Out of the ship-station range</td></tr></table>")
+    rows, unparsed = mid.parse_itu_html(html)
+    assert rows == [(201, "Albania")]
+    assert len(unparsed) == 2 and "Something new" in unparsed[0]
 
 
 # ITU writes a dependency as "Parent - Territory". All 44 of these came back unmatched on the first live
@@ -303,12 +332,37 @@ def test_a_mid_source_that_parses_writes_the_csv_and_clears_the_cache(tmp_path, 
 
     csv_path = tmp_path / "mid.csv"
     monkeypatch.setattr(config, "MID_CSV", csv_path)
-    page = "<table><tr><td>232</td><td>United Kingdom of Great Britain</td></tr>" \
-           "<tr><td>273</td><td>Russian Federation</td></tr></table>"
+    # Must satisfy REQUIRED_MIDS: probe() refuses a table with no Liberia or Panama in it.
+    page = "<table>" + "".join(
+        f"<tr><td>{m}</td><td>{n}</td></tr>" for m, n in [
+            (636, "Liberia (Republic of)"), (352, "Panama (Republic of)"), (249, "Malta"),
+            (538, "Marshall Islands (Republic of the)"), (209, "Cyprus (Republic of)"),
+            (563, "Singapore (Republic of)"), (311, "Bahamas (Commonwealth of the)"),
+            (273, "Russian Federation")]) + "</table>"
     monkeypatch.setattr(mid.net, "get", _page(page))
     mid.load.cache_clear()
     assert mid.load() == {}  # nothing vendored yet, and the empty result is cached
 
     out = mid.probe()
-    assert out["rows"] == 2
-    assert mid.load() == {232: "GBR", 273: "RUS"}, "probe() must clear load()'s cache or the run sees nothing"
+    assert out["rows"] == 8
+    assert mid.load()[636] == "LBR", "probe() must clear load()'s cache or the run sees nothing"
+    assert mid.load()[273] == "RUS"
+
+
+def test_probe_refuses_a_table_that_lost_the_major_registries(tmp_path, monkeypatch):
+    """The 224-row table looked fine. Only `make identity` reporting null flags for MID 636 gave it away."""
+    import pytest
+
+    from shadowfleet import config
+    from shadowfleet.ingest import mid
+
+    csv_path = tmp_path / "mid.csv"
+    good = "# source: old\nmid,itu_name,iso3\n636,Liberia,LBR\n"
+    csv_path.write_text(good)
+    monkeypatch.setattr(config, "MID_CSV", csv_path)
+    monkeypatch.setattr(mid.net, "get", _page("<table><tr><td>201</td><td>Albania</td></tr></table>"))
+    mid.load.cache_clear()
+
+    with pytest.raises(SystemExit, match="major tanker registries are missing"):
+        mid.probe()
+    assert csv_path.read_text() == good
