@@ -203,3 +203,22 @@ def test_a_deferred_import_means_optional_heavy_or_platform_specific():
                         offenders.append(f"{path.name}:{node.lineno} {mod}")
     assert not offenders, "move these to module level, or add the module to `allowed` with a reason: " + \
                           ", ".join(sorted(offenders))
+
+
+def test_no_source_file_is_silently_gitignored():
+    """A `.gitignore` pattern that swallows source is invisible until someone else clones the repo.
+
+    This happened: `data/` with no leading slash also matches `ui/src/data/`, so the console's whole data
+    layer was ignored, `git add -A` reported nothing, and the branch was pushed without it. The commit
+    looked clean on the machine that made it.
+    """
+    import subprocess
+
+    tracked = subprocess.run(["git", "ls-files"], cwd=config.REPO_ROOT,
+                             capture_output=True, text=True, check=True).stdout.split()
+    source = [p for p in subprocess.run(
+        ["git", "ls-files", "--others", "--ignored", "--exclude-standard",
+         "shadowfleet", "tests", "ui/src", "ui/scripts"],
+        cwd=config.REPO_ROOT, capture_output=True, text=True, check=True).stdout.split()
+        if p.endswith((".py", ".ts", ".tsx", ".mjs", ".css")) and "__pycache__" not in p]
+    assert not source, f"ignored but looks like source: {source[:5]} (tracked: {len(tracked)} files)"

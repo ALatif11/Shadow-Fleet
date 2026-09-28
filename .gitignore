@@ -1,4 +1,6 @@
-data/
+# Anchored: an unanchored `data/` also matches ui/src/data/, which silently swallowed the console's
+# data layer once already (see reports/ui-shell.md). Only the store at the repo root is ignored.
+/data/
 .env
 .venv/
 __pycache__/
