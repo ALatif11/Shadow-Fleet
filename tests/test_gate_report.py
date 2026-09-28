@@ -144,3 +144,23 @@ def test_every_phase_has_exactly_one_writer_and_an_unknown_phase_fails_loudly(tm
         assert text.strip(), f"{phase} rendered nothing at all"
     with pytest.raises(KeyError, match="no renderer for"):
         report.write_report("phase7")
+
+
+def test_no_generated_phase_report_is_tracked_in_git():
+    """A sandbox-rendered report reads `None` in every field, and tracking one overwrites the real result.
+
+    This happened: `reports/phase1.md` was committed from a session with no data, so `git reset --hard`
+    onto that commit replaced a real Phase 1 report with a file of `None`s. Reports go in the repo with the
+    run that produced them, never from a session that could not produce numbers.
+    """
+    import subprocess
+
+    from shadowfleet import config
+    from shadowfleet.util.report import RENDERERS
+
+    tracked = set(subprocess.run(["git", "ls-files", "reports"], cwd=config.REPO_ROOT,
+                                 capture_output=True, text=True, check=True).stdout.split())
+    generated = {f"reports/{phase}.md" for phase in RENDERERS}
+    assert not (tracked & generated), (
+        f"generated reports are tracked: {sorted(tracked & generated)}; "
+        "add them to .gitignore or commit them from the machine that ran the phase")
