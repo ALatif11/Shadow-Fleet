@@ -71,3 +71,19 @@ def test_portfolio_bullets_refuse_to_be_resume_ready_while_unmeasured(tmp_data):
     text = (config.REPORTS_DIR / "portfolio.md").read_text()
     assert "not ready to put on a resume" in text
     assert "ownership sits behind shell companies" in text  # the limitation leads the spoken version
+
+
+def test_readme_on_disk_has_no_section_the_generator_would_delete():
+    """`make readme` rewrites README.md whole, so a hand-written section is deleted on the next run.
+
+    Not a style rule: the UI console section was added to README.md by hand and vanished the next time
+    the suite ran. Anything a reader must keep seeing belongs in `render_readme`.
+    """
+    import re
+
+    from shadowfleet import config as real_config  # not the tmp_data-redirected REPO_ROOT
+
+    disk = (real_config.REPO_ROOT / "README.md").read_text()
+    generated = portfolio.render_readme()
+    orphans = [h for h in re.findall(r"^## .*", disk, re.M) if h not in generated]
+    assert not orphans, f"{orphans} exist only in README.md; move them into portfolio.render_readme()"

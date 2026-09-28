@@ -1,0 +1,344 @@
+{
+  "$defs": {
+    "Driver": {
+      "additionalProperties": false,
+      "description": "One SHAP contribution (Phase 6) or rule term (baselines) behind a score.",
+      "properties": {
+        "contribution": {
+          "title": "Contribution",
+          "type": "number"
+        },
+        "feature": {
+          "title": "Feature",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "feature",
+        "value",
+        "contribution"
+      ],
+      "title": "Driver",
+      "type": "object"
+    },
+    "Metrics": {
+      "additionalProperties": false,
+      "properties": {
+        "base_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Base Rate"
+        },
+        "n_positives": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "N Positives"
+        },
+        "pr_auc": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Pr Auc"
+        },
+        "precision_at": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Precision At",
+          "type": "object"
+        },
+        "recall_at": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Recall At",
+          "type": "object"
+        },
+        "stratum": {
+          "enum": [
+            "all",
+            "b1"
+          ],
+          "title": "Stratum",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stratum",
+        "precision_at",
+        "recall_at",
+        "pr_auc",
+        "base_rate",
+        "n_positives"
+      ],
+      "title": "Metrics",
+      "type": "object"
+    },
+    "Outcome": {
+      "additionalProperties": false,
+      "description": "Hindsight. The UI hides this unless the viewer turns on outcome reveal.",
+      "properties": {
+        "designation_authorities": {
+          "default": [],
+          "items": {
+            "enum": [
+              "OFAC",
+              "EU",
+              "UK"
+            ],
+            "type": "string"
+          },
+          "title": "Designation Authorities",
+          "type": "array"
+        },
+        "designation_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Designation Date"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "enum": [
+                0,
+                1
+              ],
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "null while the horizon is still open",
+          "title": "Label"
+        },
+        "lead_weeks": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "event-study lead time (plan ADR-11), hull level",
+          "title": "Lead Weeks"
+        }
+      },
+      "required": [
+        "label",
+        "designation_date",
+        "designation_authorities",
+        "lead_weeks"
+      ],
+      "title": "Outcome",
+      "type": "object"
+    },
+    "WatchlistRow": {
+      "additionalProperties": false,
+      "properties": {
+        "b1_stratum": {
+          "description": "B1 Russia-port rule fired at this cutoff",
+          "title": "B1 Stratum",
+          "type": "boolean"
+        },
+        "drivers": {
+          "items": {
+            "$ref": "#/$defs/Driver"
+          },
+          "maxItems": 10,
+          "title": "Drivers",
+          "type": "array"
+        },
+        "flag_iso3": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Flag Iso3"
+        },
+        "has_dossier": {
+          "title": "Has Dossier",
+          "type": "boolean"
+        },
+        "hull_id": {
+          "pattern": "^(\\d{7}|gfw:[A-Za-z0-9_.-]+|syn:[0-9a-f]+|fixture:\\d{4})$",
+          "title": "Hull Id",
+          "type": "string"
+        },
+        "imo": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Imo"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Name"
+        },
+        "outcome": {
+          "$ref": "#/$defs/Outcome"
+        },
+        "rank": {
+          "minimum": 1,
+          "title": "Rank",
+          "type": "integer"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "rank",
+        "hull_id",
+        "imo",
+        "name",
+        "flag_iso3",
+        "score",
+        "b1_stratum",
+        "drivers",
+        "outcome",
+        "has_dossier"
+      ],
+      "title": "WatchlistRow",
+      "type": "object"
+    }
+  },
+  "$id": "shadowfleet/ui/watchlist.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "cutoff": {
+      "format": "date",
+      "title": "Cutoff",
+      "type": "string"
+    },
+    "label_set": {
+      "enum": [
+        "ofac_eu_uk",
+        "ofac_only"
+      ],
+      "title": "Label Set",
+      "type": "string"
+    },
+    "metrics": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Metrics"
+      },
+      "title": "Metrics",
+      "type": "array"
+    },
+    "model": {
+      "title": "Model",
+      "type": "string"
+    },
+    "origin": {
+      "enum": [
+        "synthetic",
+        "live"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "population_size": {
+      "minimum": 0,
+      "title": "Population Size",
+      "type": "integer"
+    },
+    "rows": {
+      "items": {
+        "$ref": "#/$defs/WatchlistRow"
+      },
+      "title": "Rows",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract_version",
+    "origin",
+    "cutoff",
+    "model",
+    "label_set",
+    "population_size",
+    "metrics",
+    "rows"
+  ],
+  "title": "Watchlist",
+  "type": "object",
+  "x-contract-version": "1.0.0"
+}

@@ -1,0 +1,110 @@
+/*
+ * Shadow Fleet console design system.
+ *
+ * One file holds every colour, duration, easing curve, radius and shadow. Nothing else in the codebase
+ * writes a duration or an easing curve; `src/design-system.test.ts` fails the build if it does.
+ *
+ * The palette is the production system's roles (paper / card / surface-2 / ink / muted / line /
+ * control-border, one accent in three stops, one reserved destructive red) mapped onto dark surfaces,
+ * because this console is read in a dark room next to a map. Two deliberate deviations, both forced by
+ * the dark base:
+ *   - shadows are tinted with --shadow-tint (black) instead of --ink, which is light here and would glow;
+ *   - event colours are a categorical data scale, not accents. They encode event type on the map and
+ *     timeline, the way a chart palette does, and are never used for chrome.
+ */
+:root {
+  /* ---------------------------------------------------------------- motion */
+  --ease-out: cubic-bezier(0.25, 0.8, 0.35, 1);
+  --t-fast: 0.14s;  /* hover, colour, background, small transforms */
+  --t-med: 0.22s;   /* layout: width, grid columns, rotation, panels */
+  --t-view: 0.17s;  /* the single entrance animation */
+  /* Looping status indicators, not transitions: a spinner and a breathing badge have to outlast 0.25s
+     to read as continuous. Nothing that responds to input uses these. */
+  --t-spin: 0.9s;
+  --t-breathe: 2.2s;
+  --t-breathe-slow: 2.6s;
+
+  /* ---------------------------------------------------------------- surfaces */
+  --paper: #0e1214;        /* page background */
+  --card: #151b1e;         /* raised surface */
+  --surface-2: #1e262a;    /* inset: hover fills, tracks, chips */
+  --ink: #e4edf1;          /* text, not #fff */
+  --muted: #94a5ac;        /* secondary text */
+  --faint: #66787f;        /* tertiary: axis ticks, disabled */
+  --line: #27333a;         /* decorative hairlines */
+  --control-border: #7e9098; /* input borders; 3:1 on --card */
+
+  /* ---------------------------------------------------------------- accent (one hue, three stops) */
+  --accent-700: #35c2d4;   /* fills and accent text */
+  --accent-500: #6fe0ee;   /* hover, focus ring */
+  --accent-100: #123036;   /* tinted background */
+
+  /* destructive only, never decoration and never a data colour */
+  --danger: #ff6b7d;
+
+  /* hindsight chrome: deliberately duller than any data colour */
+  --hindsight: #b8a077;
+
+  /* ---------------------------------------------------------------- elevation (matte, never neon) */
+  --shadow-tint: #000000;
+  --shadow-float: 0 8px 28px color-mix(in srgb, var(--shadow-tint) 55%, transparent);
+  --shadow-modal: 0 16px 48px color-mix(in srgb, var(--shadow-tint) 65%, transparent);
+  --lift-accent: 0 4px 14px color-mix(in srgb, var(--accent-700) 30%, transparent);
+  --glow-matte: 0 0 22px color-mix(in srgb, var(--accent-700) 14%, transparent);
+
+  /* ---------------------------------------------------------------- geometry */
+  --r-container: 10px;
+  --r-control: 8px;
+  --r-pill: 999px;
+  --focus-width: 3px;
+
+  /* ---------------------------------------------------------------- type */
+  --font-display: "Orbitron", "Rajdhani", sans-serif;
+  --font-ui: "Rajdhani", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --fs-body: 16px;         /* body minimum; inputs use exactly this so iOS does not zoom */
+  --fs-data: 14px;         /* mono numerals in dense tables */
+  --fs-label: 0.72rem;     /* small uppercase labels */
+  --ls-display: -0.01em;
+  --ls-label: 0.05em;
+
+  /* ---------------------------------------------------------------- map */
+  --map-bg: #0b0f11;
+  --map-land: #141c20;
+  --map-land-edge: #2f5f69;
+  --map-graticule: rgba(53, 194, 212, 0.07);
+  --map-track: var(--accent-700);
+  --map-track-old: #3a5960;
+  --map-future: var(--hindsight);
+  --map-overlay: var(--hindsight);
+  --map-port: #a78bfa;
+
+  /* ---------------------------------------------------------------- event scale (categorical data) */
+  --ev-gap: #ff7a6e;
+  --ev-encounter: #f2b134;
+  --ev-loitering: #b5c33f;
+  --ev-port_visit: #a78bfa;
+  --ev-sts_candidate: #ff9f45;
+  --ev-anchorage_loitering: #e0c48c;
+  --ev-draught_inconsistency: #55c98f;
+  --ev-identity_change: #4bd0e0;
+  --ev-spoof_day: #e872c8;
+}
+
+/* The one entrance animation: every view, panel, popover and detail card uses it. */
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes breathe { 50% { opacity: 0.55; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

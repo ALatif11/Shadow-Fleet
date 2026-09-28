@@ -15,3 +15,9 @@ reports/phase0_ofac_sample.txt
 reports/phase2_spotcheck.csv
 *.zip
 *.part
+# UI console (ADR-18): the bundle carries GFW-derived events (rule 7); the committed sample is synthetic
+ui/node_modules/
+ui/dist/
+ui/public/ui_data/
+ui/public/ui_data.old/
+ui/public/.ui_data_*

@@ -35,6 +35,11 @@ REPORTS_DIR = REPO_ROOT / "reports"
 LOG_DIR = REPORTS_DIR / "logs"
 PROBE_DIR = REPORTS_DIR / "probes"
 WINDOW_FILE = REPO_ROOT / "config" / "window.json"
+# UI console (ADR-18). The bundle is gitignored: dossiers carry GFW-derived events (rule 7).
+UI_DIR = REPO_ROOT / "ui"
+UI_DATA_DIR = Path(os.environ.get("SHADOWFLEET_UI_DATA", UI_DIR / "public" / "ui_data"))
+UI_SCHEMA_DIR = UI_DIR / "src" / "contract" / "schema"
+UI_SAMPLE_DIR = UI_DIR / "src" / "contract" / "sample"  # tiny synthetic bundle, committed, checked by both suites
 
 # --------------------------------------------------------------------------- backtest (ADR-11)
 FEATURE_WINDOW_DAYS = 180  # plan ADR-11

@@ -103,10 +103,16 @@ def write_zip(path: Path, rows: list[dict], header: list[str], member: str = "ai
 
 @pytest.fixture()
 def tmp_data(tmp_path, monkeypatch):
-    """Point every data/report path at a temp dir."""
+    """Point every data/report path at a temp dir.
+
+    REPO_ROOT is redirected too: `portfolio.write()` defaults to `REPO_ROOT / "README.md"`, so a test that
+    called it without a path rewrote the repo's tracked README with empty-probe output. Nothing under
+    tests/ may write a tracked file.
+    """
     data = tmp_path / "data"
     reports = tmp_path / "reports"
     for name, val in {
+        "REPO_ROOT": tmp_path,
         "DATA_DIR": data, "RAW_DIR": data / "raw", "DMA_RAW_DIR": data / "raw" / "dma",
         "PARQUET_DIR": data / "parquet", "CACHE_DIR": data / "cache", "GFW_CACHE_DIR": data / "cache" / "gfw",
         "HTTP_CACHE_DIR": data / "cache" / "http", "STATE_DIR": data / "state", "TMP_DIR": data / "tmp",

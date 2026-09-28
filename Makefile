@@ -6,7 +6,8 @@ FULLRES ?= 0
 
 .PHONY: setup test lint doctor probe probe-dma probe-gfw probe-ofac probe-opensanctions probe-mid \
         window-gate ingest-dma ingest-dma-bg ingest-dma-status ingest-dma-check ingest-day llm-smoke \
-        report-phase0 cutoffs phase1 labels identity detect features backtest phase6 briefs judge forward-score forward-eval readme all
+        report-phase0 cutoffs phase1 labels identity detect features backtest phase6 briefs judge forward-score forward-eval readme all \
+        ui-schema ui-fixtures ui-export ui-check ui-install ui-dev ui-build test-ui test-all
 
 setup:
 	uv sync --extra dev
@@ -116,3 +117,36 @@ forward-score:
 # make forward-eval T=2026-10-01
 forward-eval:
 	$(CLI) forward-eval $(T)
+
+# ---- UI console (ADR-18). Node 22+ inside WSL; see SETUP.md section 9.
+NPM ?= npm --prefix ui
+
+ui-schema:        ## after any change to shadowfleet/ui_export/contract.py
+	$(CLI) ui-schema
+	@test ! -d ui/node_modules || $(NPM) run gen:types
+
+ui-fixtures:      ## SYNTHETIC bundle into ui/public/ui_data (replaces what is there)
+	$(CLI) ui-fixtures
+
+ui-export:        ## LIVE bundle; reports missing phases until Phase 6 is done
+	$(CLI) ui-export
+
+ui-check:
+	$(CLI) ui-check
+
+ui-install:
+	$(NPM) ci
+
+ui-dev:
+	@test -d ui/node_modules || $(NPM) ci
+	@test -f ui/public/ui_data/manifest.json || $(CLI) ui-fixtures
+	$(NPM) run dev
+
+ui-build:
+	$(NPM) run build
+
+test-ui:
+	@if [ -d ui/node_modules ]; then $(NPM) run check; \
+	else echo "SKIPPED UI tests: run make ui-install first"; fi
+
+test-all: test test-ui

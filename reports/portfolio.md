@@ -1,4 +1,4 @@
-# Portfolio material (generated 2026-09-24 by `make readme`)
+# Portfolio material (generated 2026-09-27 by `make readme`)
 
 Every figure is pulled from `reports/probes/`. A bullet that still shows "not measured yet" is not ready to put on a resume.
 

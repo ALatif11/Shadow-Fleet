@@ -119,3 +119,22 @@ reports anything, and `--extra model` on its own removes pytest from the venv.
 
 `shadowfleet.backtest.metrics` imports sklearn lazily, so the rules-only paths still import
 without it; `make backtest` will fail with a named error if either extra is missing.
+## 9. Analyst console (ADR-18)
+Node 22 or newer inside Ubuntu (the apt package is too old):
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt install -y nodejs
+node -v                        # v22.x or newer
+```
+Run it on synthetic data (works before any pipeline phase has run):
+```bash
+cd ~/shadowfleet
+make ui-install                # once; installs ui/node_modules
+make ui-fixtures               # writes a SYNTHETIC bundle to ui/public/ui_data (about 40 MB)
+make ui-dev                    # then open http://127.0.0.1:5173 in your Windows browser
+```
+WSL forwards localhost, so the Windows browser reaches the dev server. Keys: up/down pick a hull, `[` and `]` step cutoffs, left/right move the as-of day (shift for 30 days), space plays the feature window, `H` toggles hindsight.
+
+Styling: every colour, font and effect is a CSS variable in `ui/src/theme.css`; the map reads the same variables. Layout lives in `ui/src/app.css`. Vite reloads on save.
+
+After Phase 6: `make ui-export` replaces the synthetic bundle with live data (Phase C). `make test-all` runs pytest plus the console's type check and tests.

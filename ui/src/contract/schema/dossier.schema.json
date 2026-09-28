@@ -1,0 +1,543 @@
+{
+  "$defs": {
+    "Event": {
+      "additionalProperties": false,
+      "properties": {
+        "attrs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "default": {},
+          "title": "Attrs",
+          "type": "object"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "lat": {
+          "anyOf": [
+            {
+              "maximum": 90,
+              "minimum": -90,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lat"
+        },
+        "lon": {
+          "anyOf": [
+            {
+              "maximum": 180,
+              "minimum": -180,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lon"
+        },
+        "observed_at": {
+          "description": "when this record became knowable; the as-of filter key",
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        },
+        "partner_hull_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Partner Hull Id"
+        },
+        "source": {
+          "enum": [
+            "dma",
+            "gfw",
+            "self_built",
+            "sanctions"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "gap",
+            "encounter",
+            "loitering",
+            "port_visit",
+            "sts_candidate",
+            "anchorage_loitering",
+            "draught_inconsistency",
+            "identity_change",
+            "spoof_day"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type",
+        "source",
+        "start",
+        "end",
+        "observed_at",
+        "lat",
+        "lon",
+        "partner_hull_id",
+        "summary",
+        "attrs"
+      ],
+      "title": "Event",
+      "type": "object"
+    },
+    "IdentityInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "callsign": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Callsign"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "End"
+        },
+        "flag_iso3": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Flag Iso3"
+        },
+        "imo": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Imo"
+        },
+        "mmsi": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Mmsi"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Name"
+        },
+        "source": {
+          "enum": [
+            "dma",
+            "gfw",
+            "self_built",
+            "sanctions"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "mmsi",
+        "imo",
+        "name",
+        "callsign",
+        "flag_iso3",
+        "source"
+      ],
+      "title": "IdentityInterval",
+      "type": "object"
+    },
+    "SanctionAction": {
+      "additionalProperties": false,
+      "description": "Hindsight, like Outcome.",
+      "properties": {
+        "action": {
+          "enum": [
+            "add",
+            "modify",
+            "remove"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "authority": {
+          "enum": [
+            "OFAC",
+            "EU",
+            "UK"
+          ],
+          "title": "Authority",
+          "type": "string"
+        },
+        "date": {
+          "format": "date",
+          "title": "Date",
+          "type": "string"
+        },
+        "program": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Program"
+        }
+      },
+      "required": [
+        "authority",
+        "action",
+        "date",
+        "program"
+      ],
+      "title": "SanctionAction",
+      "type": "object"
+    },
+    "ScorePoint": {
+      "additionalProperties": false,
+      "properties": {
+        "cutoff": {
+          "format": "date",
+          "title": "Cutoff",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "population_size": {
+          "title": "Population Size",
+          "type": "integer"
+        },
+        "rank": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Rank"
+        },
+        "score": {
+          "title": "Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "cutoff",
+        "model",
+        "score",
+        "rank",
+        "population_size"
+      ],
+      "title": "ScorePoint",
+      "type": "object"
+    },
+    "Track": {
+      "additionalProperties": false,
+      "description": "DMA positions, thinned for display. Columnar to keep files small. `t` is epoch seconds (UTC).",
+      "properties": {
+        "draught": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Draught",
+          "type": "array"
+        },
+        "lat": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Lat",
+          "type": "array"
+        },
+        "lon": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Lon",
+          "type": "array"
+        },
+        "sog": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Sog",
+          "type": "array"
+        },
+        "t": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "T",
+          "type": "array"
+        }
+      },
+      "required": [
+        "t",
+        "lon",
+        "lat",
+        "sog",
+        "draught"
+      ],
+      "title": "Track",
+      "type": "object"
+    },
+    "VesselHeader": {
+      "additionalProperties": false,
+      "properties": {
+        "beam_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Beam M"
+        },
+        "built_year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Built Year"
+        },
+        "dwt": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Dwt"
+        },
+        "length_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Length M"
+        },
+        "ship_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Ship Type"
+        }
+      },
+      "required": [
+        "length_m",
+        "beam_m",
+        "dwt",
+        "built_year",
+        "ship_type"
+      ],
+      "title": "VesselHeader",
+      "type": "object"
+    }
+  },
+  "$id": "shadowfleet/ui/dossier.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "events": {
+      "items": {
+        "$ref": "#/$defs/Event"
+      },
+      "title": "Events",
+      "type": "array"
+    },
+    "header": {
+      "$ref": "#/$defs/VesselHeader"
+    },
+    "hull_id": {
+      "pattern": "^(\\d{7}|gfw:[A-Za-z0-9_.-]+|syn:[0-9a-f]+|fixture:\\d{4})$",
+      "title": "Hull Id",
+      "type": "string"
+    },
+    "identity": {
+      "items": {
+        "$ref": "#/$defs/IdentityInterval"
+      },
+      "title": "Identity",
+      "type": "array"
+    },
+    "imo": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Imo"
+    },
+    "origin": {
+      "enum": [
+        "synthetic",
+        "live"
+      ],
+      "title": "Origin",
+      "type": "string"
+    },
+    "sanctions": {
+      "items": {
+        "$ref": "#/$defs/SanctionAction"
+      },
+      "title": "Sanctions",
+      "type": "array"
+    },
+    "scores": {
+      "items": {
+        "$ref": "#/$defs/ScorePoint"
+      },
+      "title": "Scores",
+      "type": "array"
+    },
+    "track": {
+      "$ref": "#/$defs/Track"
+    }
+  },
+  "required": [
+    "contract_version",
+    "origin",
+    "hull_id",
+    "imo",
+    "header",
+    "identity",
+    "track",
+    "events",
+    "scores",
+    "sanctions"
+  ],
+  "title": "Dossier",
+  "type": "object",
+  "x-contract-version": "1.0.0"
+}

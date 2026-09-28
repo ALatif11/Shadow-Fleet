@@ -123,7 +123,18 @@ def render_readme() -> str:
             "## Run it", "", "```bash", "make setup && make doctor && make test", "make all",
             "```", "",
             "`SETUP.md` covers WSL2, uv and llama.cpp. `shadow-fleet-plan.md` has the architecture, the "
-            "ranked risks and every ADR. `phase-prompts.md` is the build plan.", ""]
+            "ranked risks and every ADR. `phase-prompts.md` is the build plan.", "",
+            "## Analyst console", "",
+            "`ui/` is a local React console (ADR-18): a ranked watchlist per cutoff, a map of each "
+            "hull's DMA track and its events, and a timeline that shows each hull only as it was "
+            "knowable at the chosen instant. It runs on a synthetic bundle, labelled as such, until "
+            "Phase 6; `make ui-export` then points it at live outputs. Local only: its dossiers "
+            "carry GFW-derived events (rule 7). See `SETUP.md` section 9.", "",
+            "## Documents", "",
+            "- `shadow-fleet-plan.md`: architecture, risks, ADRs, evaluation design.",
+            "- `CLAUDE.md`: rules for every build session.",
+            "- `phase-prompts.md`, `phase1-prompt.md`: one prompt per phase.",
+            "- `PREREG.md`: the pre-registered evaluation, committed before any label existed.", ""]
     return "\n".join(out)
 
 
