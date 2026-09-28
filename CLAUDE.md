@@ -32,6 +32,7 @@ shadowfleet/
     cli.py                    # `python -m shadowfleet.cli <command>`; imports each phase lazily so
                               #   --help stays instant and a missing optional dep breaks one command
     ingest/   dma.py gfw.py ofac.py opensanctions.py mid.py window.py
+                              # gfw.py: client + Phase 0 probe + Phase 4a events, keyed by IMO
     resolve/  identity.py     # Phase 3: hull_map, identity_intervals, hull_at(T) (ADR-23)
     detect/   sts.py loitering.py draught.py spoof.py churn.py   # Phase 4b, DMA tracks only
     features/ asof.py identity.py                                # Phase 5a: features(hull, T)

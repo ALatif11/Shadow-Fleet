@@ -237,10 +237,22 @@ ITF_FOC_FLAGS_SENSITIVITY = ["ATG", "BHS", "BRB", "BLZ", "BMU", "BOL", "CMR", "C
                              "JAM", "LBN", "LBR", "MLT", "MHL", "MUS", "MDA", "MNG", "MMR", "PRK", "NIU",
                              "PLW", "PAN", "SMR", "STP", "SLE", "KNA", "VCT", "LKA", "TZA", "TGO", "TUV",
                              "VUT"]
-# Plan R3 / Phase 4a: matched by name against GFW port visits, which is why these are names and not
-# polygons. All of them are outside the DMA footprint, so no Phase 4b detector needs their geometry.
-RUSSIAN_PORTS = ["Primorsk", "Ust-Luga", "Vysotsk", "St Petersburg", "Novorossiysk", "Tuapse", "Taman",
-                 "Murmansk", "Kozmino"]
+# B1's ports (PREREG section 5 as amended 2026-09-28): Russian Baltic and Black Sea ports, plus Murmansk.
+# One definition in two forms. Names are for DMA's free-text `destination`. Regions are for GFW port visits,
+# which are matched by anchorage country RUS plus position, because GFW often leaves the anchorage name
+# empty (2 of 8 port visits in the Phase 0 sample). Kozmino was here and was removed: it is a Pacific
+# terminal serving Asia, not the fleet that transits Danish waters.
+RUSSIAN_PORTS = ["Primorsk", "Ust-Luga", "Vysotsk", "St Petersburg", "Kaliningrad", "Baltiysk",
+                 "Novorossiysk", "Tuapse", "Taman", "Murmansk"]
+# (lat_min, lat_max, lon_min, lon_max). Only ever applied together with anchorage country RUS, so the Finnish
+# and Estonian ports inside the Baltic box do not count. The Black Sea box takes in the Kerch Strait and the
+# Sea of Azov, because GFW's Kerch anchorages sit on the join and cannot be split cleanly. Kola Bay is
+# Murmansk's port area, which also holds the Belokamenka transshipment anchorage and Severomorsk.
+RUSSIAN_PORT_REGIONS = {
+    "baltic": (53.5, 66.0, 19.0, 31.0),
+    "black_sea": (40.5, 47.5, 27.0, 42.0),
+    "kola_bay": (68.7, 69.5, 32.3, 34.2),
+}
 
 # --------------------------------------------------------------------------- LLM (ADR-9)
 LLAMA_SERVER_URL = os.environ.get("LLAMA_SERVER_URL", "http://127.0.0.1:8080")

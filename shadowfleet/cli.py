@@ -203,6 +203,15 @@ def identity_cmd() -> None:
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase3.md'}", err=True)
 
 
+@app.command("gfw")
+def gfw_events(limit: int = typer.Option(None, help="first N IMOs only, for a smoke run")) -> None:
+    """Phase 4a: GFW events for every IMO the resolver voted through. Cached and resumable: rerun after a
+    crash and the finished part comes back from disk."""
+    from shadowfleet.ingest import gfw
+
+    _print(gfw.run(limit=limit))
+
+
 @app.command("detect")
 def detect_cmd() -> None:
     """Phase 4b: STS candidates, loitering, draught inconsistency, spoof excess, MMSI-IMO churn."""

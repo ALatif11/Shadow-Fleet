@@ -392,6 +392,51 @@ def render_phase3(out: dict | None = None) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------- Phase 4a
+def render_phase4a(out: dict | None = None) -> str:
+    p = out or probes.read("gfw_events")
+    if not p:
+        return "# Phase 4a report\n\n" + NOT_RUN + " - run `make gfw`.\n"
+    by, imos = p.get("events_by_type") or {}, p.get("imos_with_event_type") or {}
+    rus = p.get("russian_port_visits") or {}
+    pct = p.get("events_per_imo_p50_p90_max") or []
+    enc = p.get("encounter_share_of_imos")
+    lines = [f"# Phase 4a report (generated {date.today().isoformat()} by `make gfw`)", "",
+             f"GFW events for every IMO the Phase 3 resolver voted through, {p.get('start')} to {p.get('end')}"
+             " (the window plus the 180 days before it). Tables are GFW-derived, so local only (rule 7).", "",
+             "## Coverage", "",
+             f"- {p.get('imos_with_a_gfw_id')} of {p.get('imos_requested')} IMOs have a GFW vessel id "
+             f"({p.get('share_with_a_gfw_id')}); {p.get('vessel_ids')} vessel ids in total.",
+             f"- Events per IMO with any: median {pct[0] if pct else None}, p90 {pct[1] if pct else None}, "
+             f"max {pct[2] if pct else None}.", "",
+             "| type | events | IMOs with any |", "|---|---:|---:|"] + [
+             f"| {k} | {by.get(k, 0)} | {imos.get(k, 0)} |" for k in ("gap", "encounter", "loitering", "port_visit")
+             ] + ["",
+             "## Encounters (task 4b re-test)", "",
+             (f"- Share of IMOs with any encounter: {enc}. "
+              + ("Effectively zero, which confirms the Phase 0 finding: the public encounter dataset does not "
+                 "return tankers. The encounter features stay in the registry at zero, and the at-sea transfer "
+                 "signal comes from the Phase 4b STS detector alone." if not enc or enc < 0.01 else
+                 "Not zero, so the Phase 0 finding does not hold at population scale; the encounter parser "
+                 "has now met live records.")), "",
+             "## Russian port visits (B1)", "",
+             f"- {rus.get('all_rus')} port visits at an anchorage with country RUS; "
+             f"{rus.get('in_b1_regions')} inside the B1 regions (Baltic, Black Sea, Kola Bay; PREREG amendment "
+             f"2026-09-28), so {(rus.get('all_rus') or 0) - (rus.get('in_b1_regions') or 0)} elsewhere.",
+             f"- {rus.get('without_a_name')} of the RUS visits carry no anchorage name, which is why the rule "
+             "matches country and position rather than a name list.", "",
+             "## Datasets served", ""] + [f"- `{d}`" for d in p.get("datasets") or ["(none recorded)"]] + ["",
+             f"Client: {p.get('client_stats')}.", "",
+             "## Assumptions to confirm", "",
+             "- Vessel ids come from searching each IMO; no MMSI-and-date fallback was built. It pays for itself "
+             "only if the IMO share above is low.",
+             "- An event's `observed_at` is its end. GFW's event models were run after the fact, so this is the "
+             "disclosed limitation in PREREG section 11, not a point-in-time guarantee.",
+             "- Encounter parsing follows the documented shape; until the share above is non-zero it has not met "
+             "a live record.", ""]
+    return "\n".join(lines)
+
+
 # ---------------------------------------------------------------------------- Phase 4b
 def _cells(rows: list[dict]) -> list[str]:
     if not rows:
@@ -756,7 +801,7 @@ def render_phase9(out: dict | None = None) -> str:
 # exist fails immediately instead of writing nothing.
 RENDERERS = {
     "phase0": render, "phase1": render_phase1, "phase2": render_phase2, "phase3": render_phase3,
-    "phase4b": render_phase4b, "phase5a": render_phase5a, "phase5b": render_phase5b,
+    "phase4a": render_phase4a, "phase4b": render_phase4b, "phase5a": render_phase5a, "phase5b": render_phase5b,
     "phase6": render_phase6, "phase8": render_phase8, "phase9": render_phase9,
 }
 

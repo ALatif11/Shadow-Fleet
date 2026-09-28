@@ -6,7 +6,7 @@ FULLRES ?= 0
 
 .PHONY: setup test lint doctor probe probe-dma probe-gfw probe-ofac probe-opensanctions probe-mid \
         window-gate ingest-dma ingest-dma-bg ingest-dma-status ingest-dma-check ingest-day llm-smoke \
-        report-phase0 sync cutoffs phase1 labels identity detect features backtest phase6 briefs judge forward-score forward-eval readme all \
+        report-phase0 sync cutoffs phase1 labels identity gfw detect features backtest phase6 briefs judge forward-score forward-eval readme all \
         ui-schema ui-fixtures ui-export ui-check ui-install ui-dev ui-build test-ui test-all
 
 setup:
@@ -87,6 +87,11 @@ labels:
 
 identity:
 	$(CLI) identity
+
+# Phase 4a. Needs GFW_TOKEN in .env and the network; long the first time, cached after that.
+# make gfw LIMIT=20 for a smoke run on the first 20 IMOs.
+gfw:
+	$(CLI) gfw $(if $(LIMIT),--limit $(LIMIT),)
 
 detect:
 	$(CLI) detect

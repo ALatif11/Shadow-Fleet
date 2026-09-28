@@ -18,6 +18,7 @@ import pyarrow.parquet as pq
 from shadowfleet import config
 from shadowfleet.detect import churn, draught, loitering, spoof, sts
 from shadowfleet.features import identity as fid
+from shadowfleet.ingest import gfw
 from shadowfleet.ingest.dma import connect
 from shadowfleet.labels import labels as lab
 from shadowfleet.resolve.identity import INTERVALS, at_cutoff, hull_at
@@ -48,7 +49,8 @@ FEATURES: dict[str, tuple[str, str]] = {
     "n_loitering": ("gfw_ports", "GFW loitering events ending in the window"),
     "loitering_hours": ("gfw_ports", "Total GFW loitering hours in the window"),
     "n_port_visits": ("gfw_ports", "GFW port visits ending in the window"),
-    "n_russian_port_visits": ("gfw_ports", "Port visits at a port on config.RUSSIAN_PORTS"),
+    "n_russian_port_visits": ("gfw_ports", "Port visits at a B1 port: anchorage country RUS inside "
+                                           "config.RUSSIAN_PORT_REGIONS (PREREG amendment 2026-09-28)"),
     "days_since_last_russian_port_visit": ("gfw_ports", "Days from the last Russian port visit to T"),
     "n_sts_candidates": ("detect", "Self-built STS candidates ending in the window"),
     "n_sts_with_draught_change": ("detect", "Draught changes coinciding with an STS candidate"),
@@ -223,6 +225,69 @@ def _detect(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     return out
 
 
+def _gfw(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
+    """The three GFW families, from `gfw_events` (Phase 4a).
+
+    Events belong to the IMO their vessel ids were fetched for, so they attach to IMO-keyed hulls only; a
+    `syn:` hull has no IMO and so no GFW behaviour (ADR-23). Counts are over events that ENDED in the feature
+    window, since `observed_at` is the end. `days_since_last_russian_port_visit` looks back over everything
+    on or before T, because a visit a year ago is still the last one.
+    """
+    if not has_table(gfw.EVENTS_TABLE):
+        return {}
+    start = T - timedelta(days=config.FEATURE_WINDOW_DAYS)
+    in_region = " OR ".join(f"(lat BETWEEN {a} AND {b} AND lon BETWEEN {c} AND {d})"
+                            for a, b, c, d in config.RUSSIAN_PORT_REGIONS.values())
+    russian = f"(event_type = 'port_visit' AND port_country = 'RUS' AND ({in_region}))"
+    listed = sorted(lab.listed_as_of(T)) if (config.PARQUET_DIR / lab.ACTIONS_FILE).exists() else []
+    con.execute("CREATE OR REPLACE TEMP TABLE listed_t AS SELECT unnest(?::BIGINT[]) AS imo", [listed])
+    vmap = config.PARQUET_DIR / gfw.VESSEL_MAP
+    partner_by_id = (f"SELECT gfw_vessel_id, imo FROM read_parquet('{vmap.as_posix()}')" if vmap.exists()
+                     else "SELECT NULL::VARCHAR AS gfw_vessel_id, NULL::BIGINT AS imo WHERE false")
+    cur = con.execute(f"""
+        WITH e AS (
+          SELECT * FROM read_parquet('{glob_table(gfw.EVENTS_TABLE)}', hive_partitioning=true)
+          WHERE observed_at <= {_ts(T)}
+        ), w AS (SELECT * FROM e WHERE observed_at >= TIMESTAMP '{start} 00:00:00'),
+        -- an encounter partner is sanctioned if it is listed as of T, identified either by GFW vessel id
+        -- (through the Phase 4a map) or by its MMSI (through the hull that MMSI is at T)
+        partner AS (
+          SELECT DISTINCT w.event_id
+          FROM w
+          LEFT JOIN ({partner_by_id}) pid ON pid.gfw_vessel_id = w.partner_gfw_id
+          LEFT JOIN {hull_at(T)} pms ON pms.mmsi = w.partner_ssvid
+          WHERE w.event_type = 'encounter'
+            AND (pid.imo IN (SELECT imo FROM listed_t)
+                 OR (regexp_full_match(pms.hull_id, '[0-9]+')
+                     AND CAST(pms.hull_id AS BIGINT) IN (SELECT imo FROM listed_t)))
+        )
+        SELECT CAST(w.imo AS VARCHAR) AS hull_id,
+          count(*) FILTER (WHERE event_type = 'gap') AS n_gaps,
+          coalesce(sum(duration_h) FILTER (WHERE event_type = 'gap'), 0) AS gap_hours_total,
+          coalesce(max(gap_distance_km) FILTER (WHERE event_type = 'gap'), 0) AS max_gap_distance_km,
+          count(*) FILTER (WHERE event_type = 'gap'
+                             AND start_distance_from_shore_km > {gfw.OFFSHORE_KM}) AS n_gaps_offshore,
+          count(*) FILTER (WHERE event_type = 'encounter') AS n_encounters,
+          count(*) FILTER (WHERE event_id IN (SELECT event_id FROM partner))
+            AS n_encounters_with_sanctioned_partner,
+          count(*) FILTER (WHERE event_type = 'loitering') AS n_loitering,
+          coalesce(sum(duration_h) FILTER (WHERE event_type = 'loitering'), 0) AS loitering_hours,
+          count(*) FILTER (WHERE event_type = 'port_visit') AS n_port_visits,
+          count(*) FILTER (WHERE {russian}) AS n_russian_port_visits
+        FROM w GROUP BY w.imo
+    """)
+    cols = [d[0] for d in cur.description]
+    out = {r[0]: dict(zip(cols[1:], r[1:], strict=True)) for r in cur.fetchall()}
+    for imo, days in con.execute(f"""
+        SELECT CAST(imo AS VARCHAR), datediff('day', last_visit, {_ts(T)}) FROM (
+          SELECT imo, max(observed_at) AS last_visit
+          FROM read_parquet('{glob_table(gfw.EVENTS_TABLE)}', hive_partitioning=true)
+          WHERE observed_at <= {_ts(T)} AND {russian} GROUP BY imo)
+    """).fetchall():
+        out.setdefault(imo, {})["days_since_last_russian_port_visit"] = days
+    return out
+
+
 def _static(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     start = T - timedelta(days=config.FEATURE_WINDOW_DAYS)
     src = (f"(SELECT mmsi, day, length FROM read_parquet('{glob_table('vessel_day')}',"
@@ -237,7 +302,7 @@ def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict
     """One row per hull in the population at T, every column in FEATURES."""
     con = con or connect()
     hulls = population(T, con)
-    parts = (_identity(T, con), _ais(T, con), _detect(T, con), _static(T, con))
+    parts = (_identity(T, con), _ais(T, con), _gfw(T, con), _detect(T, con), _static(T, con))
     rows = []
     for h in hulls:
         row: dict = {"hull_id": h, "cutoff": T}
@@ -251,15 +316,15 @@ def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict
 
 
 def build(cutoffs: list[date] | None = None) -> dict:
-    """Write `feature_matrix/cutoff=T/` for every monthly cutoff. GFW families stay at their defaults
-    until Phase 4a lands `gfw_events`; that is reported, never faked."""
+    """Write `feature_matrix/cutoff=T/` for every monthly cutoff. Without `gfw_events` (Phase 4a not run,
+    or run with no token) the GFW families stay at their defaults; `gfw_present` reports it."""
 
 
     con = connect()
     cutoffs = cutoffs or config.monthly_cutoffs(config.load_window(), date.today())
     out: dict = {"cutoffs": [], "features": len(FEATURES),
                  "families": sorted({f for f, _ in FEATURES.values()}),
-                 "gfw_present": has_table("gfw_events"),
+                 "gfw_present": has_table(gfw.EVENTS_TABLE),
                  # published for the report, so `util.report` never has to import a phase: the arrow runs
                  # phase -> report only, and util/ stays a leaf
                  "registry": {n: [f, d] for n, (f, d) in FEATURES.items()},

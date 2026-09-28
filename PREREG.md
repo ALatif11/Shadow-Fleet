@@ -111,4 +111,10 @@ Reported as prospective, separately from the backtest.
 
 Append-only, below, each with a date and whether Phase 5b results had been seen.
 
-- (none)
+- **2026-09-28, before any Phase 5b result existed (no metric had been computed on real data).** Section 5,
+  B1: "a Russian Baltic or Black Sea port" becomes **"a Russian Baltic or Black Sea port, or Murmansk"**
+  (decided by Adam). The code's port list had also carried Kozmino, a Pacific terminal that serves Asia rather
+  than the fleet that transits Danish waters; it is removed. Kaliningrad and Baltiysk are added, since they
+  are Russian Baltic ports and were missing. For GFW port visits the rule is applied by the anchorage's
+  country (RUS) and position rather than its name, because two of the eight port visits in the Phase 0
+  sample carried no anchorage name at all and a name list would have missed them silently.
