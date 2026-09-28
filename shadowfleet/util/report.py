@@ -362,8 +362,12 @@ def render_phase3(out: dict | None = None) -> str:
              "## Identity intervals", "",
              f"- `{iv.get('file')}`: {iv.get('intervals')} intervals over {iv.get('hulls')} hulls; "
              f"{iv.get('hulls_with_a_change')} hulls changed identity at least once.",
-             f"- Flags resolved from {iv.get('mid_rows')} ITU MID rows; "
-             f"{iv.get('intervals_with_flag')} intervals carry a flag.", "",
+             (f"- Flags resolved from {iv.get('mid_rows')} ITU MID rows; "
+              f"{iv.get('intervals_with_flag')} intervals carry a flag."
+              if iv.get("mid_rows") else
+              "- **No flags resolved**: the ITU MID table is empty, so `n_flag_changes` and "
+              "`flag_to_convenience_registry` are dead features in every model below. Run `make probe-mid` "
+              "and re-run `make identity` before reading any result that uses them."), "",
              "## Checks", ""]
     lines.append("- Fragmentation: " + (frag.get("skipped")
                  or f"{frag.get('single_hull_id')} of {frag.get('checked')} designated IMOs map to exactly "

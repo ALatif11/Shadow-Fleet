@@ -208,7 +208,10 @@ OPENSANCTIONS_DATED_EXPORTS_PUBLIC = False
 OPENSANCTIONS_LICENCE = "CC BY-NC 4.0 (non-commercial)"
 
 # --------------------------------------------------------------------------- MID (Phase 0 task 8)
-MID_SOURCE_URL = "https://www.itu.int/en/ITU-R/terrestrial/fmd/Pages/mid.aspx"
+# The fmd/Pages/mid.aspx page is now a shell that links to ITU's GLAD app; the table itself lives
+# here (checked 2026-09-28). The old URL fetched 200 OK with no table in it, which is why the probe
+# quietly produced an empty mid.csv.
+MID_SOURCE_URL = "https://www.itu.int/gladapp/Allocation/MIDs"
 MID_CSV = REPO_ROOT / "shadowfleet" / "ingest" / "mid.csv"
 
 # --------------------------------------------------------------------------- domain lists

@@ -12,6 +12,7 @@ import pycountry
 
 from shadowfleet import config
 from shadowfleet.util import net, probes
+from shadowfleet.util.store import rel_path
 
 ROW = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S | re.I)
 CELL = re.compile(r"<t[dh][^>]*>(.*?)</t[dh]>", re.S | re.I)
@@ -57,8 +58,16 @@ def probe() -> dict:
         r = net.get(c, config.MID_SOURCE_URL)
         r.raise_for_status()
     rows = parse_itu_html(r.text)
+    # Fail loudly. The first version wrote the header, found nothing, and reported rows: 0 as success, which
+    # left a mid.csv that exists and looks vendored while every flag stayed null for eleven days. A source
+    # that parses to nothing is a broken source, not an empty one.
+    if not rows:
+        raise SystemExit(
+            f"parsed 0 MID rows from {config.MID_SOURCE_URL} ({len(r.text)} bytes). The page moved or its "
+            "markup changed; fix parse_itu_html or MID_SOURCE_URL. mid.csv left untouched.")
     unmatched = []
-    with open(config.MID_CSV, "w", newline="") as f:
+    tmp = config.MID_CSV.with_name(config.MID_CSV.name + ".part")  # swap in only once it parsed
+    with open(tmp, "w", newline="") as f:
         f.write(f"# source: {config.MID_SOURCE_URL} fetched {date.today().isoformat()}\n")
         w = csv.writer(f)
         w.writerow(["mid", "itu_name", "iso3"])
@@ -67,7 +76,9 @@ def probe() -> dict:
             if iso is None:
                 unmatched.append(name)
             w.writerow([mid, name, iso or ""])
-    out = {"rows": len(rows), "unmatched": unmatched, "csv": str(config.MID_CSV.relative_to(config.REPO_ROOT))}
+    tmp.replace(config.MID_CSV)
+    load.cache_clear()
+    out = {"rows": len(rows), "unmatched": unmatched, "csv": rel_path(config.MID_CSV)}
     probes.write("mid", out)
     return out
 

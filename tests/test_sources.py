@@ -217,3 +217,52 @@ def test_undated_eu_sanction_falls_back_to_celex(tmp_path):
     p.write_text("\n".join(json.dumps(x) for x in lines))
     s = opensanctions.vessel_sanction_summary(p, "EU-MARE")
     assert s["vessel_sanctions_with_date"] == 0 and s["vessel_sanctions_undated_with_celex"] == 1
+
+
+def _page(text: str):
+    """A stand-in for `net.get`. The response needs its request set or `raise_for_status` raises."""
+    def get(c, url, **kw):
+        return httpx.Response(200, text=text, request=httpx.Request("GET", url))
+    return get
+
+
+def test_a_mid_source_that_parses_to_nothing_fails_and_keeps_the_old_csv(tmp_path, monkeypatch):
+    """`probe()` used to write a header, report rows: 0 as success, and leave a mid.csv that looks vendored.
+
+    Every flag stayed null for eleven days because of it, and `make identity` reported `mid_rows: 0` in a
+    field nobody read. A source that parses to nothing is broken, not empty.
+    """
+    import pytest
+
+    from shadowfleet import config
+    from shadowfleet.ingest import mid
+
+    good = "# source: old\nmid,itu_name,iso3\n232,United Kingdom,GBR\n"
+    csv_path = tmp_path / "mid.csv"
+    csv_path.write_text(good)
+    monkeypatch.setattr(config, "MID_CSV", csv_path)
+    monkeypatch.setattr(mid.net, "get", _page("<html>no table</html>"))
+    mid.load.cache_clear()
+
+    with pytest.raises(SystemExit, match="parsed 0 MID rows"):
+        mid.probe()
+    assert csv_path.read_text() == good, "a failed probe must not replace a good vendored table"
+    assert not list(tmp_path.glob("*.part")), "the temp file should not be left behind on the success path"
+
+
+def test_a_mid_source_that_parses_writes_the_csv_and_clears_the_cache(tmp_path, monkeypatch):
+
+    from shadowfleet import config
+    from shadowfleet.ingest import mid
+
+    csv_path = tmp_path / "mid.csv"
+    monkeypatch.setattr(config, "MID_CSV", csv_path)
+    page = "<table><tr><td>232</td><td>United Kingdom of Great Britain</td></tr>" \
+           "<tr><td>273</td><td>Russian Federation</td></tr></table>"
+    monkeypatch.setattr(mid.net, "get", _page(page))
+    mid.load.cache_clear()
+    assert mid.load() == {}  # nothing vendored yet, and the empty result is cached
+
+    out = mid.probe()
+    assert out["rows"] == 2
+    assert mid.load() == {232: "GBR", 273: "RUS"}, "probe() must clear load()'s cache or the run sees nothing"
