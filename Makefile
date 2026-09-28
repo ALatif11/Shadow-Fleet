@@ -6,7 +6,7 @@ FULLRES ?= 0
 
 .PHONY: setup test lint doctor probe probe-dma probe-gfw probe-ofac probe-opensanctions probe-mid \
         window-gate ingest-dma ingest-dma-bg ingest-dma-status ingest-dma-check ingest-day llm-smoke \
-        report-phase0 cutoffs phase1 labels identity detect features backtest phase6 briefs judge forward-score forward-eval readme all \
+        report-phase0 sync cutoffs phase1 labels identity detect features backtest phase6 briefs judge forward-score forward-eval readme all \
         ui-schema ui-fixtures ui-export ui-check ui-install ui-dev ui-build test-ui test-all
 
 setup:
@@ -72,6 +72,12 @@ llm-smoke:
 
 report-phase0:
 	$(CLI) report-phase0
+
+# Pull the latest hand-off bundle from the Windows folder. --ff-only refuses instead of overwriting, which
+# is the point: `git reset --hard` onto a bundle wiped regenerated files twice and once a real commit.
+BUNDLE ?= /mnt/c/Users/adam1/Downloads/New Proj Files/shadowfleet-latest.bundle
+sync:
+	git pull --ff-only "$(BUNDLE)" main
 
 phase1:
 	$(CLI) phase1
