@@ -18,7 +18,7 @@ from shadowfleet import config
 from shadowfleet.detect import churn, draught, loitering, spoof, sts
 from shadowfleet.features.asof import FEATURES
 from shadowfleet.ingest.dma import connect
-from shadowfleet.resolve.identity import INTERVALS
+from shadowfleet.resolve.identity import INTERVALS, hull_at
 from shadowfleet.util.store import glob_table, has_table
 
 TOP_FEATURES = 8  # phase-prompts Phase 8 task 1
@@ -50,6 +50,8 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
     con = con or connect()
     lo, hi = _window(T)
     h = hull_id.replace("'", "''")
+    # The transmitters this hull is made of at T (ADR-23), so the evidence is exactly what the features read.
+    mine = f"(SELECT mmsi FROM {hull_at(T)} WHERE hull_id = '{h}')"
     out: dict[str, list[dict]] = {}
 
     if (config.PARQUET_DIR / INTERVALS).exists():
@@ -57,24 +59,28 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
             SELECT 'identity_interval' AS kind, "start" AS at, mmsi, name_normalised AS name,
                    callsign, flag_iso3 AS flag
             FROM read_parquet('{(config.PARQUET_DIR / INTERVALS).as_posix()}')
-            WHERE hull_id = '{h}' AND "start" <= {hi} ORDER BY "start" DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+            WHERE mmsi IN {mine} AND "start" <= {hi} ORDER BY "start" DESC LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     if has_table(sts.TABLE):
         out["sts"] = _rows(con, f"""
-            SELECT 'sts_candidate' AS kind, observed_at AS at,
-                   CASE WHEN hull_a = '{h}' THEN hull_b ELSE hull_a END AS partner_hull,
-                   round(hours, 1) AS hours, round(min_distance_m) AS min_distance_m,
-                   round(lat, 2) AS lat, round(lon, 2) AS lon
-            FROM read_parquet('{glob_table(sts.TABLE)}', hive_partitioning=true)
-            WHERE (hull_a = '{h}' OR hull_b = '{h}') AND observed_at BETWEEN {lo} AND {hi}
-            ORDER BY hours DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+            SELECT 'sts_candidate' AS kind, s.observed_at AS at,
+                   p.hull_id AS partner_hull,
+                   round(s.hours, 1) AS hours, round(s.min_distance_m) AS min_distance_m,
+                   round(s.lat, 2) AS lat, round(s.lon, 2) AS lon
+            FROM read_parquet('{glob_table(sts.TABLE)}', hive_partitioning=true) s
+            -- the partner is whichever transmitter is not ours, named by the hull it is at T
+            JOIN {hull_at(T)} p
+              ON p.mmsi = CASE WHEN s.mmsi_a IN {mine} THEN s.mmsi_b ELSE s.mmsi_a END
+            WHERE (s.mmsi_a IN {mine} OR s.mmsi_b IN {mine}) AND p.hull_id <> '{h}'
+              AND s.observed_at BETWEEN {lo} AND {hi}
+            ORDER BY s.hours DESC LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     if has_table(loitering.TABLE):
         out["loitering"] = _rows(con, f"""
             SELECT 'loitering' AS kind, observed_at AS at, round(hours, 1) AS hours,
                    round(lat, 2) AS lat, round(lon, 2) AS lon, modal_nav_status AS nav_status
             FROM read_parquet('{glob_table(loitering.TABLE)}', hive_partitioning=true)
-            WHERE hull_id = '{h}' AND observed_at BETWEEN {lo} AND {hi}
+            WHERE mmsi IN {mine} AND observed_at BETWEEN {lo} AND {hi}
             ORDER BY hours DESC LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     if has_table(draught.TABLE):
@@ -82,7 +88,7 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
             SELECT 'draught_change' AS kind, observed_at AS at, prev_draught, draught,
                    round(delta_m, 1) AS delta_m, moored_between, sts_between
             FROM read_parquet('{glob_table(draught.TABLE)}', hive_partitioning=true)
-            WHERE hull_id = '{h}' AND observed_at BETWEEN {lo} AND {hi}
+            WHERE mmsi IN {mine} AND observed_at BETWEEN {lo} AND {hi}
             ORDER BY abs(delta_m) DESC LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     if has_table(spoof.TABLE):
@@ -90,7 +96,7 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
             SELECT 'spoof_day' AS kind, observed_at AS at, day, n_jumps,
                    round(expected_incidence, 3) AS expected_incidence, round(excess, 3) AS excess
             FROM read_parquet('{glob_table(spoof.TABLE)}', hive_partitioning=true)
-            WHERE hull_id = '{h}' AND day BETWEEN DATE '{T - timedelta(days=config.FEATURE_WINDOW_DAYS)}'
+            WHERE mmsi IN {mine} AND day BETWEEN DATE '{T - timedelta(days=config.FEATURE_WINDOW_DAYS)}'
               AND DATE '{T}' AND n_jumps > 0
             ORDER BY excess DESC LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
@@ -98,15 +104,17 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
         out["churn"] = _rows(con, f"""
             SELECT 'churn' AS kind, observed_at AS at, kind AS change_kind, old_value, new_value
             FROM read_parquet('{glob_table(churn.TABLE)}', hive_partitioning=true)
-            WHERE hull_id = '{h}' AND observed_at <= {hi}
+            WHERE mmsi IN {mine} AND observed_at <= {hi}
             ORDER BY observed_at DESC LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
-    if has_table("gfw_events"):
+    # GFW events belong to the IMO they were fetched for, not to a transmitter: their value is behaviour
+    # outside Danish waters, often under MMSIs DMA never saw (Phase 4a). A syn hull has no IMO, so none.
+    if has_table("gfw_events") and hull_id.isdigit():
         out["gfw"] = _rows(con, f"""
             SELECT event_type AS kind, observed_at AS at, round(duration_h, 1) AS hours,
                    round(lat, 2) AS lat, round(lon, 2) AS lon
             FROM read_parquet('{glob_table('gfw_events')}', hive_partitioning=true)
-            WHERE hull_id = '{h}' AND observed_at BETWEEN {lo} AND {hi}
+            WHERE imo = {int(hull_id)} AND observed_at BETWEEN {lo} AND {hi}
             ORDER BY observed_at DESC LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     return {k: v for k, v in out.items() if v}

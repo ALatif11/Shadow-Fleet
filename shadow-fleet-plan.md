@@ -248,6 +248,32 @@ identical numbers. `shap` is removed from the extra. Why it matters beyond the d
 package that can disagree with the model about feature ordering. Revisit if: a non-tree model ever needs
 explaining (KernelExplainer has no LightGBM equivalent), which on the current plan never happens.
 
+**ADR-23 Hulls are assigned at the cutoff, not at the record (added Sep 28).** Context: Phase 3 stamped
+every record with the hull id in force when the record was written (an ASOF join on `observed_at`), and
+every detector and feature family inherited that id. On the real store, none of 20 designated IMOs resolved
+to a single hull id. A vessel whose IMO vote reached `min_imo_days` partway through a feature window
+appeared under two ids at one cutoff, one IMO-keyed and one `syn:`. Two consequences made it a correctness
+bug rather than a cosmetic one: rule 3 removes only IMO-keyed hulls, so the `syn:` fragment of a vessel
+listed before T stayed in the population; and a `syn:` hull can never carry a positive label, so fragments
+of later-designated vessels were scored as guaranteed negatives. Reproduced synthetically in
+`tests/test_identity_attribution.py` before the fix. Options: exclude `syn:` hulls whose plurality IMO is
+listed (treats rule 3 only, leaves the double counting and the label noise); merge fragments using later
+votes (leaks: it uses votes that closed after T); assign at the cutoff. Choice: assign at the cutoff.
+`resolve.identity.hull_at(T)` maps each transmitter (MMSI) to its latest window whose vote had closed by T,
+and every record that transmitter wrote on or before T goes to that hull. Detectors and identity intervals
+are keyed by transmitter and never assign a hull; the feature store, the population and the evidence
+bundler attribute through `at_cutoff(src, T)`. GFW events are keyed by the IMO they were fetched for, since
+their value is behaviour under MMSIs Danish AIS never saw. The `syn:` id hashes transmitter and size, no
+longer name, so a rename is an identity change counted inside one hull rather than a new hull. Why it is
+still point-in-time: nothing in `hull_at(T)` was decided with data after T, and a test pins a cutoff that
+falls one day before a vote closes. It also supersedes ADR-21's cost: records from a vessel's first 30 days
+are no longer dropped by the detectors, they are attributed from the first cutoff at which the vessel is
+known. `n_mmsi_imo_churn` keeps its meaning (MMSI changes under a hull plus IMO changes under a
+transmitter) but its first half is now counted at T, since it depends on which transmitters a hull has at
+T. Revisit if: a vessel's transmitters are routinely unresolved at the cutoffs that matter (the remaining,
+honest fragmentation: a new MMSI that has not yet broadcast its IMO for `min_imo_days`), in which case
+`coverage_by_threshold` says what lowering the threshold would buy.
+
 
 **ADR-11 addendum (window arithmetic, Sep 17).** Let W be the first ingested day and D the last day whose horizon is closed (today minus 182 d). Cutoffs run from the first month-end at or after W + 180 d to the last month-end at or before D. Supervised scoring needs T' + 182 d <= T, so the first supervised cutoff is about 12 months after W. On Sep 17 2026, D is about Mar 19 2026, so the last evaluable cutoff is Feb 28 2026. A window starting Sep 2024 gives 12 evaluable cutoffs (Mar 2025 to Feb 2026) and 6 supervised ones (Sep 2025 to Feb 2026); each month the project runs adds one of each. A window starting Jun 2025 gives 3 and 0. Every day the bulk ingest is delayed loses a day at the front if DMA deletes on a rolling basis.
 

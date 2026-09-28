@@ -87,7 +87,7 @@ def test_intervals_record_a_name_change_but_not_a_missing_field(mid_csv):
                         ).fetchall()
     assert [n for n, _ in names] == ["ALPHA", "BRAVO"]
     assert names[0][1] == "DNK"  # flag from the ITU MID of the MMSI
-    assert out["hulls_with_a_change"] == 1
+    assert out["mmsis_with_a_change"] == 1
 
 
 def test_identity_features_are_the_same_from_a_store_truncated_at_T(mid_csv):

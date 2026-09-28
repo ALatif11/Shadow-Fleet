@@ -32,7 +32,7 @@ shadowfleet/
     cli.py                    # `python -m shadowfleet.cli <command>`; imports each phase lazily so
                               #   --help stays instant and a missing optional dep breaks one command
     ingest/   dma.py gfw.py ofac.py opensanctions.py mid.py window.py
-    resolve/  identity.py     # Phase 3: hull_map, identity_intervals, as_of_hull
+    resolve/  identity.py     # Phase 3: hull_map, identity_intervals, hull_at(T) (ADR-23)
     detect/   sts.py loitering.py draught.py spoof.py churn.py   # Phase 4b, DMA tracks only
     features/ asof.py identity.py                                # Phase 5a: features(hull, T)
     labels/   labels.py       # Phase 2: dated actions, listed_as_of, labels(T, horizon)
@@ -85,7 +85,7 @@ imported inside the function that needs them so the rules-only paths work withou
 - DMA gaps are coverage, not evasion; dark-gap features come only from GFW GAP events.
 - Spoof-jump counts are normalised per day and 0.5-degree cell by the share of all vessels jumping, so GNSS-interference days wash out. Both sides of that subtraction are per-vessel incidences, never per-row rates (ADR-20).
 - Self-built detectors use no port or anchorage polygons: "at a berth" is the hull's own `nav_status` of Moored, hulls at anchor are kept, and the anchorages are reported from the output rather than asserted in advance (ADR-19).
-- A hull has no `hull_id` until its first 30-day window closes, and records from that warm-up are dropped rather than given an MMSI-derived id (ADR-21).
+- Hulls are assigned at the cutoff, never at the record (ADR-23): `hull_at(T)` maps each transmitter to its latest window whose vote had closed by T. Detectors and identity intervals are keyed by MMSI; features, population and evidence attribute through `at_cutoff(src, T)`. Nothing reads a hull id stamped on a record, and a test fails if anything outside `resolve/identity.py` tries. A transmitter has no hull until its first 30-day window closes (ADR-21); its records are kept and counted from that cutoff on.
 - Labels: OFAC add dates from SDN advanced XML `EntryEvent/Date` (every current entry is dated), cross-checked against the yearly change archive, which is still required for removals and for vessels no longer listed (2024 onward is PDF-only there). EU = Annex XLII to Reg 833/2014, from `eu_sanctions_map` (programId `EU-MARE`, dates in `startDate`, CELEX fallback), not `eu_fsf`. UK = `gb_fcdo_sanctions` (dates in `startDate`). Dated OpenSanctions exports are paid-only, so dates are cross-checked against CELEX/Official Journal and manual spot checks. Headline label OFAC∪EU∪UK; OFAC-only reported as a sensitivity table.
 - Hull identity = IMO by majority vote over DMA static messages; GFW identity linking used as fallback only, with a silver test set from OpenSanctions and GFW IMO-MMSI pairs and a sensitivity arm that disables GFW-based merges.
 - Window (decided Sep 17 2026): 2024-03-01 (first daily DMA file) to the latest file; monthly-archive backfill is optional and needs the stage-2 day-column optimisation first.

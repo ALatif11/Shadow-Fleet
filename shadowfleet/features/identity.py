@@ -1,8 +1,9 @@
 """As-of identity features (PREREG family `identity`).
 
-Everything is read from `identity_intervals.parquet` with `start <= T`, so the same call against a store
-physically truncated at T returns the same rows. That equality is Phase 5a leakage test (a); the version
-here is asserted in `tests/test_identity.py`.
+Everything is read from `identity_intervals.parquet` with `start <= T`, grouped by the hull each
+transmitter maps to at T (ADR-23), so the same call against a store physically truncated at T returns the
+same rows. That equality is Phase 5a leakage test (a); the version here is asserted in
+`tests/test_identity.py`.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ import duckdb
 
 from shadowfleet import config
 from shadowfleet.ingest.dma import connect
-from shadowfleet.resolve.identity import INTERVALS
+from shadowfleet.resolve.identity import INTERVALS, hull_at
 
 FEATURES = {
     "n_name_changes": "Reported-name changes observed on or before T",
@@ -33,7 +34,9 @@ def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict
     flags = ", ".join(f"'{f}'" for f in config.CONVENIENCE_FLAGS)
     cur = con.execute(f"""
         WITH iv AS (
-          SELECT * FROM read_parquet('{path}') WHERE "start" <= TIMESTAMP '{T} 23:59:59'
+          SELECT hm.hull_id, x.* FROM read_parquet('{path}') x
+          JOIN {hull_at(T)} hm ON hm.mmsi = x.mmsi
+          WHERE x."start" <= TIMESTAMP '{T} 23:59:59'
         ), c AS (
           SELECT hull_id, "start", mmsi, name_normalised, flag_iso3,
             row_number() OVER w AS rn,

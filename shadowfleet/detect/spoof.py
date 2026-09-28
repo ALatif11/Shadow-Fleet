@@ -13,14 +13,13 @@ import duckdb
 
 from shadowfleet import config
 from shadowfleet.ingest.dma import connect
-from shadowfleet.resolve.identity import as_of_hull
 from shadowfleet.util.store import glob_table, rel_path
 
 TABLE = "detect_spoof"
 
 
 def run(con: duckdb.DuckDBPyConnection | None = None) -> dict:
-    """Write `detect_spoof`, one row per hull-day, `observed_at` = end of that day (as ingest set it)."""
+    """Write `detect_spoof`, one row per transmitter-day, `observed_at` = end of that day (as ingest set it)."""
     con = con or connect()
     src = (f"(SELECT mmsi, day, observed_at, n_rows_fullres, n_jumps, cell_rows"
            f" FROM read_parquet('{glob_table('ais_artifacts')}', hive_partitioning=true)"
@@ -30,16 +29,11 @@ def run(con: duckdb.DuckDBPyConnection | None = None) -> dict:
     n = con.execute(f"""
         COPY (
           WITH a AS (
-            SELECT hm.hull_id, x.mmsi, x.day, x.observed_at,
+            SELECT x.mmsi, x.day, x.observed_at,
                    x.n_rows_fullres, x.n_jumps, x.cell_rows
-            FROM {as_of_hull(src, 'day')}
-        -- Only hulls the resolver has named. A record from a vessel's warm-up (before its first
-        -- window closed) has no hull id, and inventing one from the MMSI would split the hull's
-        -- history at the boundary: its first real transition would land between two different ids
-        -- and vanish. The warm-up is always before the first cutoff, so nothing evaluable is lost.
-            WHERE hm.hull_id IS NOT NULL
+            FROM {src}  -- per transmitter; hulls are assigned at each cutoff (ADR-23)
           ), cells AS (  -- one row per (hull-day, cell) with that cell's share of the hull's rows
-            SELECT a.hull_id, a.mmsi, a.day, a.observed_at, a.n_rows_fullres, a.n_jumps,
+            SELECT a.mmsi, a.day, a.observed_at, a.n_rows_fullres, a.n_jumps,
                    c.cell_id, c.n_rows AS rows_in_cell
             FROM a, unnest(a.cell_rows) AS t(c)
           ), joined AS (
@@ -55,21 +49,21 @@ def run(con: duckdb.DuckDBPyConnection | None = None) -> dict:
           -- hull-days, which is not a thing that can be true of a difference from a fleet-wide baseline.
           -- Aggregated over a 180-day feature window this becomes PREREG's `spoof_jump_rate_excess`: the
           -- share of days the hull jumped minus the share expected from where it was.
-          SELECT hull_id, any_value(mmsi) AS mmsi, day, any_value(observed_at) AS observed_at,
+          SELECT mmsi, day, any_value(observed_at) AS observed_at,
             sum(rows_in_cell) AS n_rows, any_value(n_rows_fullres) AS n_rows_fullres,
             any_value(n_jumps) AS n_jumps, any_value(n_jumps) > 0 AS jumped,
             sum(cell_frac * rows_in_cell) / sum(rows_in_cell) AS expected_incidence,
             CAST(any_value(n_jumps) > 0 AS INTEGER)
               - sum(cell_frac * rows_in_cell) / sum(rows_in_cell) AS excess,
             count(*) AS cells_visited
-          FROM joined GROUP BY hull_id, day ORDER BY day, hull_id
+          FROM joined GROUP BY mmsi, day ORDER BY day, mmsi
         ) TO '{(out / 'part-0.parquet').as_posix()}' (FORMAT parquet, COMPRESSION zstd)
     """).fetchone()[0]
     stats = con.execute(f"""
         SELECT count(*) FILTER (WHERE excess > 0), count(*) FILTER (WHERE n_jumps > 0),
-               round(max(excess), 4), round(avg(excess), 6), count(DISTINCT hull_id)
+               round(max(excess), 4), round(avg(excess), 6), count(DISTINCT mmsi)
         FROM read_parquet('{(out / 'part-0.parquet').as_posix()}')
     """).fetchone()
-    return {"hull_days": n, "with_positive_excess": stats[0], "with_any_jump": stats[1],
-            "max_excess": stats[2], "mean_excess": stats[3], "hulls": stats[4],
+    return {"mmsi_days": n, "with_positive_excess": stats[0], "with_any_jump": stats[1],
+            "max_excess": stats[2], "mean_excess": stats[3], "mmsis": stats[4],
             "table": rel_path(config.PARQUET_DIR / TABLE)}

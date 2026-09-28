@@ -17,7 +17,6 @@ import duckdb
 
 from shadowfleet import config
 from shadowfleet.ingest.dma import connect
-from shadowfleet.resolve.identity import as_of_hull
 from shadowfleet.util.store import glob_table, haversine_km_sql, rel_path
 
 log = logging.getLogger(__name__)
@@ -40,7 +39,11 @@ def _months(start: date, end: date) -> list[date]:
 
 
 def _slow_positions(con: duckdb.DuckDBPyConnection, first: date, last: date, max_sog: float) -> None:
-    """Minute-averaged slow positions with the as-of hull id, bucketed for the pair join."""
+    """Minute-averaged slow positions per transmitter, bucketed for the pair join.
+
+    Keyed by MMSI, never by hull (ADR-23): a candidate is two transmitters close together, a physical fact.
+    Which hulls they are is decided at each cutoff by `resolve.identity.hull_at`.
+    """
     src = (f"(SELECT mmsi, observed_at, lat, lon, sog, nav_status"
            f" FROM read_parquet('{glob_table('ais_dynamic')}', hive_partitioning=true)"
            f" WHERE sog < {max_sog} AND observed_at >= TIMESTAMP '{first} 00:00:00'"
@@ -48,18 +51,13 @@ def _slow_positions(con: duckdb.DuckDBPyConnection, first: date, last: date, max
            f" AND coalesce(lower(nav_status), '') NOT LIKE '%moor%') x")
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE slow AS
-        SELECT hm.hull_id, x.mmsi,
+        SELECT x.mmsi,
                date_trunc('minute', x.observed_at) AS minute,
                avg(x.lat) AS lat, avg(x.lon) AS lon,
                CAST(floor(avg(x.lat) / {BUCKET_DEG}) AS INTEGER) AS blat,
                CAST(floor(avg(x.lon) / {BUCKET_DEG}) AS INTEGER) AS blon
-        FROM {as_of_hull(src, 'observed_at')}
-        -- Only hulls the resolver has named. A record from a vessel's warm-up (before its first
-        -- window closed) has no hull id, and inventing one from the MMSI would split the hull's
-        -- history at the boundary: its first real transition would land between two different ids
-        -- and vanish. The warm-up is always before the first cutoff, so nothing evaluable is lost.
-        WHERE hm.hull_id IS NOT NULL
-        GROUP BY 1, 2, 3
+        FROM {src}
+        GROUP BY 1, 2
     """)
 
 
@@ -83,7 +81,7 @@ def run(con: duckdb.DuckDBPyConnection | None = None, radius_m: int = RADIUS_M,
         n = con.execute(f"""
             COPY (
               WITH p AS (
-                SELECT a.hull_id AS hull_a, b.hull_id AS hull_b, a.mmsi AS mmsi_a, b.mmsi AS mmsi_b,
+                SELECT a.mmsi AS mmsi_a, b.mmsi AS mmsi_b,
                        a.minute, {dist_km} * 1000 AS m_apart,
                        (a.lat + b.lat) / 2 AS lat, (a.lon + b.lon) / 2 AS lon
                 FROM slow a JOIN slow b
@@ -94,19 +92,19 @@ def run(con: duckdb.DuckDBPyConnection | None = None, radius_m: int = RADIUS_M,
               ), q AS (
                 SELECT *, epoch(minute) / 60 AS mi FROM p
               ), gaps AS (
-                SELECT *, mi - lag(mi) OVER (PARTITION BY hull_a, hull_b ORDER BY mi) AS since_prev
+                SELECT *, mi - lag(mi) OVER (PARTITION BY mmsi_a, mmsi_b ORDER BY mi) AS since_prev
                 FROM q
               ), g AS (  -- a new run starts wherever the gap to the previous qualifying minute is too long
                 SELECT *, sum(CASE WHEN since_prev <= {GAP_TOLERANCE_MIN} THEN 0 ELSE 1 END)
-                            OVER (PARTITION BY hull_a, hull_b ORDER BY mi) AS run
+                            OVER (PARTITION BY mmsi_a, mmsi_b ORDER BY mi) AS run
                 FROM gaps
               )
-              SELECT hull_a, hull_b, any_value(mmsi_a) AS mmsi_a, any_value(mmsi_b) AS mmsi_b,
+              SELECT mmsi_a, mmsi_b,
                 min(minute) AS start, max(minute) AS "end", max(minute) AS observed_at,
                 count(*) AS qualifying_minutes,
                 (epoch(max(minute)) - epoch(min(minute))) / 3600.0 AS hours,
                 avg(lat) AS lat, avg(lon) AS lon, min(m_apart) AS min_distance_m
-              FROM g GROUP BY hull_a, hull_b, run
+              FROM g GROUP BY mmsi_a, mmsi_b, run
               HAVING (epoch(max(minute)) - epoch(min(minute))) / 60.0 >= {int(min_hours * 60)}
                  AND count(*) >= {MIN_COVERAGE} * ((epoch(max(minute)) - epoch(min(minute))) / 60.0)
                  AND CAST(min(minute) AS DATE) >= DATE '{m}'

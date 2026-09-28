@@ -20,7 +20,7 @@ from shadowfleet.detect import churn, draught, loitering, spoof, sts
 from shadowfleet.features import identity as fid
 from shadowfleet.ingest.dma import connect
 from shadowfleet.labels import labels as lab
-from shadowfleet.resolve.identity import INTERVALS, as_of_hull
+from shadowfleet.resolve.identity import INTERVALS, at_cutoff, hull_at
 from shadowfleet.util.store import glob_table, has_table, rel_path
 
 TRANSIT_GAP_HOURS = 12  # a hull out of DMA coverage this long and back is a new transit
@@ -85,7 +85,7 @@ def population(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[st
            f" hive_partitioning=true) WHERE observed_at BETWEEN TIMESTAMP '{start} 00:00:00'"
            f" AND {_ts(T)}) x")
     hulls = [r[0] for r in con.execute(f"""
-        SELECT DISTINCT hm.hull_id FROM {as_of_hull(src, 'observed_at')} WHERE hm.hull_id IS NOT NULL
+        SELECT DISTINCT hm.hull_id FROM {at_cutoff(src, T)} WHERE hm.hull_id IS NOT NULL
     """).fetchall()]
     listed = lab.listed_as_of(T) if (config.PARQUET_DIR / lab.ACTIONS_FILE).exists() else {}
     return sorted(h for h in hulls if not (h.isdigit() and int(h) in listed))
@@ -115,7 +115,7 @@ def _ais(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     ports = " OR ".join(f"lower(destination) LIKE '%{p.lower()}%'" for p in config.RUSSIAN_PORTS)
     rows = con.execute(f"""
         WITH d AS (
-          SELECT hm.hull_id, x.observed_at, x.sog FROM {as_of_hull(dyn, 'observed_at')}
+          SELECT hm.hull_id, x.observed_at, x.sog FROM {at_cutoff(dyn, T)}
           WHERE hm.hull_id IS NOT NULL
         ), gaps AS (
           SELECT *, (epoch(observed_at) - epoch(lag(observed_at) OVER w)) / 3600.0 AS since_prev
@@ -135,7 +135,7 @@ def _ais(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
         ), s AS (
           SELECT hm.hull_id, CAST(x.observed_at AS DATE) AS day, max(x.draught) AS draught,
                  avg(CASE WHEN {ports} THEN 1.0 ELSE 0.0 END) AS rus
-          FROM {as_of_hull(stat, 'observed_at')} WHERE hm.hull_id IS NOT NULL GROUP BY 1, 2
+          FROM {at_cutoff(stat, T)} WHERE hm.hull_id IS NOT NULL GROUP BY 1, 2
         ), p AS (
           SELECT hull_id, quantile_cont(draught, {LADEN_PERCENTILE}) AS p75
           FROM s WHERE draught > 0 GROUP BY hull_id
@@ -159,9 +159,10 @@ def _ais(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
 
     if has_table(spoof.TABLE):
         for hull, excess in con.execute(f"""
-            SELECT hull_id, avg(excess) FROM read_parquet('{glob_table(spoof.TABLE)}',
-                   hive_partitioning=true)
-            WHERE day BETWEEN DATE '{start}' AND DATE '{T}' GROUP BY hull_id
+            SELECT hm.hull_id, avg(d.excess)
+            FROM read_parquet('{glob_table(spoof.TABLE)}', hive_partitioning=true) d
+            JOIN {hull_at(T)} hm ON hm.mmsi = d.mmsi
+            WHERE d.day BETWEEN DATE '{start}' AND DATE '{T}' GROUP BY 1
         """).fetchall():
             out.setdefault(hull, {})["spoof_jump_rate_excess"] = excess
     return out
@@ -173,35 +174,52 @@ def _detect(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     if has_table(sts.TABLE):
         for hull, n in con.execute(f"""
             SELECT hull, count(*) FROM (  -- one scan; a candidate counts for both of its hulls
-              SELECT unnest([hull_a, hull_b]) AS hull FROM read_parquet('{glob_table(sts.TABLE)}',
-                     hive_partitioning=true)
-              WHERE observed_at BETWEEN TIMESTAMP '{start} 00:00:00' AND {_ts(T)}
+              SELECT unnest([a.hull_id, b.hull_id]) AS hull
+              FROM read_parquet('{glob_table(sts.TABLE)}', hive_partitioning=true) s
+              JOIN {hull_at(T)} a ON a.mmsi = s.mmsi_a
+              JOIN {hull_at(T)} b ON b.mmsi = s.mmsi_b
+              WHERE s.observed_at BETWEEN TIMESTAMP '{start} 00:00:00' AND {_ts(T)}
+                -- two transmitters that are one hull at T are one vessel with two transponders, which
+                -- is a spoofing signal, not a transfer between two ships
+                AND a.hull_id <> b.hull_id
             ) GROUP BY 1
         """).fetchall():
             out.setdefault(hull, {})["n_sts_candidates"] = n
     if has_table(loitering.TABLE):
         for hull, hours in con.execute(f"""
-            SELECT hull_id, sum(hours) FROM read_parquet('{glob_table(loitering.TABLE)}',
-                   hive_partitioning=true)
-            WHERE observed_at BETWEEN TIMESTAMP '{start} 00:00:00' AND {_ts(T)} GROUP BY hull_id
+            SELECT hm.hull_id, sum(d.hours)
+            FROM read_parquet('{glob_table(loitering.TABLE)}', hive_partitioning=true) d
+            JOIN {hull_at(T)} hm ON hm.mmsi = d.mmsi
+            WHERE d.observed_at BETWEEN TIMESTAMP '{start} 00:00:00' AND {_ts(T)} GROUP BY 1
         """).fetchall():
             out.setdefault(hull, {})["anchorage_loitering_hours"] = hours
     if has_table(draught.TABLE):
         for hull, unexplained, with_sts in con.execute(f"""
-            SELECT hull_id, count(*) FILTER (WHERE NOT moored_between AND NOT sts_between),
-                   count(*) FILTER (WHERE sts_between)
-            FROM read_parquet('{glob_table(draught.TABLE)}', hive_partitioning=true)
-            WHERE observed_at BETWEEN TIMESTAMP '{start} 00:00:00' AND {_ts(T)} GROUP BY hull_id
+            SELECT hm.hull_id, count(*) FILTER (WHERE NOT d.moored_between AND NOT d.sts_between),
+                   count(*) FILTER (WHERE d.sts_between)
+            FROM read_parquet('{glob_table(draught.TABLE)}', hive_partitioning=true) d
+            JOIN {hull_at(T)} hm ON hm.mmsi = d.mmsi
+            WHERE d.observed_at BETWEEN TIMESTAMP '{start} 00:00:00' AND {_ts(T)} GROUP BY 1
         """).fetchall():
             out.setdefault(hull, {}).update(n_draught_inconsistencies=unexplained,
                                             n_sts_with_draught_change=with_sts)
     if has_table(churn.TABLE):
-        # lifetime, not windowed: churn is an identity fact, and the prompt's feature is a count as of T
+        # Lifetime, not windowed: churn is an identity fact, and the feature is a count as of T. Two halves:
+        # transmitters the hull has used beyond its first, which only exists once hulls are assigned at T
+        # (ADR-23), plus IMO changes under any of those transmitters, which the churn table stores.
         for hull, n in con.execute(f"""
-            SELECT hull_id, count(*) FROM read_parquet('{glob_table(churn.TABLE)}',
-                   hive_partitioning=true) WHERE observed_at <= {_ts(T)} GROUP BY hull_id
+            WITH m AS (SELECT * FROM {hull_at(T)}),
+            imo AS (
+              SELECT m.hull_id, count(*) AS n
+              FROM read_parquet('{glob_table(churn.TABLE)}', hive_partitioning=true) c
+              JOIN m ON m.mmsi = c.mmsi
+              WHERE c.observed_at <= {_ts(T)} GROUP BY 1
+            )
+            SELECT m.hull_id, count(*) - 1 + coalesce(any_value(imo.n), 0)
+            FROM m LEFT JOIN imo USING (hull_id) GROUP BY m.hull_id
         """).fetchall():
-            out.setdefault(hull, {})["n_mmsi_imo_churn"] = n
+            if n:
+                out.setdefault(hull, {})["n_mmsi_imo_churn"] = n
     return out
 
 
@@ -210,7 +228,7 @@ def _static(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     src = (f"(SELECT mmsi, day, length FROM read_parquet('{glob_table('vessel_day')}',"
            f" hive_partitioning=true) WHERE day BETWEEN DATE '{start}' AND DATE '{T}') x")
     return {r[0]: {"length_m": r[1]} for r in con.execute(f"""
-        SELECT hm.hull_id, mode(x.length) FROM {as_of_hull(src, 'day')}
+        SELECT hm.hull_id, mode(x.length) FROM {at_cutoff(src, T)}
         WHERE hm.hull_id IS NOT NULL GROUP BY hm.hull_id
     """).fetchall()}
 

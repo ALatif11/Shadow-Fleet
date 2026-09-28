@@ -43,8 +43,8 @@ def run_all() -> dict:
     out = {"sts": sts.run(con), "loitering": loitering.run(con), "draught": draught.run(con),
            "spoof": spoof.run(con) if has_table("ais_artifacts") else {"skipped": "no ais_artifacts"},
            "churn": churn.run(con)}
-    out["sts_cells"] = by_cell(sts.TABLE, "count(DISTINCT hull_a) AS hulls", con)
-    out["loitering_cells"] = by_cell(loitering.TABLE, "count(DISTINCT hull_id) AS hulls", con)
+    out["sts_cells"] = by_cell(sts.TABLE, "count(DISTINCT mmsi_a) AS mmsis", con)
+    out["loitering_cells"] = by_cell(loitering.TABLE, "count(DISTINCT mmsi) AS mmsis", con)
     probes.write("detect", out)
     report.write_report("phase4b", out)
     return out

@@ -360,8 +360,9 @@ def render_phase3(out: dict | None = None) -> str:
              f" {'**chosen**' if g.get('chosen') else ''} |" for g in (p.get("coverage_by_threshold") or [])
              ] + ["",
              "## Identity intervals", "",
-             f"- `{iv.get('file')}`: {iv.get('intervals')} intervals over {iv.get('hulls')} hulls; "
-             f"{iv.get('hulls_with_a_change')} hulls changed identity at least once.",
+             f"- `{iv.get('file')}`: {iv.get('intervals')} intervals over {iv.get('mmsis')} transmitters; "
+             f"{iv.get('mmsis_with_a_change')} changed name, callsign or flag at least once. Intervals are "
+             "keyed by transmitter; which hull a transmitter belongs to is decided at each cutoff (ADR-23).",
              (f"- Flags resolved from {iv.get('mid_rows')} ITU MID rows; "
               f"{iv.get('intervals_with_flag')} intervals carry a flag."
               if iv.get("mid_rows") else
@@ -370,8 +371,9 @@ def render_phase3(out: dict | None = None) -> str:
               "and re-run `make identity` before reading any result that uses them."), "",
              "## Checks", ""]
     lines.append("- Fragmentation: " + (frag.get("skipped")
-                 or f"{frag.get('single_hull_id')} of {frag.get('checked')} designated IMOs map to exactly "
-                    f"one hull id. Fragmented: {frag.get('fragmented')}"))
+                 or f"at cutoff {frag.get('cutoff')}, {frag.get('single_hull_id')} of {frag.get('checked')} "
+                    f"designated IMOs have every transmitter that carried them mapped to one hull id. "
+                    f"Fragmented: {frag.get('fragmented')}"))
     lines.append("- Silver set (OpenSanctions IMO-MMSI pairs): " + (silver.get("skipped")
                  or f"{silver.get('agree')} of {silver.get('pairs_in_population')} pairs agree (precision "
                     f"{silver.get('precision')}); {silver.get('disagree')} resolved to a different IMO."))
@@ -394,8 +396,8 @@ def render_phase3(out: dict | None = None) -> str:
 def _cells(rows: list[dict]) -> list[str]:
     if not rows:
         return ["(none)"]
-    return ["| lat | lon | events | hours | hulls |", "|---:|---:|---:|---:|---:|"] + [
-        f"| {r['lat']} | {r['lon']} | {r['events']} | {r['hours']} | {r['hulls']} |" for r in rows[:10]]
+    return ["| lat | lon | events | hours | transmitters |", "|---:|---:|---:|---:|---:|"] + [
+        f"| {r['lat']} | {r['lon']} | {r['events']} | {r['hours']} | {r['mmsis']} |" for r in rows[:10]]
 
 
 def render_phase4b(out: dict | None = None) -> str:
@@ -419,7 +421,7 @@ def render_phase4b(out: dict | None = None) -> str:
              f"- Table: `{lo.get('table')}`.", ""] + _cells(p.get("loitering_cells") or []) + ["",
              "## Draught inconsistency", "",
              f"- {dr.get('changes')} declared-draught changes of at least {dr.get('min_change_m')} m over "
-             f"{dr.get('hulls')} hulls.",
+             f"{dr.get('mmsis')} transmitters.",
              f"- {dr.get('unexplained')} with neither a berth call nor an STS candidate in between "
              f"(the lightering signal); {dr.get('coinciding_with_sts')} coincide with an STS candidate; "
              f"{dr.get('after_a_berth_call')} follow a Moored report.", "",
@@ -427,7 +429,7 @@ def render_phase4b(out: dict | None = None) -> str:
     if sp.get("skipped"):
         lines.append(f"- Skipped: {sp['skipped']}.")
     else:
-        lines += [f"- {sp.get('hull_days')} hull-days over {sp.get('hulls')} hulls; "
+        lines += [f"- {sp.get('mmsi_days')} transmitter-days over {sp.get('mmsis')} transmitters; "
                   f"{sp.get('with_any_jump')} had at least one jump and "
                   f"{sp.get('with_positive_excess')} exceeded their cells' baseline.",
                   f"- Mean excess {sp.get('mean_excess')}, max {sp.get('max_excess')}. A hull that jumps "

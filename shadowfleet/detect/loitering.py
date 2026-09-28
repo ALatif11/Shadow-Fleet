@@ -11,7 +11,6 @@ import duckdb
 
 from shadowfleet import config
 from shadowfleet.ingest.dma import connect
-from shadowfleet.resolve.identity import as_of_hull
 from shadowfleet.util.store import glob_table, rel_path
 
 MAX_SOG_KN = 1.0  # phase-prompts Phase 4b task 2
@@ -33,31 +32,26 @@ def run(con: duckdb.DuckDBPyConnection | None = None, max_sog: float = MAX_SOG_K
     n = con.execute(f"""
         COPY (
           WITH s AS (
-            SELECT hm.hull_id, x.mmsi, date_trunc('minute', x.observed_at) AS minute,
+            SELECT x.mmsi, date_trunc('minute', x.observed_at) AS minute,
                    avg(x.lat) AS lat, avg(x.lon) AS lon,
                    any_value(x.nav_status) AS nav_status
-            FROM {as_of_hull(src, 'observed_at')}
-        -- Only hulls the resolver has named. A record from a vessel's warm-up (before its first
-        -- window closed) has no hull id, and inventing one from the MMSI would split the hull's
-        -- history at the boundary: its first real transition would land between two different ids
-        -- and vanish. The warm-up is always before the first cutoff, so nothing evaluable is lost.
-            WHERE hm.hull_id IS NOT NULL
-            GROUP BY 1, 2, 3
+            FROM {src}  -- per transmitter; hulls are assigned at each cutoff (ADR-23)
+            GROUP BY 1, 2
           ), q AS (
             SELECT *, epoch(minute) / 60 AS mi FROM s
           ), gaps AS (
-            SELECT *, mi - lag(mi) OVER (PARTITION BY hull_id ORDER BY mi) AS since_prev FROM q
+            SELECT *, mi - lag(mi) OVER (PARTITION BY mmsi ORDER BY mi) AS since_prev FROM q
           ), g AS (  -- a new run starts wherever the gap to the previous slow minute is too long
             SELECT *, sum(CASE WHEN since_prev <= {GAP_TOLERANCE_MIN} THEN 0 ELSE 1 END)
-                        OVER (PARTITION BY hull_id ORDER BY mi) AS run
+                        OVER (PARTITION BY mmsi ORDER BY mi) AS run
             FROM gaps
           )
-          SELECT hull_id, any_value(mmsi) AS mmsi,
+          SELECT mmsi,
             min(minute) AS start, max(minute) AS "end", max(minute) AS observed_at,
             (epoch(max(minute)) - epoch(min(minute))) / 3600.0 AS hours,
             avg(lat) AS lat, avg(lon) AS lon,
             mode(nav_status) AS modal_nav_status
-          FROM g GROUP BY hull_id, run
+          FROM g GROUP BY mmsi, run
           HAVING (epoch(max(minute)) - epoch(min(minute))) / 3600.0 >= {min_hours}
         ) TO '{(out / 'part-0.parquet').as_posix()}' (FORMAT parquet, COMPRESSION zstd)
     """).fetchone()[0]

@@ -58,15 +58,14 @@ def test_sts_fires_on_a_long_close_slow_pair(resolved):
     con = resolved()
     out = sts.run(con)
     assert out["candidates"] >= 1
-    rows = con.execute(f"SELECT hull_a, hull_b, hours, min_distance_m FROM "
+    rows = con.execute(f"SELECT mmsi_a, mmsi_b, hours, min_distance_m FROM "
                        f"read_parquet('{glob_table(sts.TABLE)}', hive_partitioning=true) "
                        f"ORDER BY start").fetchall()
-    # the far hull is never paired with anything; its IMO is valid, so it is named and this bites
-    assert not any(IMO_C in {r[0], r[1]} for r in rows)
-    # once the first 2-day window has closed the pair is named by IMO, not by MMSI
-    assert {IMO_A, IMO_B} in [{r[0], r[1]} for r in rows]
+    # keyed by transmitter, never by hull (ADR-23): which hulls 777 and 888 are is decided at each cutoff
+    assert not any(999 in {r[0], r[1]} for r in rows), "the far transmitter is never paired"
+    assert {777, 888} in [{r[0], r[1]} for r in rows]
     assert all(r[2] >= 2.0 and 150 < r[3] < 260 for r in rows)
-    assert det.by_cell(sts.TABLE, "count(DISTINCT hull_a) AS hulls", con)[0]["events"] >= 1
+    assert det.by_cell(sts.TABLE, "count(DISTINCT mmsi_a) AS mmsis", con)[0]["events"] >= 1
 
 
 def test_sts_does_not_fire_on_the_near_miss(resolved):
@@ -89,10 +88,11 @@ def test_loitering_fires_past_twelve_hours_and_not_before(resolved):
     _ingest({off: _pair(off, hours=13, metres_apart=3000, sog=0.3) for off in range(6)})
     con = resolved()
     out = loitering.run(con)
-    # each hull-day is its own stretch (the overnight gap exceeds the tolerance), and the first two days
-    # are the resolver warm-up, so 3 hulls x 4 resolved days
-    assert out["events"] == 12
-    assert det.by_cell(loitering.TABLE, "count(DISTINCT hull_id) AS hulls", con)[0]["hours"] > 12
+    # each transmitter-day is its own stretch (the overnight gap exceeds the tolerance): 3 x 6 days. Before
+    # ADR-23 the first two days were the resolver warm-up and were dropped (12); attributing hulls at the
+    # cutoff instead lets the detector keep them
+    assert out["events"] == 18
+    assert det.by_cell(loitering.TABLE, "count(DISTINCT mmsi) AS mmsis", con)[0]["hours"] > 12
     # run() rewrites the table, so this has to come last
     assert loitering.run(con, min_hours=20.0)["events"] == 0
 
@@ -109,9 +109,9 @@ def test_draught_change_is_flagged_and_an_sts_between_is_recorded(resolved):
     sts.run(con)
     out = draught.run(con)
     assert out["changes"] >= 1
-    rows = con.execute(f"SELECT hull_id, delta_m, moored_between, sts_between FROM "
+    rows = con.execute(f"SELECT mmsi, delta_m, moored_between, sts_between FROM "
                        f"read_parquet('{glob_table(draught.TABLE)}', hive_partitioning=true) "
-                       f"WHERE hull_id = '{IMO_A}'").fetchall()
+                       f"WHERE mmsi = 777").fetchall()
     assert rows and rows[0][1] == pytest.approx(4.0)
     assert rows[0][2] is False and rows[0][3] is True
     assert out["coinciding_with_sts"] >= 1
@@ -152,10 +152,11 @@ def test_spoof_excess_is_an_incidence_difference_not_a_row_rate(resolved):
     _ingest(days)
     con = resolved()
     spoof.run(con)
-    got = dict(con.execute(f"""
-        SELECT hull_id, round(avg(excess), 6) FROM read_parquet('{glob_table(spoof.TABLE)}',
-               hive_partitioning=true) GROUP BY hull_id
+    by_mmsi = dict(con.execute(f"""
+        SELECT mmsi, round(avg(excess), 6) FROM read_parquet('{glob_table(spoof.TABLE)}',
+               hive_partitioning=true) GROUP BY mmsi
     """).fetchall())
+    got = {imo: by_mmsi[219000100 + idx] for idx, imo in enumerate(imos)}  # per transmitter (ADR-23)
     for imo in cell_b:
         assert got[imo] == pytest.approx(0.0, abs=1e-6), f"{imo} matches its cell exactly"
     assert got[cell_a[0]] == pytest.approx(0.75, abs=1e-6)  # jumps where only a quarter of the cell does
@@ -172,8 +173,15 @@ def test_churn_records_the_mmsi_moving_under_one_hull(resolved):
                          sog=8.0, name="ALPHA", imo=IMO_A) for s in range(6)]
     _ingest(days)
     con = resolved()
-    out = churn.run(con)
-    assert out["by_kind"].get("mmsi_under_hull") == 1
+    churn.run(con)
+    # The MMSI moving under one hull is only knowable once hulls are assigned at a cutoff (ADR-23), so it
+    # is counted by the feature store, not stored in the churn table. At the last day both transmitters have
+    # voted IMO_A through, so they are one hull and it has used one MMSI beyond its first.
+    from shadowfleet.features import asof
+
+    T = (DAY + timedelta(days=8)).date()
+    row_a = next(r for r in asof.features(T, con) if r["hull_id"] == IMO_A)
+    assert row_a["n_mmsi_imo_churn"] == 1
 
 
 def test_run_all_writes_the_report(resolved):
