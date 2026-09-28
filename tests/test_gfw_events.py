@@ -191,3 +191,29 @@ def test_phase4a_report_states_coverage_and_the_encounter_finding(tmp_data):
     assert "| gap | 1 | 1 |" in text
     assert "1 of the RUS visits carry no anchorage name" in text
     assert "public-global-gaps-events:v4.0" in text
+
+
+def test_no_events_call_sends_more_vessel_ids_than_the_live_api_parses_as_an_array(tmp_data):
+    """The live API parses `vessels[k]` with Node's qs, which gives up on arrays past index 20 and returns 422.
+
+    This mock answers exactly as GFW did on Sep 28 when a call carries an index above 20, and one IMO here
+    has 45 vessel ids, so any batch size over 21 fails the way the first population run did.
+    """
+    calls: list = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        calls.append(req)
+        if req.url.path.endswith("/vessels/search"):
+            return httpx.Response(200, json={"entries": [{"selfReportedInfo": [
+                {"id": f"vid-{i}", "imo": str(IMO)} for i in range(45)]}]})
+        if any(f"vessels[{k}]" in req.url.params for k in range(21, 100)):
+            return httpx.Response(422, json={"statusCode": 422, "error": "Unprocessable Entity", "messages": [
+                {"title": "vessels", "detail": "vessels must be an array"}]})
+        return httpx.Response(200, json={"entries": [], "nextOffset": None})
+
+    c = gfw.GfwClient(token="t", transport=httpx.MockTransport(handler), sleep=lambda s: None)
+    res = gfw.fetch([IMO], "2025-01-01", "2025-12-31", client=c)
+    assert len(res["vessel_map"]) == 45
+    per_call = [sum(1 for k in r.url.params if k.startswith("vessels[")) for r in calls
+                if r.url.path.endswith("/events")]
+    assert max(per_call) <= 20 and sum(per_call) == 45 * 4, "every id sent once per event type"

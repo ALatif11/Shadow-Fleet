@@ -243,7 +243,10 @@ def probe(imos: list[str], start: str = "2025-01-01", end: str = "2025-12-31") -
 # ---------------------------------------------------------------------- Phase 4a: events for the population
 EVENTS_TABLE = "gfw_events"
 VESSEL_MAP = "gfw_vessel_map.parquet"
-BATCH_VESSELS = 25  # vessel ids per events call; one dataset per call is an API rule, many vessels is not
+# Vessel ids per events call. 20, not more: GFW parses `vessels[0]`, `vessels[1]`... with Node's `qs`, which
+# turns an indexed array into an object once an index passes 20. At 25 the live API answered 422 "vessels
+# must be an array" (first population run, Sep 28); the Phase 0 probe never sent more than three.
+BATCH_VESSELS = 20
 OFFSHORE_KM = 92.6  # 50 nm, PREREG `n_gaps_offshore`
 
 # One row per event. Keyed by the IMO its vessel ids were fetched for, never by a hull: hulls are assigned at
