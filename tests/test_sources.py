@@ -400,3 +400,20 @@ def test_an_undeclared_shared_mid_fails_instead_of_picking_a_winner(tmp_path, mo
     with pytest.raises(SystemExit, match="not declared in SHARED_MIDS"):
         mid.load()
     mid.load.cache_clear()
+
+
+def test_an_empty_mid_table_reports_no_rows_rather_than_a_declared_one(tmp_path, monkeypatch):
+    """`SHARED_MIDS` used to be added unconditionally, so a header-only mid.csv reported `mid_rows: 1`.
+
+    That number looks real and suppresses the "no flags resolved" finding in reports/phase3.md, which is the
+    only thing that surfaced the dead flag features in the first place.
+    """
+    from shadowfleet import config
+    from shadowfleet.ingest import mid
+
+    f = tmp_path / "mid.csv"
+    f.write_text("# source: test\nmid,itu_name,iso3\n")
+    monkeypatch.setattr(config, "MID_CSV", f)
+    mid.load.cache_clear()
+    assert mid.load() == {}
+    mid.load.cache_clear()

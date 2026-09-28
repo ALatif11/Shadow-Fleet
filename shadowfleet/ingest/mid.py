@@ -181,7 +181,9 @@ def load() -> dict[int, str]:
     if undeclared:
         raise SystemExit(f"MIDs allocated to more than one territory and not declared in SHARED_MIDS: "
                          f"{undeclared}. Pick one and say why, or the flag depends on row order.")
-    out.update(SHARED_MIDS)
+    # Only for MIDs the table actually carries: unconditionally adding them made an empty mid.csv report one
+    # row, which hides the "no flags resolved" finding in reports/phase3.md behind a number that looks real.
+    out.update({m: iso for m, iso in SHARED_MIDS.items() if m in out})
     return out
 
 
