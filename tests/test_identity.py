@@ -108,10 +108,11 @@ def test_two_names_at_one_instant_are_not_a_rename(mid_csv):
 
 
 def test_placeholders_and_one_day_values_are_not_identity_changes(mid_csv):
-    # callsign alternates with DMA's "Unknown" placeholder, and one day carries a decode-garbage name
+    # callsign alternates with DMA's "Unknown" placeholder, one day carries a garbled name, a garbled name with
+    # a symbol repeats on two days, and one day pads the real name with AIS '@'s
     days = {}
-    for off in range(4):
-        rows = _day(off, DK, IMO_A, "ALPHX" if off == 2 else "ALPHA")
+    for off in range(6):
+        rows = _day(off, DK, IMO_A, {2: "ALPHX", 4: "ALP%A", 5: "ALP%A"}.get(off, "ALPHA@@@" if off == 3 else "ALPHA"))
         for i, r in enumerate(rows):
             r["Callsign"] = "Unknown" if i % 2 else "ABCD"
         days[off] = rows
@@ -120,6 +121,16 @@ def test_placeholders_and_one_day_values_are_not_identity_changes(mid_csv):
     identity.hull_map(con, **SMALL)
     out = identity.identity_intervals(con)
     assert out["changes"]["name"] == 0 and out["changes"]["callsign"] == 0
+
+
+def test_name_changes_count_names_not_turns(mid_csv):
+    # two units on one MMSI taking turns, ALPHA and BRAVO, every other day: one extra name, not five renames
+    _ingest({off: _day(off, DK, IMO_A, "ALPHA" if off % 2 else "BRAVO") for off in range(8)})
+    con = dma.connect()
+    identity.hull_map(con, **SMALL)
+    identity.identity_intervals(con)
+    rows = feat.features((DAY + timedelta(days=7)).date(), con)
+    assert rows[0]["n_name_changes"] == 1
 
 
 def test_identity_features_are_the_same_from_a_store_truncated_at_T(mid_csv):

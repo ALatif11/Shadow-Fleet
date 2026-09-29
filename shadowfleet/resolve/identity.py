@@ -192,13 +192,15 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
     ph = ", ".join(f"'{x}'" for x in PLACEHOLDERS)
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE iv AS
-        WITH norm AS (
-          SELECT mmsi, observed_at, upper(trim(regexp_replace(name, '\\s+', ' ', 'g'))) AS n,
+        WITH norm AS (  -- a trailing '@' is AIS padding
+          SELECT mmsi, observed_at, upper(trim(regexp_replace(rtrim(name, '@'), '\\s+', ' ', 'g'))) AS n,
                  upper(trim(callsign)) AS c
           FROM read_parquet('{glob_table('ais_static')}', hive_partitioning=true)
         ), raw AS (
           SELECT mmsi, observed_at,
-            CASE WHEN n NOT IN ('', {ph}) THEN n END AS name_raw,
+            -- symbols from the AIS 6-bit set that no ship name uses are a garbled message ("KAIFANA*#",
+            -- "CGAS COUGA'>"), which can repeat across days, so the 2-day rule alone does not stop it
+            CASE WHEN n NOT IN ('', {ph}) AND NOT regexp_matches(n, '[*#%$^<>=?!;:_"]') THEN n END AS name_raw,
             CASE WHEN c NOT IN ('', {ph}) THEN c END AS callsign_raw
           FROM norm
         ), one AS (

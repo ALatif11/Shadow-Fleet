@@ -17,7 +17,7 @@ from shadowfleet.ingest.dma import connect
 from shadowfleet.resolve.identity import INTERVALS, hull_at
 
 FEATURES = {
-    "n_name_changes": "Reported-name changes observed on or before T",
+    "n_name_changes": "Distinct reported names beyond the first, observed on or before T",
     "n_mmsi_changes": "MMSI changes observed on or before T",
     "n_flag_changes": "Flag (from the ITU MID of the MMSI) changes observed on or before T",
     "flag_to_convenience_registry": "A flag change into a registry on config.CONVENIENCE_FLAGS",
@@ -44,8 +44,9 @@ def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict
           FROM iv WINDOW w AS (PARTITION BY hull_id ORDER BY "start")
         )
         SELECT hull_id,
-          count(*) FILTER (WHERE p_name IS NOT NULL AND name_normalised IS NOT NULL
-                             AND p_name <> name_normalised) AS n_name_changes,
+          -- distinct names beyond the first, not transitions: two units on one MMSI taking turns
+          -- (TORILL KNUTSEN / HAVFISK, 500 intervals on Sep 29) are one extra name, not 250 renames
+          greatest(count(DISTINCT name_normalised) - 1, 0) AS n_name_changes,
           count(*) FILTER (WHERE p_mmsi IS NOT NULL AND mmsi <> p_mmsi) AS n_mmsi_changes,
           count(*) FILTER (WHERE p_flag IS NOT NULL AND flag_iso3 IS NOT NULL
                              AND p_flag <> flag_iso3) AS n_flag_changes,
