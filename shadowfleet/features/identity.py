@@ -39,7 +39,6 @@ def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict
           WHERE x."start" <= TIMESTAMP '{T} 23:59:59'
         ), c AS (
           SELECT hull_id, "start", mmsi, name_normalised, flag_iso3,
-            row_number() OVER w AS rn,
             lag(mmsi) OVER w AS p_mmsi, lag(name_normalised) OVER w AS p_name,
             lag(flag_iso3) OVER w AS p_flag
           FROM iv WINDOW w AS (PARTITION BY hull_id ORDER BY "start")
@@ -52,7 +51,9 @@ def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict
                              AND p_flag <> flag_iso3) AS n_flag_changes,
           coalesce(bool_or(p_flag IS NOT NULL AND flag_iso3 IS NOT NULL AND p_flag <> flag_iso3
                            AND flag_iso3 IN ({flags})), false) AS flag_to_convenience_registry,
-          datediff('day', max("start") FILTER (WHERE rn > 1), TIMESTAMP '{T} 23:59:59')
+          -- the changes counted above, not any new interval: a field arriving for the first time is not one
+          datediff('day', max("start") FILTER (WHERE p_name <> name_normalised OR p_mmsi <> mmsi
+                                                     OR p_flag <> flag_iso3), TIMESTAMP '{T} 23:59:59')
             AS days_since_last_identity_change,
           arg_max(flag_iso3, "start") AS current_flag
         FROM c GROUP BY hull_id ORDER BY hull_id

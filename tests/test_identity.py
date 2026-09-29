@@ -85,7 +85,8 @@ def test_intervals_record_a_name_change_but_not_a_missing_field(mid_csv):
     names = con.execute(f"SELECT name_normalised, flag_iso3 FROM "
                         f"'{(config.PARQUET_DIR / identity.INTERVALS).as_posix()}' ORDER BY \"start\""
                         ).fetchall()
-    assert [n for n, _ in names] == ["ALPHA", "BRAVO"]
+    # a value counts from its 2nd day (MIN_VALUE_DAYS), so day 0 is an interval with no name yet
+    assert [n for n, _ in names if n] == ["ALPHA", "BRAVO"]
     assert names[0][1] == "DNK"  # flag from the ITU MID of the MMSI
     assert out["mmsis_with_a_change"] == 1
 
@@ -101,7 +102,24 @@ def test_two_names_at_one_instant_are_not_a_rename(mid_csv):
                 f" LIMIT 1) TO '{(part / 'tie.parquet').as_posix()}' (FORMAT parquet)")
     identity.hull_map(con, **SMALL)
     out = identity.identity_intervals(con)
-    assert out["intervals"] == 1 and out["mmsis_with_a_change"] == 0
+    names = [r[0] for r in con.execute(f"SELECT name_normalised FROM '{(config.PARQUET_DIR / identity.INTERVALS)}'"
+                                       f" ORDER BY \"start\"").fetchall()]
+    assert [n for n in names if n] == ["ALPHA"] and out["changes"]["name"] == 0
+
+
+def test_placeholders_and_one_day_values_are_not_identity_changes(mid_csv):
+    # callsign alternates with DMA's "Unknown" placeholder, and one day carries a decode-garbage name
+    days = {}
+    for off in range(4):
+        rows = _day(off, DK, IMO_A, "ALPHX" if off == 2 else "ALPHA")
+        for i, r in enumerate(rows):
+            r["Callsign"] = "Unknown" if i % 2 else "ABCD"
+        days[off] = rows
+    _ingest(days)
+    con = dma.connect()
+    identity.hull_map(con, **SMALL)
+    out = identity.identity_intervals(con)
+    assert out["changes"]["name"] == 0 and out["changes"]["callsign"] == 0
 
 
 def test_identity_features_are_the_same_from_a_store_truncated_at_T(mid_csv):

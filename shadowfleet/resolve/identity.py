@@ -37,6 +37,12 @@ log = logging.getLogger(__name__)
 WINDOW_DAYS = 30  # phase-prompts Phase 3 task 1
 MIN_SUPPORT = 0.60
 MIN_IMO_DAYS = 5
+# A name or callsign counts from its 2nd distinct day under an MMSI. One-day values are decode garbage
+# ("KAIFANA*#", "YERCURIUS" for MERCURIUS): on Sep 29 they made up most of the real store's name changes.
+MIN_VALUE_DAYS = 2
+# DMA writes these where the field is missing. Read as values, "UNKNOWN" alternating with a real callsign
+# was 460,732 of 471,532 interval changes on Sep 29.
+PLACEHOLDERS = ("UNKNOWN", "UNDEFINED", "NONE", "N/A", "NA", "0")
 # The prompt says "5 messages", but `ais_static` is change-point compressed at ingest (ADR-14): a hull that
 # broadcasts the same IMO all month leaves one row per day, not one per message. Counting days instead keeps
 # the threshold meaning what it says. `coverage_by_threshold` reports what the choice costs.
@@ -183,13 +189,18 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
     con = con or connect()
     n_mid = _mid_table(con)
     out = config.PARQUET_DIR / INTERVALS
+    ph = ", ".join(f"'{x}'" for x in PLACEHOLDERS)
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE iv AS
-        WITH raw AS (
-          SELECT mmsi, observed_at,
-            nullif(upper(trim(regexp_replace(name, '\\s+', ' ', 'g'))), '') AS name_raw,
-            nullif(upper(trim(callsign)), '') AS callsign_raw
+        WITH norm AS (
+          SELECT mmsi, observed_at, upper(trim(regexp_replace(name, '\\s+', ' ', 'g'))) AS n,
+                 upper(trim(callsign)) AS c
           FROM read_parquet('{glob_table('ais_static')}', hive_partitioning=true)
+        ), raw AS (
+          SELECT mmsi, observed_at,
+            CASE WHEN n NOT IN ('', {ph}) THEN n END AS name_raw,
+            CASE WHEN c NOT IN ('', {ph}) THEN c END AS callsign_raw
+          FROM norm
         ), one AS (
           -- One row per MMSI and instant. Two different names stamped the same instant are two voices on one
           -- MMSI, so that instant says nothing about the name (NULL, carried over below). Keeping both made
@@ -199,8 +210,22 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
             CASE WHEN count(DISTINCT name_raw) = 1 THEN max(name_raw) END AS name_raw,
             CASE WHEN count(DISTINCT callsign_raw) = 1 THEN max(callsign_raw) END AS callsign_raw
           FROM raw GROUP BY 1, 2
+        ), est AS (  -- when each value became established: its first message on its MIN_VALUE_DAYS-th day
+          SELECT mmsi, field, v, t FROM (
+            SELECT mmsi, field, v, CAST(observed_at AS DATE) AS d, min(observed_at) AS t
+            FROM (SELECT mmsi, observed_at, 'n' AS field, name_raw AS v FROM one
+                  UNION ALL SELECT mmsi, observed_at, 'c', callsign_raw FROM one)
+            WHERE v IS NOT NULL GROUP BY 1, 2, 3, 4)
+          QUALIFY row_number() OVER (PARTITION BY mmsi, field, v ORDER BY d) = {MIN_VALUE_DAYS}
+        ), ok AS (  -- a value counts only once established, so a feature at T reads nothing later than T
+          SELECT o.mmsi, o.observed_at,
+            CASE WHEN o.observed_at >= en.t THEN o.name_raw END AS name_raw,
+            CASE WHEN o.observed_at >= ec.t THEN o.callsign_raw END AS callsign_raw
+          FROM one o
+          LEFT JOIN est en ON en.mmsi = o.mmsi AND en.field = 'n' AND en.v = o.name_raw
+          LEFT JOIN est ec ON ec.mmsi = o.mmsi AND ec.field = 'c' AND ec.v = o.callsign_raw
         ), src AS (
-          SELECT x.*, mid.iso3 AS flag_raw FROM one x
+          SELECT x.*, mid.iso3 AS flag_raw FROM ok x
           -- a 9-digit MMSI beginning 2-7 is a ship station; its first three digits are the MID
           LEFT JOIN mid ON length(CAST(x.mmsi AS VARCHAR)) = 9
             AND substr(CAST(x.mmsi AS VARCHAR), 1, 1) BETWEEN '2' AND '7'
