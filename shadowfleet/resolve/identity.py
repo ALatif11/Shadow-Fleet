@@ -229,8 +229,31 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
           count(DISTINCT mmsi) FILTER (WHERE n > 1), count(*) FILTER (WHERE flag_iso3 IS NOT NULL)
         FROM (SELECT *, count(*) OVER (PARTITION BY mmsi) AS n FROM iv)
     """).fetchone()
+    # What the changes are: real renames, a rename and straight back (two voices taking turns on one MMSI),
+    # callsign changes, or a field arriving for the first time. Features only count the first three.
+    by_kind = con.execute("""
+        WITH c AS (
+          SELECT *, lag(name_normalised) OVER w AS p1, lag(name_normalised, 2) OVER w AS p2,
+                 lag(callsign) OVER w AS c1, row_number() OVER w AS rn
+          FROM iv WINDOW w AS (PARTITION BY mmsi ORDER BY "start")
+        )
+        SELECT count(*) FILTER (WHERE p1 <> name_normalised) AS name_changes,
+               count(*) FILTER (WHERE p1 <> name_normalised AND p2 = name_normalised) AS name_flip_backs,
+               count(*) FILTER (WHERE c1 <> callsign) AS callsign_changes,
+               count(*) FILTER (WHERE rn > 1 AND ((p1 IS NULL AND name_normalised IS NOT NULL)
+                                             OR (c1 IS NULL AND callsign IS NOT NULL))) AS first_fills
+        FROM c
+    """).fetchone()
+    top = con.execute("""
+        SELECT mmsi, count(*) AS intervals, list(DISTINCT name_normalised)[:4] AS names,
+               list(DISTINCT callsign)[:4] AS callsigns
+        FROM iv GROUP BY mmsi ORDER BY intervals DESC LIMIT 5
+    """).fetchall()
     return {"intervals": n, "mmsis": n_mmsi, "mmsis_with_a_change": n_multi,
-            "intervals_with_flag": n_flag, "mid_rows": n_mid, "file": rel_path(out)}
+            "intervals_with_flag": n_flag, "mid_rows": n_mid,
+            "changes": dict(zip(["name", "name_flip_backs", "callsign", "first_fills"], by_kind, strict=True)),
+            "most_intervals": [{"mmsi": m, "intervals": k, "names": nm, "callsigns": cs} for m, k, nm, cs in top],
+            "file": rel_path(out)}
 
 
 def coverage(con: duckdb.DuckDBPyConnection | None = None) -> dict:
