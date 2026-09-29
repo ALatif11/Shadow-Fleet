@@ -184,6 +184,24 @@ def test_churn_records_the_mmsi_moving_under_one_hull(resolved):
     assert row_a["n_mmsi_imo_churn"] == 1
 
 
+def test_churn_records_the_imo_moving_under_one_mmsi(resolved):
+    # IMO_A for 6 days, a one-day IMO_C blip, then IMO_B for 6 days, all on one MMSI. The lifetime vote in
+    # hull_map never flips to IMO_B here, which is why churn reads the broadcasts (0 changes on real data).
+    days = {}
+    for off in range(13):
+        imo = IMO_A if off < 6 else IMO_C if off == 6 else IMO_B
+        t = (DAY + timedelta(days=off)).replace(hour=5)
+        days[off] = [row(t + timedelta(seconds=s), "Class A", 219000222, 57.0, 10.0 + s * 0.001,
+                         sog=8.0, name="BRAVO", imo=imo) for s in range(6)]
+    _ingest(days)
+    con = resolved()
+    assert churn.run(con, min_days=5)["changes"] == 1
+    old, new, at = con.execute(f"SELECT old_value, new_value, observed_at FROM"
+                               f" read_parquet('{glob_table(churn.TABLE)}')").fetchone()
+    assert (old, new) == (str(IMO_A), str(IMO_B))
+    assert at.date() == (DAY + timedelta(days=11)).date()  # IMO_B's 5th day, not its 1st
+
+
 def test_run_all_writes_the_report(resolved):
     _ingest({off: _pair(off, hours=3, metres_apart=200) for off in range(6)}, fullres=True)
     resolved()

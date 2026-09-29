@@ -483,7 +483,9 @@ def render_phase4b(out: dict | None = None) -> str:
                   f"- Mean excess {sp.get('mean_excess')}, max {sp.get('max_excess')}. A hull that jumps "
                   f"only as much as everything else in its cell that day scores zero, which is the point."]
     lines += ["", "## MMSI-IMO churn", "",
-              f"- {ch.get('changes')} changes: {ch.get('by_kind')}.", "",
+              f"- {ch.get('changes')} IMO changes under a stable MMSI. An IMO counts once it has been "
+              f"broadcast on {ch.get('min_days')} distinct days under that MMSI. MMSI changes under a hull are "
+              "counted at each cutoff by the feature store (ADR-23), not here.", "",
               "## Assumptions to confirm", "",
               "- \"Outside port polygons\" is implemented as \"not reporting Moored\". DMA carries the "
               "vessel's own nav_status, so this needs no polygon set; hulls *at anchor* are kept on purpose, "
