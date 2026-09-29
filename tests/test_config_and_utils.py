@@ -222,3 +222,25 @@ def test_no_source_file_is_silently_gitignored():
         cwd=config.REPO_ROOT, capture_output=True, text=True, check=True).stdout.split()
         if p.endswith((".py", ".ts", ".tsx", ".mjs", ".css")) and "__pycache__" not in p]
     assert not source, f"ignored but looks like source: {source[:5]} (tracked: {len(tracked)} files)"
+
+
+# Real DMA destination strings (Sep 29 diagnostic): the name-only matcher missed 1,215 of 1,462.
+B1_HITS = ["RUULU", "RU ULU", "RULED", "UST LUGA", "RU PRI", "PRIMORSK", "RUPRI", "RU LED", "RUMMK", "RU KGD",
+           "UST-LUGA", "RUKGD", "KALININGRAD", "RUVYS", "RU MMK", "RUULU>EGPSD", "USTLUGA", "VYSOTSK",
+           "ST PETERSBURG", "RU VYS", "ST.PETERSBURG", "UST_LUGA", "PRIMORSK,RUSSIA", "UST LUGA,RUSSIA",
+           "primorsk russia", "MURMANSK", "SAINT PETERSBURG", "RUPRI>EGPSD", "EGPSD>RU-ULU", "NOVOROSSIYSK",
+           "RUNVS", "RU TUA", "RUBLT", "RUTAM"]
+B1_MISSES = ["RUARH", "RU ARH", "ARKHANGELSK", "ROTTERDAM", "FOR ORDERS", "SKAGEN", "PERU PRIMA", "RU",
+             "GDANSK", "RUULUX", "TRUPRI", None, ""]
+
+
+def test_russian_destination_matches_locodes_and_spellings():
+    import duckdb
+
+    from shadowfleet.features.asof import russian_destination_sql
+    pred = russian_destination_sql("d")
+
+    def hit(s):
+        return duckdb.execute(f"SELECT coalesce({pred}, false) FROM (SELECT ?::VARCHAR AS d)", [s]).fetchone()[0]
+    assert [s for s in B1_HITS if not hit(s)] == []
+    assert [s for s in B1_MISSES if hit(s)] == []

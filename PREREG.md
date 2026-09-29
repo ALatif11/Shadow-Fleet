@@ -118,3 +118,9 @@ Append-only, below, each with a date and whether Phase 5b results had been seen.
   are Russian Baltic ports and were missing. For GFW port visits the rule is applied by the anchorage's
   country (RUS) and position rather than its name, because two of the eight port visits in the Phase 0
   sample carried no anchorage name at all and a name list would have missed them silently.
+- **2026-09-29, before any Phase 5b result existed.** Section 5, B1, DMA half: no change to which ports count,
+  only to how a destination is recognised. On the real store, 1,215 of the top 1,462 Russian-looking
+  ship-destination pairs were written as UN/LOCODEs (`RUULU`, `RU ULU`, `RUULU>EGPSD`) or spelling variants
+  (`UST_LUGA`, `ST.PETERSBURG`) that the name list missed. B1 destinations now match the ports' UN/LOCODEs
+  (RU + PRI, ULU, VYS, LED, KGD, BLT, NVS, TUA, TAM, MMK) or their names with punctuation and spaces removed.
+  Arkhangelsk (`RUARH`), which appears in the data, stays outside B1 under amendment 1.

@@ -99,6 +99,14 @@ def _identity(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     return {r["hull_id"]: r for r in fid.features(T, con)}
 
 
+def russian_destination_sql(col: str) -> str:
+    """B1's DMA half: `col` names a B1 port, as a UN/LOCODE (RUULU, RU ULU, RU-ULU>EGPSD) or a name."""
+    codes = "|".join(config.RUSSIAN_PORT_LOCODES)
+    names = "|".join(config.RUSSIAN_PORTS)
+    return (f"(regexp_matches(upper({col}), '(^|[^A-Z])RU[^A-Z0-9]?({codes})([^A-Z]|$)')"
+            f" OR regexp_matches(regexp_replace(upper({col}), '[^A-Z0-9]', '', 'g'), '{names}'))")
+
+
 def _ais(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     """Transits, laden/ballast, destination text and spoof excess, all inside the feature window.
 
@@ -114,7 +122,7 @@ def _ais(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     stat = (f"(SELECT mmsi, observed_at, draught, destination FROM"
             f" read_parquet('{glob_table('ais_static')}', hive_partitioning=true)"
             f" WHERE observed_at {since}) x")
-    ports = " OR ".join(f"lower(destination) LIKE '%{p.lower()}%'" for p in config.RUSSIAN_PORTS)
+    ports = russian_destination_sql("destination")
     rows = con.execute(f"""
         WITH d AS (
           SELECT hm.hull_id, x.observed_at, x.sog FROM {at_cutoff(dyn, T)}

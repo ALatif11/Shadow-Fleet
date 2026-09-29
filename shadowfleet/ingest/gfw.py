@@ -362,10 +362,11 @@ def _events_or_skip(c: GfwClient, ids: list[str], et: str, lo: str, hi: str, ski
                     imo_of: dict[str, int]) -> list[dict]:
     """`c.events`, except that a 422 on a batch is retried one vessel id at a time.
 
-    The full population run died on a 422 "This dataset has an unsupported schema or was deprecated" that the
-    20-IMO smoke run, same datasets and dates, never met, so it is something about particular vessel ids. A
-    run of several hours cannot die on one of them: an id GFW refuses on its own is skipped and recorded, and
-    the report counts them. If EVERY id in the batch fails alone, the ids are not the problem, so it raises.
+    The first full population run died on a 422 "This dataset has an unsupported schema or was deprecated"
+    that the 20-IMO smoke run never met. The rerun, same ids and dates, got no 422 at all (0 skipped), so it
+    was transient on GFW's side, not tied to particular ids. A run of several hours still cannot die on one:
+    an id GFW refuses on its own is skipped and recorded, and the report counts them. If EVERY id in the batch
+    fails alone, the ids are not the problem, so it raises.
     """
     try:
         return c.events(ids, et, lo, hi)

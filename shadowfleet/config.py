@@ -238,12 +238,18 @@ ITF_FOC_FLAGS_SENSITIVITY = ["ATG", "BHS", "BRB", "BLZ", "BMU", "BOL", "CMR", "C
                              "PLW", "PAN", "SMR", "STP", "SLE", "KNA", "VCT", "LKA", "TZA", "TGO", "TUV",
                              "VUT"]
 # B1's ports (PREREG section 5 as amended 2026-09-28): Russian Baltic and Black Sea ports, plus Murmansk.
-# One definition in two forms. Names are for DMA's free-text `destination`. Regions are for GFW port visits,
-# which are matched by anchorage country RUS plus position, because GFW often leaves the anchorage name
-# empty (2 of 8 port visits in the Phase 0 sample). Kozmino was here and was removed: it is a Pacific
-# terminal serving Asia, not the fleet that transits Danish waters.
-RUSSIAN_PORTS = ["Primorsk", "Ust-Luga", "Vysotsk", "St Petersburg", "Kaliningrad", "Baltiysk",
-                 "Novorossiysk", "Tuapse", "Taman", "Murmansk"]
+# One definition in two forms. Names and LOCODEs are for DMA's free-text `destination`. Regions are for GFW
+# port visits, which are matched by anchorage country RUS plus position, because GFW often leaves the
+# anchorage name empty (2 of 8 port visits in the Phase 0 sample). Kozmino was here and was removed: it is a
+# Pacific terminal serving Asia, not the fleet that transits Danish waters.
+# Destinations are written as UN/LOCODEs as often as names ("RUULU", "RU ULU", "RUULU>EGPSD": 1,215 of the
+# top 1,462 Russian-looking ship-destination pairs on the real store, Sep 29, before any results). Names are
+# matched as substrings of the destination with everything but A-Z0-9 removed, so "UST_LUGA", "UST LUGA" and
+# "ST.PETERSBURG" match. LOCODEs verified against UN/LOCODE listings (Sep 29). Arkhangelsk (RUARH) appears in
+# the data and is deliberately absent: it is outside B1 (PREREG amendment 1).
+RUSSIAN_PORTS = ["PRIMORSK", "USTLUGA", "VYSOTSK", "PETERSBURG", "PETERBURG", "KALININGRAD", "BALTIYSK",
+                 "BALTIISK", "NOVOROS", "TUAPSE", "TAMAN", "MURMANSK"]
+RUSSIAN_PORT_LOCODES = ["PRI", "ULU", "VYS", "LED", "KGD", "BLT", "NVS", "TUA", "TAM", "MMK"]
 # (lat_min, lat_max, lon_min, lon_max). Only ever applied together with anchorage country RUS, so the Finnish
 # and Estonian ports inside the Baltic box do not count. The Black Sea box takes in the Kerch Strait and the
 # Sea of Azov, because GFW's Kerch anchorages sit on the join and cannot be split cleanly. Kola Bay is
