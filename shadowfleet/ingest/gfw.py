@@ -27,7 +27,9 @@ log = logging.getLogger(__name__)
 
 
 class GfwError(RuntimeError):
-    pass
+    def __init__(self, msg: str, status: int | None = None, detail: str = ""):
+        super().__init__(msg)
+        self.status, self.detail = status, detail
 
 
 def indexed(name: str, values: list[str]) -> dict[str, str]:
@@ -100,7 +102,8 @@ class GfwClient:
                 self.stats["retries"] += 1
                 self.sleep(net.backoff_s(attempt, r.headers.get("Retry-After")))
                 continue
-            raise GfwError(f"GFW {r.status_code} for {path}: {r.text[:300]}")
+            raise GfwError(f"GFW {r.status_code} for {path}: {r.text[:300]} (params: {str(params)[:400]})",
+                           status=r.status_code, detail=r.text[:300])
         raise GfwError(f"GFW retries exhausted for {path}")
 
     @staticmethod
@@ -339,10 +342,11 @@ def fetch(imos: list[int], start: str, end: str, client: GfwClient | None = None
         imo_of = {r["gfw_vessel_id"]: r["imo"] for r in vmap}
         ids = sorted(imo_of)
         events: dict[str, dict] = {}  # by event id: a year boundary can return one event twice
+        skipped: list[dict] = []
         for et, dataset in config.GFW_DATASETS.items():
             for lo, hi in year_chunks(start, end):
                 for b in range(0, len(ids), BATCH_VESSELS):
-                    for e in c.events(ids[b:b + BATCH_VESSELS], et, lo, hi):
+                    for e in _events_or_skip(c, ids[b:b + BATCH_VESSELS], et, lo, hi, skipped, imo_of):
                         vid = (e.get("vessel") or {}).get("id")
                         if vid in imo_of and e.get("id"):
                             events[e["id"]] = flatten(e, imo_of[vid], dataset)  # alias; served version in datasets
@@ -350,8 +354,34 @@ def fetch(imos: list[int], start: str, end: str, client: GfwClient | None = None
     finally:
         if own:
             c.close()
-    return {"vessel_map": vmap, "events": list(events.values()), "misses": misses,
+    return {"vessel_map": vmap, "events": list(events.values()), "misses": misses, "skipped": skipped,
             "datasets": sorted(c.served), "client_stats": dict(c.stats)}
+
+
+def _events_or_skip(c: GfwClient, ids: list[str], et: str, lo: str, hi: str, skipped: list[dict],
+                    imo_of: dict[str, int]) -> list[dict]:
+    """`c.events`, except that a 422 on a batch is retried one vessel id at a time.
+
+    The full population run died on a 422 "This dataset has an unsupported schema or was deprecated" that the
+    20-IMO smoke run, same datasets and dates, never met, so it is something about particular vessel ids. A
+    run of several hours cannot die on one of them: an id GFW refuses on its own is skipped and recorded, and
+    the report counts them. If EVERY id in the batch fails alone, the ids are not the problem, so it raises.
+    """
+    try:
+        return c.events(ids, et, lo, hi)
+    except GfwError as e:
+        if e.status != 422:
+            raise
+        if len(ids) == 1:
+            skipped.append({"gfw_vessel_id": ids[0], "imo": imo_of.get(ids[0]), "event_type": et,
+                            "from": lo, "to": hi, "detail": e.detail[:200]})
+            return []
+        before = len(skipped)
+        out = [ev for i in ids for ev in _events_or_skip(c, [i], et, lo, hi, skipped, imo_of)]
+        if len(skipped) - before == len(ids):
+            raise GfwError(f"every one of {len(ids)} vessel ids fails alone for {et} {lo}..{hi}, so the batch is "
+                           f"not the problem: {e.detail[:300]}", status=422, detail=e.detail) from e
+        return out
 
 
 def write(result: dict) -> dict:
@@ -399,6 +429,9 @@ def coverage(con, result: dict) -> dict:
             "events_per_imo_p50_p90_max": list(per_imo) if per_imo[0] is not None else None,
             "encounter_share_of_imos": round(imos_with.get("encounter", 0) / n_imos, 4) if n_imos else None,
             "russian_port_visits": {"all_rus": rus[0], "in_b1_regions": rus[1], "without_a_name": rus[2]},
+            "skipped_calls": len(result.get("skipped") or []),
+            "skipped_imos": sorted({s["imo"] for s in result.get("skipped") or [] if s.get("imo")})[:50],
+            "skipped_example": (result.get("skipped") or [None])[0],
             "datasets": result["datasets"], "client_stats": result["client_stats"],
             "table": f"data/parquet/{EVENTS_TABLE}", "vessel_map": f"data/parquet/{VESSEL_MAP}"}
 

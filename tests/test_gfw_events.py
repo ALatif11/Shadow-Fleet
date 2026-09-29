@@ -217,3 +217,47 @@ def test_no_events_call_sends_more_vessel_ids_than_the_live_api_parses_as_an_arr
     per_call = [sum(1 for k in r.url.params if k.startswith("vessels[")) for r in calls
                 if r.url.path.endswith("/events")]
     assert max(per_call) <= 20 and sum(per_call) == 45 * 4, "every id sent once per event type"
+
+
+def _deprecated_for(bad: set[str], every: bool = False):
+    """Answers like GFW did on the first full run for any call carrying a refused vessel id."""
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path.endswith("/vessels/search"):
+            return httpx.Response(200, json={"entries": [{"selfReportedInfo": [
+                {"id": f"vid-{i}", "imo": str(IMO)} for i in range(5)]}]})
+        ids = {v for k, v in req.url.params.items() if k.startswith("vessels[")}
+        if every or ids & bad:
+            return httpx.Response(422, json={"statusCode": 422, "messages": [
+                {"title": "dataset", "detail": "This dataset has an unsupported schema or was deprecated"}]})
+        return httpx.Response(200, json={"entries": [{**LOITER, "id": f"lo-{sorted(ids)[0]}",
+                                                      "vessel": {"id": sorted(ids)[0]}}], "nextOffset": None})
+    return handler
+
+
+def test_a_vessel_id_gfw_refuses_is_skipped_and_recorded_not_fatal(tmp_data):
+    c = gfw.GfwClient(token="t", transport=httpx.MockTransport(_deprecated_for({"vid-3"})), sleep=lambda s: None)
+    res = gfw.fetch([IMO], "2025-01-01", "2025-12-31", client=c)
+    assert {s["gfw_vessel_id"] for s in res["skipped"]} == {"vid-3"}
+    assert len(res["skipped"]) == 4, "once per event type"
+    assert res["skipped"][0]["imo"] == IMO and "deprecated" in res["skipped"][0]["detail"]
+    got = {e["gfw_vessel_id"] for e in res["events"]}
+    assert "vid-3" not in got and {"vid-0", "vid-4"} <= got, "the other ids in the batch still come back"
+    cov = gfw.write(res)
+    assert cov["skipped_calls"] == 4 and cov["skipped_imos"] == [IMO]
+
+
+def test_when_every_id_fails_alone_the_run_stops_instead_of_skipping_a_whole_type(tmp_data):
+    c = gfw.GfwClient(token="t", transport=httpx.MockTransport(_deprecated_for(set(), every=True)),
+                      sleep=lambda s: None)
+    with pytest.raises(gfw.GfwError, match="batch is not the problem"):
+        gfw.fetch([IMO], "2025-01-01", "2025-12-31", client=c)
+
+
+def test_other_errors_still_stop_the_run(tmp_data):
+    def handler(req):
+        if req.url.path.endswith("/vessels/search"):
+            return httpx.Response(200, json={"entries": [{"selfReportedInfo": [{"id": "v", "imo": str(IMO)}]}]})
+        return httpx.Response(401, json={"error": "bad token"})
+    c = gfw.GfwClient(token="t", transport=httpx.MockTransport(handler), sleep=lambda s: None)
+    with pytest.raises(gfw.GfwError, match="401"):
+        gfw.fetch([IMO], "2025-01-01", "2025-12-31", client=c)

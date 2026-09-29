@@ -412,6 +412,9 @@ def render_phase4a(out: dict | None = None) -> str:
              "| type | events | IMOs with any |", "|---|---:|---:|"] + [
              f"| {k} | {by.get(k, 0)} | {imos.get(k, 0)} |" for k in ("gap", "encounter", "loitering", "port_visit")
              ] + ["",
+             (f"- {p.get('skipped_calls')} vessel-id calls refused by GFW with a 422 and skipped, across IMOs "
+              f"{p.get('skipped_imos')}. Example: {p.get('skipped_example')}. Those IMOs lack some GFW events."
+              if p.get("skipped_calls") else "- No vessel id was refused by GFW."), "",
              "## Encounters (task 4b re-test)", "",
              (f"- Share of IMOs with any encounter: {enc}. "
               + ("Effectively zero, which confirms the Phase 0 finding: the public encounter dataset does not "
