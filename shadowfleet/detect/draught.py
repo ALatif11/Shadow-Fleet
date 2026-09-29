@@ -28,8 +28,11 @@ def run(con: duckdb.DuckDBPyConnection | None = None, min_change_m: float = MIN_
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE dch AS
         WITH d AS (
-          SELECT x.mmsi, x.observed_at, x.draught
-          FROM {src}  -- per transmitter; hulls are assigned at each cutoff (ADR-23)
+          -- per transmitter; hulls are assigned at each cutoff (ADR-23). Two different draughts stamped
+          -- the same instant are two voices on one MMSI, not a change of draught, and made the count
+          -- differ between runs (63,726 vs 63,609 on Sep 29) because the order of tied rows is arbitrary.
+          SELECT x.mmsi, x.observed_at, any_value(x.draught) AS draught
+          FROM {src} GROUP BY 1, 2 HAVING min(x.draught) = max(x.draught)
         ), c AS (
           SELECT *, lag(draught) OVER w AS prev_draught, lag(observed_at) OVER w AS prev_at
           FROM d WINDOW w AS (PARTITION BY mmsi ORDER BY observed_at)

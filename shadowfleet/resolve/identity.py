@@ -195,20 +195,21 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
             AND substr(CAST(x.mmsi AS VARCHAR), 1, 1) BETWEEN '2' AND '7'
             AND mid.mid = CAST(substr(CAST(x.mmsi AS VARCHAR), 1, 3) AS INTEGER)
         ), ff AS (
-          SELECT mmsi, observed_at,
+          SELECT mmsi, observed_at, hash(name_raw, callsign_raw, flag_raw) AS tb,
             last_value(name_raw IGNORE NULLS) OVER w AS name_normalised,
             last_value(callsign_raw IGNORE NULLS) OVER w AS callsign,
             last_value(flag_raw IGNORE NULLS) OVER w AS flag_iso3
-          FROM src WINDOW w AS (PARTITION BY mmsi ORDER BY observed_at)
+          -- ties (same MMSI, same instant) are ordered by content so a rerun gives the same intervals
+          FROM src WINDOW w AS (PARTITION BY mmsi ORDER BY observed_at, hash(name_raw, callsign_raw, flag_raw))
         ), h AS (
           SELECT *, hash(concat_ws('|', coalesce(name_normalised, ''), coalesce(callsign, ''),
                                    coalesce(flag_iso3, ''))) AS tup
           FROM ff
         ), c AS (
-          SELECT *, lag(tup) OVER (PARTITION BY mmsi ORDER BY observed_at) AS prev FROM h
+          SELECT *, lag(tup) OVER (PARTITION BY mmsi ORDER BY observed_at, tb) AS prev FROM h
         )
         SELECT mmsi, name_normalised, callsign, flag_iso3, observed_at AS "start",
-               lead(observed_at) OVER (PARTITION BY mmsi ORDER BY observed_at) AS "end"
+               lead(observed_at) OVER (PARTITION BY mmsi ORDER BY observed_at, tb) AS "end"
         FROM c WHERE prev IS NULL OR prev <> tup
     """)
     con.execute(f"COPY (SELECT * FROM iv ORDER BY mmsi, \"start\") "

@@ -117,6 +117,24 @@ def test_draught_change_is_flagged_and_an_sts_between_is_recorded(resolved):
     assert out["coinciding_with_sts"] >= 1
 
 
+def test_two_draughts_at_one_instant_are_not_a_change(resolved):
+    # One MMSI at a steady 10 m, and at one instant a second voice on the MMSI saying 13 m. Tied rows come
+    # back in arbitrary order, so this counted as a change a varying way per run (63,726 vs 63,609 on Sep 29).
+    days = {}
+    for off in range(3):
+        t = (DAY + timedelta(days=off)).replace(hour=5)
+        days[off] = [row(t + timedelta(hours=h), "Class A", 219000333, 57.0, 10.0, sog=8.0, name="CHARLIE")
+                     for h in range(4)]
+    _ingest(days)
+    con = resolved()
+    day1 = (DAY + timedelta(days=1)).date()
+    part = config.PARQUET_DIR / "ais_static" / f"dt={day1}"
+    first = sorted(part.glob("*.parquet"))[0].as_posix()
+    con.execute(f"COPY (SELECT * REPLACE (13.0 AS draught) FROM read_parquet('{first}') WHERE mmsi = 219000333"
+                f" ORDER BY observed_at LIMIT 1) TO '{(part / 'tie.parquet').as_posix()}' (FORMAT parquet)")
+    assert draught.run(con)["changes"] == 0
+
+
 def test_spoof_excess_is_an_incidence_difference_not_a_row_rate(resolved):
     """Two 0.5-degree cells, four hulls each, every hull staying inside its own cell all day.
 
