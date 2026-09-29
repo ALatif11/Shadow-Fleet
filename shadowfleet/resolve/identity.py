@@ -185,31 +185,41 @@ def identity_intervals(con: duckdb.DuckDBPyConnection | None = None) -> dict:
     out = config.PARQUET_DIR / INTERVALS
     con.execute(f"""
         CREATE OR REPLACE TEMP TABLE iv AS
-        WITH src AS (
-          SELECT x.mmsi, x.observed_at,
-            nullif(upper(trim(regexp_replace(x.name, '\\s+', ' ', 'g'))), '') AS name_raw,
-            nullif(upper(trim(x.callsign)), '') AS callsign_raw, mid.iso3 AS flag_raw
-          FROM read_parquet('{glob_table('ais_static')}', hive_partitioning=true) x
+        WITH raw AS (
+          SELECT mmsi, observed_at,
+            nullif(upper(trim(regexp_replace(name, '\\s+', ' ', 'g'))), '') AS name_raw,
+            nullif(upper(trim(callsign)), '') AS callsign_raw
+          FROM read_parquet('{glob_table('ais_static')}', hive_partitioning=true)
+        ), one AS (
+          -- One row per MMSI and instant. Two different names stamped the same instant are two voices on one
+          -- MMSI, so that instant says nothing about the name (NULL, carried over below). Keeping both made
+          -- the order of tied rows decide the intervals, which is not reproducible, and read the pair as a
+          -- rename and back (476,122 intervals vs 409,620 on Sep 29).
+          SELECT mmsi, observed_at,
+            CASE WHEN count(DISTINCT name_raw) = 1 THEN max(name_raw) END AS name_raw,
+            CASE WHEN count(DISTINCT callsign_raw) = 1 THEN max(callsign_raw) END AS callsign_raw
+          FROM raw GROUP BY 1, 2
+        ), src AS (
+          SELECT x.*, mid.iso3 AS flag_raw FROM one x
           -- a 9-digit MMSI beginning 2-7 is a ship station; its first three digits are the MID
           LEFT JOIN mid ON length(CAST(x.mmsi AS VARCHAR)) = 9
             AND substr(CAST(x.mmsi AS VARCHAR), 1, 1) BETWEEN '2' AND '7'
             AND mid.mid = CAST(substr(CAST(x.mmsi AS VARCHAR), 1, 3) AS INTEGER)
         ), ff AS (
-          SELECT mmsi, observed_at, hash(name_raw, callsign_raw, flag_raw) AS tb,
+          SELECT mmsi, observed_at,
             last_value(name_raw IGNORE NULLS) OVER w AS name_normalised,
             last_value(callsign_raw IGNORE NULLS) OVER w AS callsign,
             last_value(flag_raw IGNORE NULLS) OVER w AS flag_iso3
-          -- ties (same MMSI, same instant) are ordered by content so a rerun gives the same intervals
-          FROM src WINDOW w AS (PARTITION BY mmsi ORDER BY observed_at, hash(name_raw, callsign_raw, flag_raw))
+          FROM src WINDOW w AS (PARTITION BY mmsi ORDER BY observed_at)
         ), h AS (
           SELECT *, hash(concat_ws('|', coalesce(name_normalised, ''), coalesce(callsign, ''),
                                    coalesce(flag_iso3, ''))) AS tup
           FROM ff
         ), c AS (
-          SELECT *, lag(tup) OVER (PARTITION BY mmsi ORDER BY observed_at, tb) AS prev FROM h
+          SELECT *, lag(tup) OVER (PARTITION BY mmsi ORDER BY observed_at) AS prev FROM h
         )
         SELECT mmsi, name_normalised, callsign, flag_iso3, observed_at AS "start",
-               lead(observed_at) OVER (PARTITION BY mmsi ORDER BY observed_at, tb) AS "end"
+               lead(observed_at) OVER (PARTITION BY mmsi ORDER BY observed_at) AS "end"
         FROM c WHERE prev IS NULL OR prev <> tup
     """)
     con.execute(f"COPY (SELECT * FROM iv ORDER BY mmsi, \"start\") "

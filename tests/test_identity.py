@@ -90,6 +90,20 @@ def test_intervals_record_a_name_change_but_not_a_missing_field(mid_csv):
     assert out["mmsis_with_a_change"] == 1
 
 
+def test_two_names_at_one_instant_are_not_a_rename(mid_csv):
+    # A steady ALPHA, and at one instant a second voice on the MMSI saying DELTA. That instant must not read
+    # as ALPHA -> DELTA -> ALPHA, and must not depend on the order tied rows come back in.
+    _ingest({off: _day(off, DK, IMO_A, "ALPHA") for off in range(3)})
+    con = dma.connect()
+    part = config.PARQUET_DIR / "ais_static" / f"dt={(DAY + timedelta(days=1)).date()}"
+    first = sorted(part.glob("*.parquet"))[0].as_posix()
+    con.execute(f"COPY (SELECT * REPLACE ('DELTA' AS name) FROM read_parquet('{first}') ORDER BY observed_at"
+                f" LIMIT 1) TO '{(part / 'tie.parquet').as_posix()}' (FORMAT parquet)")
+    identity.hull_map(con, **SMALL)
+    out = identity.identity_intervals(con)
+    assert out["intervals"] == 1 and out["mmsis_with_a_change"] == 0
+
+
 def test_identity_features_are_the_same_from_a_store_truncated_at_T(mid_csv):
     """Phase 5a leakage test (a), for the identity family."""
     days = {off: _day(off, DK, IMO_A, "ALPHA" if off < 4 else "BRAVO") for off in range(9)}
