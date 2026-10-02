@@ -101,3 +101,33 @@ def test_a_list_with_no_recorded_hash_is_refused(tmp_data):
     with pytest.raises(SystemExit) as e:
         forward.evaluate(T)
     assert "records no hash" in str(e.value)
+
+
+def _fake_scoring(monkeypatch, scores):
+    import numpy as np
+
+    from shadowfleet.models import tabular
+    rows = [{"hull_id": str(9000000 + i), "cutoff": T.isoformat(), "n_sts_candidates": float(i)}
+            for i in range(60)]
+    monkeypatch.setattr(forward.asof, "features", lambda t, con: rows)
+    monkeypatch.setattr(forward, "connect", lambda: None)
+    monkeypatch.setattr(forward, "_history_for", lambda t, con: [(date(2025, 1, 31), rows, np.ones(60))])
+    monkeypatch.setattr(tabular, "train_and_score", lambda *a, **k: (np.array(scores), ["b"], ["n_sts_candidates"]))
+    monkeypatch.setattr(tabular, "contributions", lambda b, r, c: [
+        {"hull_id": x["hull_id"], "top": [{"feature": "n_sts_candidates", "value": 1.0, "contribution": 0.1}]}
+        for x in r])
+
+
+def test_a_constant_top50_is_refused_not_committed(tmp_data, monkeypatch):
+    # Oct 1 2026: early stopping kept one tree and every top-50 score was 0.125392
+    _fake_scoring(monkeypatch, [0.125392] * 60)
+    with pytest.raises(SystemExit, match="degenerate"):
+        forward.score(T)
+    assert not (config.REPORTS_DIR / forward.DIR / f"top50_{T.isoformat()}.csv").exists()
+
+
+def test_forward_drivers_come_from_the_scoring_model(tmp_data, monkeypatch):
+    _fake_scoring(monkeypatch, [i / 100 for i in range(60)])
+    forward.score(T)
+    text = (config.REPORTS_DIR / forward.DIR / f"top50_{T.isoformat()}.csv").read_text().splitlines()
+    assert text[1].split(",")[4] == "n_sts_candidates"

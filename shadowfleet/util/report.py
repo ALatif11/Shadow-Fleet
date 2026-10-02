@@ -689,6 +689,13 @@ def _verdict_vs_rules(agg: list[dict]) -> list[str]:
             if (primary.get("ISO_forest") or {}).get("precision_at_50") is not None else [])
 
 
+def _rounds(scored: list[dict]) -> str:
+    r = sorted(n for c in scored for n in (c.get("lgbm_rounds") or []))
+    if not r:
+        return "not recorded"
+    return f"min {r[0]}, median {r[len(r) // 2]}, max {r[-1]} (a 1 is a constant model)"
+
+
 def render_phase6(out: dict | None = None) -> str:
     p = out or probes.read("backtest")
     if not p or not p.get("phase6"):
@@ -703,6 +710,7 @@ def render_phase6(out: dict | None = None) -> str:
              "highest-base-rate cutoffs, so an all-cutoff average flatters the baselines; this matched view "
              "was added Oct 2 2026, after results were seen).", ""] \
         + _verdict_vs_rules(p.get("aggregate_matched") or p.get("aggregate") or []) + [
+             "", f"- Trees kept by early stopping, per cutoff and seed: {_rounds(scored)}.",
              "", "## Ablations", "",
              "Each arm retrains LightGBM on a restricted column set. Means over the "
              f"{len(scored)} cutoffs with a closed training horizon.", ""]

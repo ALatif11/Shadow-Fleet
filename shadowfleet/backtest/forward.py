@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 
 from shadowfleet import config
-from shadowfleet.backtest import explain, harness, metrics
+from shadowfleet.backtest import harness, metrics
 from shadowfleet.features import asof
 from shadowfleet.features.asof import FEATURES
 from shadowfleet.ingest.dma import connect
@@ -69,17 +69,24 @@ def score(T: date | None = None, top_k: int = TOP_K, model: str | None = None) -
 
     history = [(t, r, y) for t, r, y in _history_for(T, con)]
     usable = harness.usable_history(history, T)
-    scores, used = None, model
+    scores, used, shap = None, model, {}
     if usable and model != "B2_weighted":
         train_rows = [r for h, _ in usable for r in h]
         train_y = np.concatenate([y for _, y in usable])
-        scores, _, _ = tabular.train_and_score(train_rows, train_y, rows)
+        scores, boosters, cols = tabular.train_and_score(train_rows, train_y, rows)
         used = "LGBM" if scores is not None else None
+        # drivers come from THIS model: the backtest's SHAP tables only exist for backtest cutoffs, which is
+        # why the Oct 1 2026 list had no drivers at all
+        shap = {c["hull_id"]: c["top"] for c in tabular.contributions(boosters, rows, cols)}
     if scores is None:
         scores, used = rules.b2_weighted(rows), "B2_weighted (rules baseline; no fitted model at scoring)"
 
-    shap = explain.read_shap(T)
     order = np.argsort(-scores)[:top_k]
+    if len({round(float(scores[i]), 6) for i in order}) == 1:
+        # a constant top-k is an arbitrary list in index order, not a prediction; committing one is worse
+        # than committing nothing (it happened on Oct 1 2026)
+        raise SystemExit(f"all top-{top_k} scores are equal ({float(scores[order[0]]):.6f}); the model is "
+                         "degenerate, so nothing was written")
     out_path = _dir() / f"top50_{T.isoformat()}.csv"
     with open(out_path, "w", newline="") as f:
         wr = csv.writer(f)

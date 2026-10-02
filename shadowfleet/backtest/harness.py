@@ -226,6 +226,8 @@ def _phase6(T: date, rows: list[dict], y: np.ndarray, scored: dict, extra: dict,
         out["gfw_features_all_zero"] = not any(r.get(c) for r in rows for c in gfw_cols)
 
     if scored.get("LGBM") is not None and extra.get("boosters"):
+        # trees kept by early stopping, per seed: 1 means the model is a constant in disguise
+        out["lgbm_rounds"] = [b.best_iteration or b.current_iteration() for b in extra["boosters"]]
         contribs = tabular.contributions(extra["boosters"], rows, extra["columns"])
         out["shap"] = explain.write_shap(T, contribs)
         out["flagged"] = explain.write_flagged(T, rows, scored["LGBM"], y, contribs)

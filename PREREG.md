@@ -143,3 +143,9 @@ Append-only, below, each with a date and whether Phase 5b results had been seen.
   reproducible: identical data gave B1 precision@50 0.2077 in one run and 0.1954 in the next (multi-threaded
   histogram sums). It now runs single-threaded and deterministic. The Phase 6 numbers from before these
   fixes are kept in `reports/status-2026-09-28.md` beside the numbers after them, so the effect is visible.
+- **2026-10-02, AFTER results had been seen. Post-hoc.** LightGBM early stopping now watches average
+  precision instead of the default logloss. Logloss rewards calibration, which `scale_pos_weight`
+  deliberately breaks, so on a low-base-rate validation cutoff training stopped at the first tree; the
+  forward list scored 2026-10-01 came out as 50 identical scores. That list is kept, hash intact, and
+  reported; the primary forward test is a second list scored 2026-10-02 (declared in
+  `reports/forward/README.md` before it was scored). Phase 6 is re-run with the fix and both runs are kept.

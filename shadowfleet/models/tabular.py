@@ -17,7 +17,12 @@ PARAMS = {"objective": "binary", "num_leaves": 15, "min_child_samples": 20, "fea
           "learning_rate": 0.05, "verbose": -1,
           # Reproducibility, not tuning: multi-threaded histogram sums are summed in a varying order, so
           # identical data gave precision@50 0.2077 one run and 0.1954 the next (Oct 2 2026).
-          "deterministic": True, "force_row_wise": True, "num_threads": 1}
+          "deterministic": True, "force_row_wise": True, "num_threads": 1,
+          # Early stopping watches ranking quality, because ranking is what is evaluated. With logloss it
+          # watched calibration, and scale_pos_weight deliberately miscalibrates: on a low-base-rate
+          # validation cutoff every round looked worse, training stopped at the first tree, and the Oct 1
+          # 2026 forward list came out as 50 identical scores.
+          "metric": "average_precision"}
 SEEDS = (1, 2, 3)
 MAX_ROUNDS = 400
 EARLY_STOPPING = 30
@@ -68,7 +73,7 @@ def train_and_score(train_rows: list[dict], train_y: np.ndarray, rows: list[dict
         valid_sets = []
         if len(y_val) and y_val.sum() and len(set(y_val.tolist())) > 1:
             valid_sets = [lgb.Dataset(x_val, y_val)]
-            callbacks = [lgb.early_stopping(EARLY_STOPPING, verbose=False)]
+            callbacks = [lgb.early_stopping(EARLY_STOPPING, first_metric_only=True, verbose=False)]
         booster = lgb.train(params, lgb.Dataset(x_fit, y_fit), num_boost_round=MAX_ROUNDS,
                             valid_sets=valid_sets, callbacks=callbacks)
         boosters.append(booster)

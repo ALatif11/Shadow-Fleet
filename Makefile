@@ -122,8 +122,9 @@ all: ingest-dma phase1 labels identity detect features
 	$(CLI) judge || echo "judge needs the second model loaded; skipped"
 	$(CLI) readme
 
+# make forward-score T=2026-10-02 (default: the ADR-17 date)
 forward-score:
-	$(CLI) forward-score
+	$(CLI) forward-score $(if $(T),--cutoff $(T))
 
 # make forward-eval T=2026-10-01
 forward-eval:
