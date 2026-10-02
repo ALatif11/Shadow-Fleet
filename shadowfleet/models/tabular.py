@@ -14,27 +14,48 @@ from shadowfleet.models.rules import design_matrix
 # from the training base rate, early stopping on the most recent training cutoff held out as validation,
 # three seeds averaged, no hyperparameter search beyond those seeds.
 PARAMS = {"objective": "binary", "num_leaves": 15, "min_child_samples": 20, "feature_fraction": 0.8,
-          "learning_rate": 0.05, "verbose": -1}
+          "learning_rate": 0.05, "verbose": -1,
+          # Reproducibility, not tuning: multi-threaded histogram sums are summed in a varying order, so
+          # identical data gave precision@50 0.2077 one run and 0.1954 the next (Oct 2 2026).
+          "deterministic": True, "force_row_wise": True, "num_threads": 1}
 SEEDS = (1, 2, 3)
 MAX_ROUNDS = 400
 EARLY_STOPPING = 30
+
+
+def validation_mask(train_rows: list[dict], valid_frac: float = 0.2) -> np.ndarray:
+    """The rows held out for early stopping: the most recent training cutoff (PREREG section 4).
+
+    Until Oct 2 2026 this was `max(int(n * 0.8), n - 1)` rows into the tail, which is always n - 1: one row
+    held out, almost never a positive, so early stopping never ran and every model trained 400 rounds.
+    With a single training cutoff there is nothing to hold out and nothing is. Rows without a cutoff (unit
+    tests) fall back to the last `valid_frac` of rows.
+    """
+    n = len(train_rows)
+    cutoffs = [r.get("cutoff") for r in train_rows]
+    if all(c is not None for c in cutoffs):
+        last = max(cutoffs)
+        mask = np.array([c == last for c in cutoffs])
+        return mask if 0 < mask.sum() < n else np.zeros(n, dtype=bool)
+    mask = np.zeros(n, dtype=bool)
+    mask[int(n * (1 - valid_frac)):] = True
+    return mask
 
 
 def train_and_score(train_rows: list[dict], train_y: np.ndarray, rows: list[dict],
                     columns: list[str] | None = None, valid_frac: float = 0.2):
     """Average of three seeds. Returns (score, boosters, columns); score is None if nothing is learnable.
 
-    The validation split is the TAIL of the training rows, not a random sample: training rows arrive in
-    cutoff order, so the tail is the most recent cutoff, which is what PREREG asks to hold out. A random
-    split would put rows from the same cutoff on both sides and flatter early stopping.
+    Early stopping holds out the most recent training cutoff (`validation_mask`), not a random sample: a
+    random split would put rows from the same cutoff on both sides and flatter early stopping.
     """
     import lightgbm as lgb
 
     x_train, cols = design_matrix(train_rows, columns)
     if len(train_y) < 40 or train_y.sum() < 3 or len(set(train_y.tolist())) < 2:
         return None, [], cols
-    cut = max(int(len(train_y) * (1 - valid_frac)), len(train_y) - 1)
-    x_fit, y_fit, x_val, y_val = x_train[:cut], train_y[:cut], x_train[cut:], train_y[cut:]
+    val = validation_mask(train_rows, valid_frac)
+    x_fit, y_fit, x_val, y_val = x_train[~val], train_y[~val], x_train[val], train_y[val]
     if y_fit.sum() == 0 or len(set(y_fit.tolist())) < 2:
         return None, [], cols
     pos_weight = float((len(y_fit) - y_fit.sum()) / max(y_fit.sum(), 1))

@@ -136,3 +136,10 @@ Append-only, below, each with a date and whether Phase 5b results had been seen.
   wave) has 7 times the base rate of the latest (2026-03-31, 0.65%), and PR-AUC rises with base rate. On
   lift, backward is worse than forward (2.36 vs 6.70), which is the opposite of the leakage signature. The
   raw rule is still computed and every report shows that it fails. Decided by Adam.
+- **2026-10-02, AFTER results had been seen. Two implementation fixes to the primary model, not design
+  changes; both are reported.** (1) Section 4 says early stopping holds out the most recent training cutoff.
+  The code held out one row (`max(int(n*0.8), n-1)`), so early stopping never ran and every model trained
+  400 rounds. It now holds out the most recent training cutoff, as pre-registered. (2) LightGBM was not
+  reproducible: identical data gave B1 precision@50 0.2077 in one run and 0.1954 in the next (multi-threaded
+  histogram sums). It now runs single-threaded and deterministic. The Phase 6 numbers from before these
+  fixes are kept in `reports/status-2026-09-28.md` beside the numbers after them, so the effect is visible.

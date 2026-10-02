@@ -120,3 +120,21 @@ def test_fp_review_sheet_leaves_the_reason_blank(tmp_data):
 def test_hormuz_split_uses_the_preregistered_date(cutoff, side):
     assert drift.hormuz_side(cutoff) == side
     assert config.REGIME_BREAKS["hormuz_closure"] == "2026-02-28"
+
+
+def test_validation_is_the_most_recent_training_cutoff():
+    rows = [{"cutoff": c} for c in ["2025-03-31"] * 3 + ["2025-04-30"] * 2]
+    assert tabular.validation_mask(rows).tolist() == [False, False, False, True, True]
+    # one training cutoff: nothing to hold out, rather than holding out everything
+    assert not tabular.validation_mask([{"cutoff": "2025-03-31"}] * 4).any()
+
+
+def test_lightgbm_is_reproducible():
+    rng = np.random.default_rng(0)
+    rows = [{"hull_id": str(i), "cutoff": "2025-03-31" if i < 150 else "2025-04-30",
+             "n_transits": float(rng.integers(0, 9)), "length_m": float(rng.normal(200, 30))}
+            for i in range(200)]
+    y = (rng.random(200) < 0.2).astype(int)
+    a, _, _ = tabular.train_and_score(rows, y, rows)
+    b, _, _ = tabular.train_and_score(rows, y, rows)
+    assert np.array_equal(a, b)
