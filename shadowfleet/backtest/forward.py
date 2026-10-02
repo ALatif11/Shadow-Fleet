@@ -132,7 +132,10 @@ def _append_manifest(T: date, path: Path, digest: str, model: str, population: i
             "recorded here and the git commit timestamp is the evidence. Nothing in this directory is ever "
             "edited; `make forward-eval` is read-only and refuses to run if a hash no longer matches.\n\n"
             "| scored at | file | model | population | sha256 |\n|---|---|---|---:|---|\n")
+    last = [ln for ln in manifest.read_text().splitlines() if ln.strip()][-1]
     with open(manifest, "a") as f:
+        if not last.startswith("|"):  # a note was appended after the table: start a new one, never edit
+            f.write("\n| scored at | file | model | population | sha256 |\n|---|---|---|---:|---|\n")
         f.write(f"| {T.isoformat()} | `{path.name}` | {model} | {population} | `{digest}` |\n")
 
 
