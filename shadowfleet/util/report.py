@@ -551,8 +551,8 @@ def _leakage(p: dict) -> list[str]:
     leak = p.get("leakage") or {}
     failed = p.get("leakage_failed") or []
     if failed:
-        verdict = ("FAILED: " + ", ".join(failed) + ". PREREG section 10 says no metrics may be reported "
-                   "while a leakage test fails, so treat every number above as void until this is green.")
+        verdict = ("FAILED: " + ", ".join(failed) + ". PREREG section 10: no metric is reported while a "
+                   "leakage test fails.")
     else:
         # only (c), (d) and (e) run here; saying "all five" would credit this report with two checks it
         # did not perform
@@ -571,7 +571,8 @@ def _leakage(p: dict) -> list[str]:
             mark = "pass" if v.get("passes") else "**FAIL**"
             detail = ", ".join(f"{k} {round(v[k], 4) if isinstance(v[k], float) else v[k]}"
                                for k in ("ratio", "pr_auc_shuffled", "pr_auc_forward", "pr_auc_backward",
-                                         "pr_auc_delta") if v.get(k) is not None)
+                                         "base_rate_early", "base_rate_late", "lift_forward", "lift_backward",
+                                         "lift_ratio", "pr_auc_delta") if v.get(k) is not None)
             rows.append(f"| {label} | {mark} ({detail or v.get('note', '')}) |")
     return head + rows
 
@@ -580,6 +581,10 @@ def render_phase5b(out: dict | None = None) -> str:
     p = out or probes.read("backtest")
     if not p:
         return "# Phase 5b report\n\n" + NOT_RUN + " - run `make backtest`.\n"
+    if p.get("leakage_failed"):
+        return "\n".join([f"# Phase 5b report (generated {date.today().isoformat()} by `make backtest`)", "",
+                          "**BLOCKED: a leakage test failed, so no metric is reported (PREREG section 10).**",
+                          "", "## Leakage suite", ""] + _leakage(p) + [""])
     agg = p.get("aggregate") or []
     dead = p.get("dead_b2_terms") or []
     lines = [f"# Phase 5b report (generated {date.today().isoformat()} by `make backtest`)", "",

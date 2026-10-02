@@ -124,3 +124,8 @@ Append-only, below, each with a date and whether Phase 5b results had been seen.
   (`UST_LUGA`, `ST.PETERSBURG`) that the name list missed. B1 destinations now match the ports' UN/LOCODEs
   (RU + PRI, ULU, VYS, LED, KGD, BLT, NVS, TUA, TAM, MMK) or their names with punctuation and spaces removed.
   Arkhangelsk (`RUARH`), which appears in the data, stays outside B1 under amendment 1.
+- **2026-10-02, disclosure, not an amendment.** The first real `make backtest` failed test 4 (reverse time:
+  backward PR-AUC 0.110 vs forward 0.044, ratio 2.5 against a tolerance of 1.5), and a harness bug printed
+  every metric anyway instead of stopping. Adam and the developer have therefore seen Phase 5b results.
+  The harness now stops and writes only the leakage section. From this point, any change to a leakage test,
+  a feature or a model is post-results and is labelled post-hoc wherever it is reported.

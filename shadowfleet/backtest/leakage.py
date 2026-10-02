@@ -53,7 +53,17 @@ def reverse_time_check(by_cutoff: list[tuple[date, list[dict], np.ndarray]]) -> 
     (t_early, early, y_early), (t_late, late, y_late) = usable[0], usable[-1]
     forward = metrics.pr_auc(y_late, rules.b3_logistic(early, y_early, late))
     backward = metrics.pr_auc(y_early, rules.b3_logistic(late, y_late, early))
+    # Diagnostic only, the pass rule below is the pre-registered one: the two directions are scored on
+    # different cutoffs, and PR-AUC moves with the base rate, so lift over each side's base rate is printed too.
+    base_early, base_late = float(y_early.mean()), float(y_late.mean())
+    lift_f = forward / base_late if forward and base_late else None
+    lift_b = backward / base_early if backward and base_early else None
     return {"early": t_early.isoformat(), "late": t_late.isoformat(),
+            "base_rate_early": round(base_early, 4), "base_rate_late": round(base_late, 4),
+            "n_positive_early": int(y_early.sum()), "n_positive_late": int(y_late.sum()),
+            "lift_forward": round(lift_f, 3) if lift_f else None,
+            "lift_backward": round(lift_b, 3) if lift_b else None,
+            "lift_ratio": round(lift_b / lift_f, 3) if lift_f and lift_b else None,
             "pr_auc_forward": forward, "pr_auc_backward": backward,
             "ratio": round(backward / forward, 3) if forward and backward else None,
             "passes": not (forward and backward) or backward <= REVERSE_TIME_TOLERANCE * forward}

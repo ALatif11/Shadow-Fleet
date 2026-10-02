@@ -134,6 +134,16 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None, full:
     union = label_history.get("union") or label_history.get(next(iter(label_sets)))
     leak = leakage.run_all(union or [])
     failed = [k for k, v in leak.items() if v.get("passes") is False]
+    if failed:
+        # PREREG section 10: no metric is reported while a leakage test fails. Only the leakage section is
+        # written, and the per-cutoff CSV of an earlier run is removed so nothing stale can be quoted. Until
+        # Oct 2 2026 this branch only logged and the metrics were written anyway (disclosed in phase5b.md).
+        log.error("leakage tests failed: %s", failed)
+        (config.REPORTS_DIR / "metrics_by_cutoff.csv").unlink(missing_ok=True)
+        blocked = {"leakage": leak, "leakage_failed": failed, "cutoffs_scored": len(cutoffs)}
+        probes.write("backtest", blocked)
+        report.write_report("phase5b", blocked)
+        raise SystemExit(f"leakage tests failed: {failed}; no metrics reported (PREREG section 10)")
     out = {"leakage": leak, "leakage_failed": failed,
            "cutoffs_scored": len({r["cutoff"] for r in per_cutoff}), "rows": len(per_cutoff),
            "b2_live_terms": b2_terms, "dead_b2_terms": [k for k, v in b2_terms.items() if v == 0],
@@ -146,9 +156,6 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None, full:
                          "drift_by_side": _drift_sides(artefacts)}
     out["lead_time"] = lead_time(top_k_seen, _designations_in_window(cutoffs))
     out["csv"] = _write_csv(per_cutoff)
-    if failed:  # PREREG section 10: a failing leakage test means no metrics are reported at all
-        log.error("leakage tests failed: %s", failed)
-
     probes.write("backtest", out)
     report.write_report("phase5b", out)
     if full:

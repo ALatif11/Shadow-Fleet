@@ -130,6 +130,8 @@ def test_reverse_time_check_compares_both_directions():
     out = leakage.reverse_time_check([(date(2025, 1, 31), _rows(120, rng.random(120)), a_y),
                                       (date(2025, 6, 30), _rows(120, rng.random(120)), b_y)])
     assert out["passes"] is True and out["early"] == "2025-01-31" and out["late"] == "2025-06-30"
+    # base rates are reported beside the pre-registered ratio, since PR-AUC moves with them
+    assert out["base_rate_early"] == round(a_y.mean(), 4) and out["n_positive_late"] == int(b_y.sum())
 
 
 def test_reverse_time_check_needs_two_cutoffs_with_positives():

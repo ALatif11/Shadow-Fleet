@@ -25,6 +25,7 @@ from shadowfleet.features import asof
 from shadowfleet.ingest import dma
 from shadowfleet.labels import labels as lab
 from shadowfleet.resolve import identity
+from shadowfleet.util import probes
 from tests.conftest import DAY, HEADER_V1, row, valid_imos, write_zip
 
 SMALL = {"window_days": 2, "min_imo_days": 2}
@@ -99,6 +100,20 @@ def test_every_phase_runs_in_order_and_hands_the_next_one_what_it_expects(ingest
     assert (config.REPORTS_DIR / "phase5b.md").exists()
     assert (config.REPORTS_DIR / "phase6.md").exists()
     assert (config.REPORTS_DIR / "metrics_by_cutoff.csv").exists()
+
+    # PREREG section 10: a failing leakage test blocks every metric, and removes the last run's CSV
+    from shadowfleet.backtest import leakage
+    real = leakage.run_all
+    leakage.run_all = lambda by_cutoff: {**real(by_cutoff), "reverse_time": {"passes": False}}
+    try:
+        with pytest.raises(SystemExit):
+            harness.run([T], full=True)
+    finally:
+        leakage.run_all = real
+    blocked = probes.read("backtest")
+    assert blocked["leakage_failed"] == ["reverse_time"] and "aggregate" not in blocked
+    assert not (config.REPORTS_DIR / "metrics_by_cutoff.csv").exists()
+    assert "BLOCKED" in (config.REPORTS_DIR / "phase5b.md").read_text()
 
     # Phase 8 reads Phase 6's flagged list, so write one the way Phase 6 does when a model is scored
     with open(config.REPORTS_DIR / f"flagged_{T.isoformat()}.csv", "w", newline="") as f:
