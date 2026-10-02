@@ -557,6 +557,9 @@ def _leakage(p: dict) -> list[str]:
         # only (c), (d) and (e) run here; saying "all five" would credit this report with two checks it
         # did not perform
         verdict = "(c), (d) and (e) pass."
+        if (leak.get("reverse_time") or {}).get("raw_passes") is False:
+            verdict = ("(c), (d) and (e) pass, (d) only under its post-results amendment: the "
+                       "pre-registered raw rule fails, see the row below.")
     head = [f"**{verdict}**", "",
             "(a) truncation equality and (b) static analysis run in `tests/test_leakage.py`, which "
             "`make backtest` executes before it reports anything.", ""]
@@ -573,6 +576,9 @@ def _leakage(p: dict) -> list[str]:
                                for k in ("ratio", "pr_auc_shuffled", "pr_auc_forward", "pr_auc_backward",
                                          "base_rate_early", "base_rate_late", "lift_forward", "lift_backward",
                                          "lift_ratio", "pr_auc_delta") if v.get(k) is not None)
+            if v.get("raw_passes") is False:
+                mark += (" on lift; **the pre-registered raw-PR-AUC rule fails** (amended 2026-10-02 after "
+                         "results were seen, PREREG section 12)")
             rows.append(f"| {label} | {mark} ({detail or v.get('note', '')}) |")
     return head + rows
 

@@ -97,7 +97,11 @@ def render_readme() -> str:
             "mentions sanctions except the partner feature, no GFW registry ownership field is read.",
             "3. Permutation: shuffling the training labels drops PR-AUC to the base rate.",
             "4. Reverse time: training on later cutoffs and scoring earlier ones is not dramatically "
-            "better than forward.",
+            "better than forward, measured as lift over each cutoff's base rate."
+            + (" **Disclosed:** the pre-registered version compared raw PR-AUC, which failed because the "
+               "earliest cutoff has several times the late one's base rate; the comparison was amended to "
+               "lift on 2026-10-02, after results had been seen (`PREREG.md` section 12)."
+               if (back.get("leakage") or {}).get("reverse_time", {}).get("raw_passes") is False else ""),
             "5. Entity-resolution sensitivity: no hull id depends on a GFW merge, so the delta is zero by "
             "construction and the check fails if that ever stops being true.", "",
             "## Limitations, stated up front", "",

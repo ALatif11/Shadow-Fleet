@@ -134,6 +134,16 @@ def test_reverse_time_check_compares_both_directions():
     assert out["base_rate_early"] == round(a_y.mean(), 4) and out["n_positive_late"] == int(b_y.sum())
 
 
+def test_reverse_time_verdict_adjusts_for_base_rate():
+    # Oct 2 2026, real data: early base rate 7x the late one. Raw backward PR-AUC 2.5x forward fails the
+    # pre-registered raw rule, but per unit of base rate backward is worse, so it is not leakage.
+    v = leakage.reverse_time_verdict(0.0437, 0.1102, base_early=0.0468, base_late=0.0065)
+    assert v["raw_passes"] is False and v["passes"] is True
+    # equal base rates and backward far better: that is the leakage signature, and it must still fail
+    v = leakage.reverse_time_verdict(0.05, 0.20, base_early=0.01, base_late=0.01)
+    assert v["raw_passes"] is False and v["passes"] is False
+
+
 def test_reverse_time_check_needs_two_cutoffs_with_positives():
     assert leakage.reverse_time_check([]).get("skipped")
     assert leakage.reverse_time_check(

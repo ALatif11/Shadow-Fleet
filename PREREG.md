@@ -129,3 +129,10 @@ Append-only, below, each with a date and whether Phase 5b results had been seen.
   every metric anyway instead of stopping. Adam and the developer have therefore seen Phase 5b results.
   The harness now stops and writes only the leakage section. From this point, any change to a leakage test,
   a feature or a model is post-results and is labelled post-hoc wherever it is reported.
+- **2026-10-02, AFTER Phase 5b results had been seen (see the disclosure above). Post-hoc.** Section 10,
+  test 4: "not dramatically better" is now measured as lift over each cutoff's own base rate (backward
+  lift may not exceed 1.5 x forward lift), not raw PR-AUC. Reason: the two directions are scored on
+  different cutoffs; the earliest (2024-08-31, base rate 4.68%, inside the horizon of OFAC's Jan 10 2025
+  wave) has 7 times the base rate of the latest (2026-03-31, 0.65%), and PR-AUC rises with base rate. On
+  lift, backward is worse than forward (2.36 vs 6.70), which is the opposite of the leakage signature. The
+  raw rule is still computed and every report shows that it fails. Decided by Adam.
