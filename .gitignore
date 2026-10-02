@@ -15,6 +15,9 @@ reports/probes/
 reports/phase0_gfw_vessel.json
 reports/phase0_ofac_sample.txt
 reports/phase2_spotcheck.csv
+# Phase 6 flagged lists carry feature VALUES (n_russian_port_visits=7 is a GFW-derived number). The rendered
+# reports and the forward-test list carry feature names only, so they stay committable.
+reports/flagged_*.csv
 *.zip
 *.part
 # UI console (ADR-18): the bundle carries GFW-derived events (rule 7); the committed sample is synthetic

@@ -224,6 +224,19 @@ def test_no_source_file_is_silently_gitignored():
     assert not source, f"ignored but looks like source: {source[:5]} (tracked: {len(tracked)} files)"
 
 
+def test_gfw_derived_outputs_are_gitignored():
+    """CLAUDE.md rule 7: no GFW-derived value may be committable by `git add -A`."""
+    import subprocess
+
+    for path in ("reports/flagged_2025-03-31.csv", "reports/probes/gfw.json", "data/parquet/x.parquet",
+                 "ui/public/ui_data/bundle.json"):
+        ignored = subprocess.run(["git", "check-ignore", "-q", path], cwd=config.REPO_ROOT).returncode == 0
+        assert ignored, f"{path} would be committed"
+    # and the deliverables must NOT be ignored
+    for path in ("reports/phase6.md", "reports/forward/top50_2026-10-01.csv", "reports/metrics_by_cutoff.csv"):
+        assert subprocess.run(["git", "check-ignore", "-q", path], cwd=config.REPO_ROOT).returncode == 1, path
+
+
 # Real DMA destination strings (Sep 29 diagnostic): the name-only matcher missed 1,215 of 1,462.
 B1_HITS = ["RUULU", "RU ULU", "RULED", "UST LUGA", "RU PRI", "PRIMORSK", "RUPRI", "RU LED", "RUMMK", "RU KGD",
            "UST-LUGA", "RUKGD", "KALININGRAD", "RUVYS", "RU MMK", "RUULU>EGPSD", "USTLUGA", "VYSOTSK",

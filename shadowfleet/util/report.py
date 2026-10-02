@@ -672,7 +672,10 @@ def _verdict_vs_rules(agg: list[dict]) -> list[str]:
     if not best_rule or best_rule.get("precision_at_50") is None:
         return ["- No rules baseline produced a precision@50, so there is nothing to compare against."]
     delta = lgbm["precision_at_50"] - best_rule["precision_at_50"]
+    pr_delta = (lgbm.get("pr_auc") or 0) - (best_rule.get("pr_auc") or 0)
     direction = "beats" if delta > 0 else ("ties" if delta == 0 else "does NOT beat")
+    if delta * pr_delta < 0:  # the two metrics disagree on the sign: say so instead of picking the kinder one
+        direction = "does not clearly beat"
     return [f"- **LightGBM {direction} the best rules baseline** (`{best_rule['model']}`) on the "
             f"pre-registered endpoint: precision@50 {lgbm['precision_at_50']} vs "
             f"{best_rule['precision_at_50']}, a difference of {delta:+.4f}, macro-averaged over "
@@ -738,9 +741,8 @@ def render_phase6(out: dict | None = None) -> str:
               f"- False-positive review sheets for Adam: {p6.get('fp_review') or 'none written'}. The "
               "`reason` column is deliberately blank; a pre-filled guess would be a fabricated review.", "",
               "## Assumptions to confirm", "",
-              "- LightGBM's validation split is the tail of the training rows, which are in cutoff order, "
-              "so the held-out fold is the most recent cutoff as PREREG section 4 asks. A random split "
-              "would put rows from one cutoff on both sides and flatter early stopping.",
+              "- LightGBM's early-stopping fold is the most recent training cutoff, as PREREG section 4 asks "
+              "(until Oct 2 2026 it was a single row, so early stopping never ran; PREREG section 12).",
               "- The isolation forest is fitted on each cutoff's own feature matrix, so it needs no history "
               "and is available at cutoffs where the supervised models are not.",
               "- Calibration is reported as the Brier score inside the per-cutoff metrics for the "
