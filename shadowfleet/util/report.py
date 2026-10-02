@@ -603,9 +603,18 @@ def render_phase5b(out: dict | None = None) -> str:
     lines += [f"| `{a['model']}` | **{a['precision_at_50']}** | {a['pr_auc']} | {a['recall_at_50']} | "
               f"{a['cutoffs']} | {a['cutoffs_with_a_positive']} |"
               for a in sorted(primary, key=lambda a: -(a["precision_at_50"] or 0))]
+    matched = [a for a in (p.get("aggregate_matched") or []) if a["label_set"] == "union" and a["stratum"] == "b1"]
+    if matched:
+        lines += ["", f"Same endpoint on the {matched[0]['cutoffs']} cutoffs where every model was scored. The "
+                  "supervised models skip the earliest cutoffs, which have the highest base rates, so the table "
+                  "above compares them on harder cutoffs than the baselines. Added Oct 2 2026, after results "
+                  "were seen (post-hoc presentation, same numbers).", "",
+                  "| model | precision@50 | PR-AUC | recall@50 | cutoffs |", "|---|---:|---:|---:|---:|"]
+        lines += [f"| `{a['model']}` | **{a['precision_at_50']}** | {a['pr_auc']} | {a['recall_at_50']} | "
+                  f"{a['cutoffs']} |" for a in sorted(matched, key=lambda a: -(a["precision_at_50"] or 0))]
     lines += ["", "PREREG section 3 fixes this table as the headline: precision@50 in the B1 stratum, union "
-              "label. LightGBM is not here yet (Phase 6); the best row is currently a baseline, and if it "
-              "stays that way after Phase 6 that is the finding, not a failure to report.", "",
+              "label. LightGBM is the pre-registered primary model; if a baseline matches or beats it, that "
+              "is the finding, not a failure to report.", "",
               "## Every arm", "",
               "| label set | stratum | model | precision@50 | PR-AUC | recall@50 | FPR@50 |",
               "|---|---|---|---:|---:|---:|---:|"]
@@ -671,7 +680,10 @@ def _verdict_vs_rules(agg: list[dict]) -> list[str]:
             f"- PR-AUC: {lgbm['pr_auc']} vs {best_rule['pr_auc']}.",
             "- If that difference is small, the finding is that a hand-weighted rule captures most of what "
             "is learnable from these features, which is a result about the data, not a failure of the "
-            "model (CLAUDE.md rule 8)."]
+            "model (CLAUDE.md rule 8)."] + (
+            [f"- The isolation forest, which never sees a label, reaches precision@50 "
+             f"{primary['ISO_forest']['precision_at_50']} on the same cutoffs."]
+            if (primary.get("ISO_forest") or {}).get("precision_at_50") is not None else [])
 
 
 def render_phase6(out: dict | None = None) -> str:
@@ -683,7 +695,11 @@ def render_phase6(out: dict | None = None) -> str:
     lines = [f"# Phase 6 report (generated {date.today().isoformat()} by `make phase6`)", "",
              "LightGBM and the isolation forest join the harness here; everything else in this report is "
              "reporting only and never drives a change to the feature set (PREREG section 7).", "",
-             "## Does the model beat the rules", ""] + _verdict_vs_rules(p.get("aggregate") or []) + [
+             "## Does the model beat the rules", "",
+             "Compared on the cutoffs where every model was scored (the supervised models skip the earliest, "
+             "highest-base-rate cutoffs, so an all-cutoff average flatters the baselines; this matched view "
+             "was added Oct 2 2026, after results were seen).", ""] \
+        + _verdict_vs_rules(p.get("aggregate_matched") or p.get("aggregate") or []) + [
              "", "## Ablations", "",
              "Each arm retrains LightGBM on a restricted column set. Means over the "
              f"{len(scored)} cutoffs with a closed training horizon.", ""]

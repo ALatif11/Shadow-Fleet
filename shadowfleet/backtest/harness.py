@@ -148,7 +148,8 @@ def run(cutoffs: list[date] | None = None, label_sets: dict | None = None, full:
            "cutoffs_scored": len({r["cutoff"] for r in per_cutoff}), "rows": len(per_cutoff),
            "b2_live_terms": b2_terms, "dead_b2_terms": [k for k, v in b2_terms.items() if v == 0],
            "not_scored": sum(1 for r in per_cutoff if r.get("not_scored")),
-           "per_cutoff": per_cutoff, "aggregate": _aggregate(per_cutoff)}
+           "per_cutoff": per_cutoff, "aggregate": _aggregate(per_cutoff),
+           "aggregate_matched": _aggregate(_matched(per_cutoff))}
     if full:
         out["phase6"] = {"per_cutoff": artefacts, "arms": sorted(explain.ablation_arms()),
                          "top_flagged": explain.TOP_FLAGGED,
@@ -180,6 +181,14 @@ def _aggregate(per_cutoff: list[dict]) -> list[dict]:
         agg["cutoffs_with_a_positive"] = sum(1 for r in rows if (r.get("n_positive") or 0) > 0)
         out.append(agg)
     return out
+
+
+def _matched(per_cutoff: list[dict]) -> list[dict]:
+    """Rows from the cutoffs at which EVERY model was scored. The supervised models need a closed training
+    horizon, so they skip the earliest cutoffs, which have the highest base rates; comparing their macro
+    average with a baseline's over all cutoffs flatters the baseline. Added Oct 2 2026, after results."""
+    skipped = {(r["cutoff"], r["label_set"]) for r in per_cutoff if r.get("not_scored")}
+    return [r for r in per_cutoff if (r["cutoff"], r["label_set"]) not in skipped]
 
 
 def _write_csv(per_cutoff: list[dict]) -> str:

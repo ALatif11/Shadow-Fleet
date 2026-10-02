@@ -192,3 +192,11 @@ def test_lead_time_reports_the_designated_population_so_the_censoring_is_visible
     top = {"LGBM": {date(2025, 1, 31): {"A"}}}
     out = harness.lead_time(top, {"A": date(2025, 6, 30), "B": date(2025, 7, 1), "C": date(2025, 8, 1)})
     assert out["LGBM"]["flagged_before_designation"] == 1 and out["LGBM"]["designated_in_window"] == 3
+
+
+def test_matched_keeps_only_cutoffs_every_model_scored():
+    rows = [{"cutoff": "2025-01-31", "label_set": "union", "model": "LGBM", "not_scored": True},
+            {"cutoff": "2025-01-31", "label_set": "union", "model": "B2_weighted", "pr_auc": 0.3},
+            {"cutoff": "2025-02-28", "label_set": "union", "model": "LGBM", "pr_auc": 0.2},
+            {"cutoff": "2025-02-28", "label_set": "union", "model": "B2_weighted", "pr_auc": 0.1}]
+    assert {r["cutoff"] for r in harness._matched(rows)} == {"2025-02-28"}
