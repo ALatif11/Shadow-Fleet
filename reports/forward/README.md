@@ -12,3 +12,7 @@ low-base-rate validation cutoff it kept a single tree: all 50 scores are identic
 just row order, and no drivers were written. It stays here unedited with its hash intact and will be
 evaluated and reported next to the primary list. **The primary forward test is the list scored 2026-10-02**
 with early stopping on average precision (PREREG section 12), declared here before it exists.
+
+| scored at | file | model | population | sha256 |
+|---|---|---|---:|---|
+| 2026-10-02 | `top50_2026-10-02.csv` | LGBM | 2909 | `2e1ff25872e7a2ba14587d39f886156736b00143a6be377b00f15e3247b127f5` |
