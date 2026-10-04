@@ -16,3 +16,8 @@ with early stopping on average precision (PREREG section 12), declared here befo
 | scored at | file | model | population | sha256 |
 |---|---|---|---:|---|
 | 2026-10-02 | `top50_2026-10-02.csv` | LGBM | 2909 | `2e1ff25872e7a2ba14587d39f886156736b00143a6be377b00f15e3247b127f5` |
+
+**2026-10-04.** The 2026-10-02 list was committed and pushed on 2026-10-04 at 14:25 -04:00, two days after
+its scoring date, and the commit timestamp is the only evidence of when it existed. So its evaluation counts
+only designations dated **2026-10-05 or later**; any list member designated between 2026-10-02 and
+2026-10-04 is reported separately and not counted as a hit.
