@@ -34,18 +34,29 @@ def test_measured_numbers_come_from_the_probe_files(tmp_data):
                                "designated_in_window": 40}}})
     probes.write("identity", {"coverage": {"share_by_imo": 0.87}})
     text = portfolio.render_readme()
-    assert "`LGBM` at precision@50 0.42" in text  # the best row, not the first
+    assert "**`LGBM`, reaches precision@50 0.42**" in text
+    assert "| `B2_weighted` | 0.3 |" in text  # every model in the comparison table
     assert "**9.4 weeks**" in text and "18 of 40 designated hulls" in text
     assert "0.87 of MMSI-days" in text
 
 
-def test_the_headline_picks_the_best_model_not_the_alphabetically_first(tmp_data):
-    probes.write("backtest", {"aggregate": [
-        {"label_set": "union", "stratum": "b1", "model": "AAA", "precision_at_50": 0.1, "pr_auc": 0.1,
-         "recall_at_50": 0.1, "cutoffs": 3},
-        {"label_set": "union", "stratum": "b1", "model": "ZZZ", "precision_at_50": 0.9, "pr_auc": 0.9,
-         "recall_at_50": 0.9, "cutoffs": 3}]})
-    assert "`ZZZ` at precision@50 0.9" in portfolio.render_readme()
+def test_the_headline_is_the_preregistered_model_even_when_another_scores_higher(tmp_data):
+    # the headline may not be chosen after the fact; the better model still shows, in the table
+    row = {"label_set": "union", "stratum": "b1", "pr_auc": 0.1, "recall_at_50": 0.1, "cutoffs": 13}
+    probes.write("backtest", {"aggregate_matched": [
+        {**row, "model": "ISO_forest", "precision_at_50": 0.19}, {**row, "model": "LGBM", "precision_at_50": 0.18},
+        {**row, "model": "B0_random", "precision_at_50": 0.07}],
+        "aggregate": [{**row, "model": "ISO_forest", "precision_at_50": 0.25, "cutoffs": 20}]})
+    text = portfolio.render_readme()
+    assert "**`LGBM`, reaches precision@50 0.18**" in text
+    assert "| `ISO_forest` | 0.19 | 2.7x |" in text and "0.25" not in text  # matched cutoffs, not all
+
+
+def test_the_forward_lists_come_from_the_manifest(tmp_data):
+    d = config.REPORTS_DIR / "forward"
+    d.mkdir(parents=True)
+    (d / "README.md").write_text("| 2026-10-02 | `top50_2026-10-02.csv` | LGBM | 2909 | `" + "a" * 64 + "` |\n")
+    assert "| 2026-10-02 | LGBM | 2909 | `aaaaaaaaaaaa...` |" in portfolio.render_readme()
 
 
 def test_the_wrong_stratum_or_label_set_never_becomes_the_headline(tmp_data):

@@ -7,6 +7,7 @@ measure it, so a half-finished README reads as half-finished instead of as a mod
 
 from __future__ import annotations
 
+import re
 from datetime import date
 
 from shadowfleet import config
@@ -20,12 +21,47 @@ def _n(value, command: str) -> str:
     return str(value) if value not in (None, "", []) else f"**{MISSING}** (`{command}`)"
 
 
+PRIMARY_MODEL = "LGBM"  # PREREG section 4: the headline is this model, not whichever model scored best
+
+
+def _b1_union(backtest: dict | None, key: str) -> list[dict]:
+    return [a for a in ((backtest or {}).get(key) or [])
+            if a.get("label_set") == "union" and a.get("stratum") == "b1" and a.get("precision_at_50") is not None]
+
+
 def _primary(backtest: dict | None) -> dict:
-    """The pre-registered headline row: best model on precision@50, B1 stratum, union label."""
-    rows = [a for a in ((backtest or {}).get("aggregate") or [])
-            if a.get("label_set") == "union" and a.get("stratum") == "b1"
-            and a.get("precision_at_50") is not None]
-    return max(rows, key=lambda a: a["precision_at_50"]) if rows else {}
+    """The pre-registered primary model's row on the pre-registered endpoint (union label, B1 stratum).
+
+    Matched cutoffs when the harness wrote them: the supervised models skip the early, high-base-rate
+    cutoffs, so an all-cutoff average is not comparable across models. Picking the best row instead would
+    let a model nobody pre-registered become the headline after the fact.
+    """
+    rows = _b1_union(backtest, "aggregate_matched") or _b1_union(backtest, "aggregate")
+    return next((a for a in rows if a["model"] == PRIMARY_MODEL), {})
+
+
+def _comparison(backtest: dict | None) -> list[str]:
+    """Every model on the same cutoffs, best first, with lift over the random baseline."""
+    rows = _b1_union(backtest, "aggregate_matched") or _b1_union(backtest, "aggregate")
+    if not rows:
+        return []
+    base = next((a["precision_at_50"] for a in rows if a["model"] == "B0_random"), None)
+    lines = ["| model | precision@50 | lift over random | PR-AUC | cutoffs |", "|---|---:|---:|---:|---:|"]
+    for a in sorted(rows, key=lambda a: -a["precision_at_50"]):
+        lift = f"{a['precision_at_50'] / base:.1f}x" if base else "n/a"
+        lines.append(f"| `{a['model']}` | {a['precision_at_50']} | {lift} | {a.get('pr_auc')} | {a.get('cutoffs')} |")
+    return lines
+
+
+def _forward_lists() -> list[str]:
+    """The committed forward-test lists, read from the append-only manifest."""
+    manifest = config.REPORTS_DIR / "forward" / "README.md"
+    rows = re.findall(r"^\| (\d{4}-\d{2}-\d{2}) \| `([^`]+)` \| ([^|]+?) \| (\d+) \| `([0-9a-f]{64})` \|$",
+                      manifest.read_text(), re.M) if manifest.exists() else []
+    if not rows:
+        return [f"{_n(None, 'make forward-score')}."]
+    return (["| scored at | model | population | sha256 |", "|---|---|---:|---|"]
+            + [f"| {d} | {m} | {n} | `{h[:12]}...` |" for d, _, m, n, h in rows])
 
 
 def render_readme() -> str:
@@ -53,10 +89,17 @@ def render_readme() -> str:
         "## Headline result", "",
     ]
     if best:
-        out += [f"On the pre-registered primary endpoint (precision@50 within the Russia-port stratum, "
-                f"label = OFAC ∪ EU ∪ UK, macro-averaged over {best.get('cutoffs')} monthly cutoffs), the "
-                f"best model is **`{best.get('model')}` at precision@50 {best.get('precision_at_50')}** "
-                f"(PR-AUC {best.get('pr_auc')}, recall@50 {best.get('recall_at_50')}).", "",
+        out += [f"On the pre-registered endpoint (precision@50 within the Russia-port stratum, label = "
+                f"OFAC ∪ EU ∪ UK, macro-averaged over {best.get('cutoffs')} monthly cutoffs), the "
+                f"pre-registered primary model, **`{best.get('model')}`, reaches precision@50 "
+                f"{best.get('precision_at_50')}** (PR-AUC {best.get('pr_auc')}, recall@50 "
+                f"{best.get('recall_at_50')}): of the 50 tankers it ranks highest each month, that share is "
+                "designated by the US, EU or UK within the next 182 days.", "",
+                "Every model on the same cutoffs (the supervised models cannot score the earliest ones, which "
+                "have the highest base rates, so all-cutoff averages are not comparable):", "",
+                *_comparison(back), "",
+                "The signal is modest and simple: every learned model lands close to the others, and the "
+                "per-family ablations in `reports/phase6.md` show which data carries it.", "",
                 "Median lead time for hulls it flagged before designation: "
                 + (f"**{lead['median_weeks']} weeks**" if lead.get("median_weeks") is not None
                    else _n(None, "make backtest"))
@@ -67,6 +110,16 @@ def render_readme() -> str:
     else:
         out += [f"{_n(None, 'make backtest')}. The harness runs; no cutoff has produced a scored model "
                 "yet."]
+    out += ["", "## Forward test", "",
+            "A backtest can be tuned without meaning to. So the primary model's top 50 is committed to this "
+            "repo, hash-stamped, before any of its outcomes exist, and scored against real designations "
+            "later (`make forward-eval`). The manifest, `reports/forward/README.md`, is append-only and says "
+            "which list is primary and from which date hits count.", "", *_forward_lists(), "",
+            "## Changes made after results were seen", "",
+            "Every one is recorded in `PREREG.md` section 12 and labelled post-hoc in the reports, with the "
+            "numbers from before the change kept beside the numbers after it. Most were bug fixes that "
+            "brought the code in line with what was pre-registered. The forward test is the check none of "
+            "them can influence."]
     out += ["", "## What was built, and what it measured", "",
             "| stage | measured | source |", "|---|---|---|",
             f"| Window | {_n(win.get('months'), 'make window-gate')} months, "
@@ -131,9 +184,10 @@ def render_readme() -> str:
             "## Analyst console", "",
             "`ui/` is a local React console (ADR-18): a ranked watchlist per cutoff, a map of each "
             "hull's DMA track and its events, and a timeline that shows each hull only as it was "
-            "knowable at the chosen instant. It runs on a synthetic bundle, labelled as such, until "
-            "Phase 6; `make ui-export` then points it at live outputs. Local only: its dossiers "
-            "carry GFW-derived events (rule 7). See `SETUP.md` section 9.", "",
+            "knowable at the chosen instant. It renders a JSON bundle the Python side writes and never "
+            "computes a metric itself. Until `make ui-export` is wired to the real outputs (Phase C) it "
+            "runs on a synthetic bundle, labelled as such. Local only: its dossiers carry GFW-derived "
+            "events (rule 7). See `SETUP.md` section 9.", "",
             "## Documents", "",
             "- `shadow-fleet-plan.md`: architecture, risks, ADRs, evaluation design.",
             "- `CLAUDE.md`: rules for every build session.",
