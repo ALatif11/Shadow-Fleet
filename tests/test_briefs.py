@@ -220,20 +220,6 @@ def test_generate_never_returns_output_that_fails_the_schema():
     assert brief is None
 
 
-def test_audit_sheet_puts_failures_first_and_leaves_the_human_columns_blank(tmp_data):
-    from shadowfleet.briefs import generate as gen
-
-    results = ([{"cutoff": "2025-03-31", "hull_id": f"bad{i}", "passes": False,
-                 "ungrounded_numbers": ["9.9"]} for i in range(4)]
-               + [{"cutoff": "2025-03-31", "hull_id": f"ok{i}", "passes": True} for i in range(40)])
-    gen._write_audit_sheet(results, n=10)
-    got = list(csv.DictReader((config.REPORTS_DIR / "audit_sheet.csv").read_text().splitlines()))
-    assert len(got) == 10
-    assert sum(1 for r in got if r["verifier_passed"] == "False") == 4  # every failure is included
-    assert all(r["human_verdict"] == "" and r["error_type"] == "" for r in got)
-    assert "9.9" in got[0]["verifier_failures"]
-
-
 def test_run_batch_writes_briefs_and_verifies_every_one(store):
     from shadowfleet.briefs import generate as gen
 
@@ -255,6 +241,12 @@ def test_run_batch_writes_briefs_and_verifies_every_one(store):
     d = config.REPORTS_DIR / "briefs" / T.isoformat()
     assert (d / f"{IMO_A}.md").exists() and (d / f"{IMO_A}.json").exists()
     assert "Risk level: medium" in (d / f"{IMO_A}.md").read_text()
+
+    # a rerun after a crash resumes: nothing already on disk goes back to the model
+    def refuse(*a, **k):
+        raise AssertionError("a brief already on disk was regenerated")
+    again = gen.run_batch([T], top_k=5, completer=refuse)
+    assert again["resumed"] == len(feat) and again["faithfulness"]["briefs"] == len(feat)
 
 
 def test_phase8_report_states_the_deterministic_half_only(store):

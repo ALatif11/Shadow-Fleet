@@ -126,7 +126,6 @@ def test_every_phase_runs_in_order_and_hands_the_next_one_what_it_expects(ingest
     assert briefs["faithfulness"]["briefs"] == len(rows)
     assert briefs["faithfulness"]["clean"] >= 1, "a brief over real evidence must pass the verifier"
     assert (config.REPORTS_DIR / "briefs" / T.isoformat() / f"{IMOS[0]}.md").exists()
-    assert (config.REPORTS_DIR / "audit_sheet.csv").exists()
 
 
 def test_the_population_excludes_a_hull_listed_before_the_cutoff(ingested):

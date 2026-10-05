@@ -771,9 +771,15 @@ def render_phase8(out: dict | None = None) -> str:
         return "# Phase 8/9 report\n\n" + NOT_RUN + " - run `make briefs`.\n"
     f = p.get("faithfulness") or {}
     lines = [f"# Phase 8/9 report (generated {date.today().isoformat()} by `make briefs`)", "",
-             f"{f.get('briefs', 0)} briefs in {p.get('seconds')} s. Every one was generated under a "
-             "pydantic-derived JSON schema and then checked by the deterministic verifier; nothing that "
-             "failed validation was written to disk.", "",
+             f"{f.get('briefs', 0)} briefs in {p.get('seconds')} s"
+             + (f" ({p['resumed']} carried over from an interrupted run)" if p.get("resumed") else "")
+             + ". Every one was generated under a pydantic-derived JSON schema and then checked by the "
+             "deterministic verifier; nothing that failed validation was written to disk.", "",
+             f"- Throughput: {p.get('tokens_per_second') or 'not measured'} completion tokens/s, "
+             "end to end per brief.",
+             f"- GPU memory in use at the end of the run (used, total): "
+             f"{p.get('vram') or 'not measured (no nvidia-smi)'}. llama.cpp allocates weights and KV cache "
+             "at start-up, so this is the peak.", "",
              "## Deterministic faithfulness", "",
              f"- **{f.get('clean', 0)} of {f.get('briefs', 0)} briefs have zero verifier failures "
              f"({f.get('share_clean')}).**", ""]
@@ -792,13 +798,14 @@ def render_phase8(out: dict | None = None) -> str:
     lines += ["## Per cutoff", "", "| cutoff | briefs | directory |", "|---|---:|---|"]
     lines += [f"| {c['cutoff']} | {c.get('briefs', 0)} | {c.get('dir') or c.get('skipped', '')} |"
               for c in p.get("cutoffs") or []]
+    if p.get("samples"):
+        lines += ["", "## Samples to read", "",
+                  "Paths only: a brief quotes its evidence, which includes GFW-derived values (rule 7), so "
+                  "briefs stay on the local machine.", ""] + [f"- `{x}`" for x in p["samples"]]
     lines += ["", "## Still outstanding", "",
-              "- The LLM judge (Phase 9 task 2) is not built. It must be a different model family from the "
-              "generator, and judge-versus-human agreement on `reports/audit_sheet.csv` is the credibility "
-              "number for this whole layer (ADR-10), so the faithfulness figure above is the deterministic "
-              "half only.",
-              "- `reports/audit_sheet.csv` is generated with 30 findings, failures first, and blank human "
-              "columns. It means nothing until Adam fills it in.", ""]
+              "- The faithfulness figure above is the deterministic half only. The cross-family LLM judge "
+              "runs in `make judge` (Phase 9), which also writes `reports/audit_sheet.csv`; judge-versus-"
+              "human agreement on that sheet is the credibility number for this whole layer (ADR-10).", ""]
     return "\n".join(lines)
 
 
@@ -836,9 +843,10 @@ def render_phase9(out: dict | None = None) -> str:
               "judging Gemma and no more than that.",
               "- A finding whose cited ids are missing from the bundle is graded `not_entailed` without "
               "asking the model; the deterministic verifier already calls that a dangling citation.",
-              "- Agreement is computed as a two-way question (supported or not), because the audit sheet "
-              "carries the verifier's pass/fail until a judge column exists. Three-class kappa needs the "
-              "judge verdicts written into the sheet first.", ""]
+              "- The audit sheet is 30 findings sampled at random (seed 0), stratified by judge verdict, and "
+              "blind: it shows the claim and its cited records, never the judge's verdict. Kappa is over the "
+              "three verdicts (entailed, partially, not_entailed); `make kappa` recomputes it as rows are "
+              "filled in.", ""]
     return "\n".join(lines)
 
 

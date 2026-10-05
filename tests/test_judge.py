@@ -77,35 +77,68 @@ def test_the_default_judge_and_generator_are_different_families():
     assert judge._family(config.LLM_PRIMARY) != judge._family(config.LLM_FALLBACK)
 
 
-def _sheet(rows: list[dict]) -> None:
-    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    with open(config.REPORTS_DIR / "audit_sheet.csv", "w", newline="") as f:
-        wr = csv.DictWriter(f, fieldnames=["cutoff", "hull_id", "verifier_passed", "verifier_failures",
-                                           "human_verdict", "error_type", "notes"])
+def test_family_is_read_from_the_server_model_path():
+    """The server reports a file path; `/home/x/models/gemma-...` must still count as Gemma."""
+    assert judge._family("/home/adam1/models/gemma-4-12B-it-Q4_K_M.gguf") == judge._family(config.LLM_PRIMARY)
+    assert judge._family("Qwen3-14B-Q4_K_M.gguf") == judge._family(config.LLM_FALLBACK)
+
+
+def _rows(verdicts) -> list[dict]:
+    return [{"cutoff": "c", "hull_id": f"h{i}", "finding_index": 0, "severity": "low", "claim": f"claim {i}",
+             "verdict": v} for i, v in enumerate(verdicts)]
+
+
+def _briefs(n: int) -> list[dict]:
+    return [{"brief": {"findings": [_finding()]}, "bundle": {**_bundle(), "cutoff": "c", "hull_id": f"h{i}"}}
+            for i in range(n)]
+
+
+def _fill(verdicts: dict[str, str]) -> None:
+    path = config.REPORTS_DIR / "audit_sheet.csv"
+    rows = list(csv.DictReader(path.read_text().splitlines()))
+    for r in rows:
+        r["human_verdict"] = verdicts.get(r["hull_id"], "")
+    with open(path, "w", newline="") as f:
+        wr = csv.DictWriter(f, fieldnames=judge.AUDIT_COLUMNS)
         wr.writeheader()
         wr.writerows(rows)
 
 
+def test_audit_sheet_is_blind_stratified_and_never_overwrites_a_filled_one(tmp_data):
+    rows = _rows(["entailed"] * 40 + ["partially"] * 5 + ["not_entailed"] * 5)
+    judge.write_audit_sheet(rows, _briefs(50), n=30)
+    got = list(csv.DictReader((config.REPORTS_DIR / "audit_sheet.csv").read_text().splitlines()))
+    assert len(got) == 30 and "judge_verdict" not in got[0], "the human must not see the judge's verdict"
+    by_hull = {r["hull_id"]: r["verdict"] for r in rows}
+    assert sum(1 for r in got if by_hull[r["hull_id"]] != "entailed") == 10  # every minority verdict sampled
+    assert all(r["human_verdict"] == "" for r in got) and "3.2" in got[0]["cited_evidence"]
+    _fill({got[0]["hull_id"]: "entailed"})
+    assert judge.write_audit_sheet(rows, _briefs(50)).startswith("kept")
+    assert (config.REPORTS_DIR / "audit_sheet.csv").read_text().count("entailed") >= 1
+
+
 def test_kappa_skips_an_unfilled_sheet_rather_than_returning_zero(tmp_data):
-    assert judge.kappa_from_sheet()["skipped"]
-    _sheet([{"cutoff": "c", "hull_id": "h", "verifier_passed": "True", "verifier_failures": "{}",
-             "human_verdict": "", "error_type": "", "notes": ""}])
-    assert judge.kappa_from_sheet()["skipped"], "a sheet with no filled rows has no kappa"
+    assert judge.kappa_from_sheet([])["skipped"]
+    rows = _rows(["entailed", "not_entailed"])
+    judge.write_audit_sheet(rows, _briefs(2), n=2)
+    assert judge.kappa_from_sheet(rows)["skipped"], "a sheet with no filled rows has no kappa"
 
 
-def test_kappa_is_one_when_the_human_and_the_machine_agree(tmp_data):
-    _sheet([{"cutoff": "c", "hull_id": f"h{i}", "verifier_passed": str(i % 2 == 0),
-             "verifier_failures": "{}", "human_verdict": "pass" if i % 2 == 0 else "fabricated_fact",
-             "error_type": "", "notes": ""} for i in range(10)])
-    out = judge.kappa_from_sheet()
-    assert out["n"] == 10 and out["raw_agreement"] == 1.0 and out["kappa"] == 1.0
+def test_kappa_is_one_when_the_human_and_the_judge_agree(tmp_data):
+    rows = _rows(["entailed", "partially", "not_entailed"] * 4)
+    judge.write_audit_sheet(rows, _briefs(12), n=12)
+    _fill({r["hull_id"]: r["verdict"] for r in rows})
+    out = judge.kappa_from_sheet(rows)
+    assert out["n"] == 12 and out["raw_agreement"] == 1.0 and out["kappa"] == 1.0
 
 
 def test_kappa_is_undefined_rather_than_misleading_when_one_rater_never_varies(tmp_data):
-    _sheet([{"cutoff": "c", "hull_id": f"h{i}", "verifier_passed": "True", "verifier_failures": "{}",
-             "human_verdict": "pass", "error_type": "", "notes": ""} for i in range(6)])
-    out = judge.kappa_from_sheet()
+    rows = _rows(["entailed"] * 6)
+    judge.write_audit_sheet(rows, _briefs(6), n=6)
+    _fill({r["hull_id"]: "entailed" for r in rows} | {"h0": "maybe"})
+    out = judge.kappa_from_sheet(rows)
     assert out["kappa"] is None and out["raw_agreement"] == 1.0 and "undefined" in out["note"]
+    assert out["invalid_human_verdicts"] == ["maybe"], "a typo in the sheet is reported, not silently dropped"
 
 
 def test_phase9_report_says_the_number_is_unverified_until_the_sheet_is_filled(tmp_data):

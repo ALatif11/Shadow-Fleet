@@ -19,6 +19,7 @@ from shadowfleet import config
 from shadowfleet.backtest import explain
 from shadowfleet.briefs import bundle as bmod
 from shadowfleet.briefs import verify
+from shadowfleet.briefs.llm_smoke import vram
 from shadowfleet.briefs.schema import BRIEF_SCHEMA, SYSTEM_PROMPT, Brief, render
 from shadowfleet.features import asof
 from shadowfleet.ingest.dma import connect
@@ -32,13 +33,13 @@ TOP_K_PER_CUTOFF = 50
 
 
 def complete(messages: list[dict], schema: dict | None = None, url: str | None = None,
-             timeout: float = 180.0) -> tuple[str, dict]:
+             timeout: float = 180.0, temperature: float = TEMPERATURE) -> tuple[str, dict]:
     """One chat completion. Returns (content, usage). The only function here that touches the network."""
 
     base = (url or config.LLAMA_SERVER_URL).rstrip("/")
     # Thinking off: Gemma 4 and Qwen3 think by default, the thinking eats the token budget, and the answer
     # (content) comes back empty. Server-side `--reasoning off` does the same; this keeps it per request.
-    payload: dict = {"messages": messages, "temperature": TEMPERATURE, "max_tokens": MAX_TOKENS,
+    payload: dict = {"messages": messages, "temperature": temperature, "max_tokens": MAX_TOKENS,
                      "chat_template_kwargs": {"enable_thinking": False}}
     if schema:
         # llama.cpp constrains generation to the schema, which is what makes a retry rare rather than normal
@@ -81,8 +82,9 @@ def run_batch(cutoffs: list[date] | None = None, top_k: int = TOP_K_PER_CUTOFF,
 
     con = connect()
     cutoffs = cutoffs or config.monthly_cutoffs(config.load_window(), date.today())
-    out: dict = {"cutoffs": [], "verified": [], "failed": []}
+    out: dict = {"cutoffs": [], "verified": [], "failed": [], "resumed": 0}
     t0 = time.time()
+    gen_seconds, gen_tokens = 0.0, 0
     for T in cutoffs:
         hulls = _flagged(T, top_k)
         if not hulls:
@@ -96,44 +98,34 @@ def run_batch(cutoffs: list[date] | None = None, top_k: int = TOP_K_PER_CUTOFF,
         for hull in hulls:
             if hull not in features:
                 continue
+            path = d / f"{hull}.json"
+            if path.exists() and (d / f"{hull}.md").exists():
+                # resumable: a run of several hours must survive a crash or a Ctrl+C without redoing work
+                saved = json.loads(path.read_text())
+                out["verified"].append(verify.verify(saved["brief"], saved["bundle"],
+                                                     (d / f"{hull}.md").read_text()))
+                out["resumed"] += 1
+                done += 1
+                continue
             b = bmod.build(hull, T, features[hull], shap.get(hull), con)
+            t = time.time()
             brief, meta = generate(b, completer=completer, url=url)
+            gen_seconds += time.time() - t
+            gen_tokens += int((meta.get("usage") or {}).get("completion_tokens") or 0)
             if brief is None:
                 out["failed"].append({"cutoff": T.isoformat(), "hull_id": hull, **meta})
                 continue
             prose = render(brief, b)
-            (d / f"{hull}.json").write_text(json.dumps({"brief": brief, "bundle": b, "meta": meta},
-                                                       indent=1))
+            path.write_text(json.dumps({"brief": brief, "bundle": b, "meta": meta}, indent=1))
             (d / f"{hull}.md").write_text(prose)
             out["verified"].append(verify.verify(brief, b, prose))
             done += 1
         out["cutoffs"].append({"cutoff": T.isoformat(), "briefs": done, "dir": str(d)})
     out["seconds"] = round(time.time() - t0, 1)
+    out["tokens_per_second"] = round(gen_tokens / gen_seconds, 1) if gen_tokens and gen_seconds else None
+    out["vram"] = vram()  # llama.cpp allocates weights and KV cache at start, so in-use is the peak
     out["faithfulness"] = verify.aggregate(out["verified"])
-    _write_audit_sheet(out["verified"])
+    dirs = [c["dir"] for c in out["cutoffs"] if c.get("briefs")]
+    # three cutoffs spread across the window, one brief each, for Adam to read (paths only: rule 7)
+    out["samples"] = [str(sorted(Path(d).glob("*.md"))[0]) for d in dirs[::max(1, len(dirs) // 3)][:3]]
     return out
-
-
-def _write_audit_sheet(results: list[dict], n: int = 30) -> str | None:
-    """`reports/audit_sheet.csv`: 30 findings for Adam, stratified by whether the verifier passed them.
-
-    Blank human columns on purpose. The judge-versus-human agreement is the credibility number for the whole
-    brief layer (ADR-10), and it means nothing if the sheet arrives pre-filled.
-    """
-    if not results:
-        return None
-    clean = [r for r in results if r["passes"]]
-    dirty = [r for r in results if not r["passes"]]
-    picked = (dirty[: n // 2] + clean[: n - len(dirty[: n // 2])])[:n]
-    out = config.REPORTS_DIR / "audit_sheet.csv"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w", newline="") as f:
-        wr = csv.DictWriter(f, fieldnames=["cutoff", "hull_id", "verifier_passed", "verifier_failures",
-                                           "human_verdict", "error_type", "notes"])
-        wr.writeheader()
-        for r in picked:
-            fails = {k: v for k, v in r.items() if isinstance(v, list) and v}
-            wr.writerow({"cutoff": r["cutoff"], "hull_id": r["hull_id"],
-                         "verifier_passed": r["passes"], "verifier_failures": json.dumps(fails),
-                         "human_verdict": "", "error_type": "", "notes": ""})
-    return str(Path(out))

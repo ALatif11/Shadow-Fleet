@@ -18,6 +18,9 @@ reports/phase2_spotcheck.csv
 # Phase 6 flagged lists carry feature VALUES (n_russian_port_visits=7 is a GFW-derived number). The rendered
 # reports and the forward-test list carry feature names only, so they stay committable.
 reports/flagged_*.csv
+# Briefs quote their evidence bundles (GFW gap positions, port calls), and the audit sheet quotes cited records.
+reports/briefs/
+reports/audit_sheet.csv
 *.zip
 *.part
 # UI console (ADR-18): the bundle carries GFW-derived events (rule 7); the committed sample is synthetic

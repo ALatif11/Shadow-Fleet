@@ -289,23 +289,38 @@ def briefs_cmd(cutoffs: str = typer.Option(None, help="comma-separated YYYY-MM-D
 def judge_cmd(cutoff: str = typer.Option(None, help="YYYY-MM-DD; default = every cutoff with briefs"),
               url: str = typer.Option(None, help="llama.cpp server running the JUDGE model")) -> None:
     """Phase 9: grade every finding with a cross-family judge, then report agreement with the audit sheet."""
-    import json as _json
-
     from shadowfleet.briefs import judge as jd
     from shadowfleet.util import probes, report
 
     logs.setup("judge")
     root = config.REPORTS_DIR / "briefs"
     dirs = [root / cutoff] if cutoff else sorted(d for d in root.glob("*") if d.is_dir())
-    briefs = [_json.loads(f.read_text()) for d in dirs for f in sorted(d.glob("*.json"))]
+    briefs = [json.loads(f.read_text()) for d in dirs for f in sorted(d.glob("*.json"))]
     if not briefs:
         raise SystemExit(f"no briefs under {root}; run `make briefs` first")
-    out = jd.judge_all(briefs, url=url)
-    out["kappa"] = jd.kappa_from_sheet()
+    # the family check runs on what the server is actually serving, not on what config says it should be
+    out = jd.judge_all(briefs, url=url, judge_model=jd.served_model(url))
+    out["audit_sheet"] = jd.write_audit_sheet(out["rows"], briefs)
+    out["kappa"] = jd.kappa_from_sheet(out["rows"])
     probes.write("judge", out)
     _print({k: v for k, v in out.items() if k != "rows"})
     report.write_report("phase9", out)
     typer.echo(f"wrote {config.REPORTS_DIR / 'phase9.md'}", err=True)
+
+
+@app.command("kappa")
+def kappa_cmd() -> None:
+    """Phase 9: judge-versus-human agreement from the filled audit sheet. No GPU, no re-judging."""
+    from shadowfleet.briefs import judge as jd
+    from shadowfleet.util import probes, report
+
+    out = probes.read("judge")
+    if not out:
+        raise SystemExit("no judge results; run `make judge` first")
+    out["kappa"] = jd.kappa_from_sheet(out.get("rows"))
+    probes.write("judge", out)
+    _print(out["kappa"])
+    report.write_report("phase9", out)
 
 
 @app.command("forward-score")

@@ -6,7 +6,7 @@ FULLRES ?= 0
 
 .PHONY: report setup test lint doctor probe probe-dma probe-gfw probe-ofac probe-opensanctions probe-mid \
         window-gate ingest-dma ingest-dma-bg ingest-dma-status ingest-dma-check ingest-day llm-smoke \
-        report-phase0 sync cutoffs phase1 labels identity gfw detect features backtest phase6 briefs judge forward-score forward-eval readme all \
+        report-phase0 sync cutoffs phase1 labels identity gfw detect features backtest phase6 briefs judge kappa forward-score forward-eval readme all \
         ui-schema ui-fixtures ui-export ui-check ui-install ui-dev ui-build test-ui test-all
 
 setup:
@@ -114,6 +114,9 @@ briefs:
 
 judge:
 	$(CLI) judge
+
+kappa:
+	$(CLI) kappa
 
 readme:
 	$(CLI) readme

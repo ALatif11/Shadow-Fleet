@@ -229,7 +229,8 @@ def test_gfw_derived_outputs_are_gitignored():
     import subprocess
 
     for path in ("reports/flagged_2025-03-31.csv", "reports/probes/gfw.json", "data/parquet/x.parquet",
-                 "ui/public/ui_data/bundle.json"):
+                 "ui/public/ui_data/bundle.json", "reports/briefs/2025-03-31/9074729.json",
+                 "reports/audit_sheet.csv"):
         ignored = subprocess.run(["git", "check-ignore", "-q", path], cwd=config.REPO_ROOT).returncode == 0
         assert ignored, f"{path} would be committed"
     # and the deliverables must NOT be ignored
