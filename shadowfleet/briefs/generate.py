@@ -36,7 +36,10 @@ def complete(messages: list[dict], schema: dict | None = None, url: str | None =
     """One chat completion. Returns (content, usage). The only function here that touches the network."""
 
     base = (url or config.LLAMA_SERVER_URL).rstrip("/")
-    payload: dict = {"messages": messages, "temperature": TEMPERATURE, "max_tokens": MAX_TOKENS}
+    # Thinking off: Gemma 4 and Qwen3 think by default, the thinking eats the token budget, and the answer
+    # (content) comes back empty. Server-side `--reasoning off` does the same; this keeps it per request.
+    payload: dict = {"messages": messages, "temperature": TEMPERATURE, "max_tokens": MAX_TOKENS,
+                     "chat_template_kwargs": {"enable_thinking": False}}
     if schema:
         # llama.cpp constrains generation to the schema, which is what makes a retry rare rather than normal
         payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "brief",
