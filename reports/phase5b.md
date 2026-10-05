@@ -45,9 +45,9 @@ PREREG section 3 fixes this table as the headline: precision@50 in the B1 stratu
 | ofac_only | first_seen | `B0_random` | 0.0 | 0.0143 | 0.0 | 0.2367 |
 | ofac_only | first_seen | `B1_russia_port` | 0.02 | 0.0624 | 0.8664 | 0.2333 |
 | ofac_only | first_seen | `B2_weighted` | 0.021 | 0.0854 | 0.7281 | 0.2335 |
-| ofac_only | first_seen | `B3_logistic` | 0.0 | None | None | 0.2616 |
+| ofac_only | first_seen | `B3_logistic` | 0.0 | n/a (no positives) | n/a (no positives) | 0.2616 |
 | ofac_only | first_seen | `ISO_forest` | 0.014 | 0.0738 | 0.6784 | 0.2342 |
-| ofac_only | first_seen | `LGBM` | 0.0 | None | None | 0.2616 |
+| ofac_only | first_seen | `LGBM` | 0.0 | n/a (no positives) | n/a (no positives) | 0.2616 |
 | union | all | `B0_random` | 0.045 | 0.0338 | 0.0261 | 0.0185 |
 | union | all | `B1_russia_port` | 0.147 | 0.1134 | 0.077 | 0.0164 |
 | union | all | `B2_weighted` | 0.207 | 0.1357 | 0.1686 | 0.0153 |

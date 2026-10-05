@@ -583,6 +583,11 @@ def _leakage(p: dict) -> list[str]:
     return head + rows
 
 
+def _m(v) -> str:
+    """A metric cell. None means the stratum had no positives at those cutoffs, so the metric is undefined."""
+    return "n/a (no positives)" if v is None else str(v)
+
+
 def render_phase5b(out: dict | None = None) -> str:
     p = out or probes.read("backtest")
     if not p:
@@ -600,7 +605,7 @@ def render_phase5b(out: dict | None = None) -> str:
     primary = [a for a in agg if a["label_set"] == "union" and a["stratum"] == "b1"]
     lines += ["| model | precision@50 | PR-AUC | recall@50 | cutoffs | of those, with a positive |",
               "|---|---:|---:|---:|---:|---:|"]
-    lines += [f"| `{a['model']}` | **{a['precision_at_50']}** | {a['pr_auc']} | {a['recall_at_50']} | "
+    lines += [f"| `{a['model']}` | **{_m(a['precision_at_50'])}** | {_m(a['pr_auc'])} | {_m(a['recall_at_50'])} | "
               f"{a['cutoffs']} | {a['cutoffs_with_a_positive']} |"
               for a in sorted(primary, key=lambda a: -(a["precision_at_50"] or 0))]
     matched = [a for a in (p.get("aggregate_matched") or []) if a["label_set"] == "union" and a["stratum"] == "b1"]
@@ -610,7 +615,7 @@ def render_phase5b(out: dict | None = None) -> str:
                   "above compares them on harder cutoffs than the baselines. Added Oct 2 2026, after results "
                   "were seen (post-hoc presentation, same numbers).", "",
                   "| model | precision@50 | PR-AUC | recall@50 | cutoffs |", "|---|---:|---:|---:|---:|"]
-        lines += [f"| `{a['model']}` | **{a['precision_at_50']}** | {a['pr_auc']} | {a['recall_at_50']} | "
+        lines += [f"| `{a['model']}` | **{_m(a['precision_at_50'])}** | {_m(a['pr_auc'])} | {_m(a['recall_at_50'])} | "
                   f"{a['cutoffs']} |" for a in sorted(matched, key=lambda a: -(a["precision_at_50"] or 0))]
     lines += ["", "PREREG section 3 fixes this table as the headline: precision@50 in the B1 stratum, union "
               "label. LightGBM is the pre-registered primary model; if a baseline matches or beats it, that "
@@ -618,8 +623,8 @@ def render_phase5b(out: dict | None = None) -> str:
               "## Every arm", "",
               "| label set | stratum | model | precision@50 | PR-AUC | recall@50 | FPR@50 |",
               "|---|---|---|---:|---:|---:|---:|"]
-    lines += [f"| {a['label_set']} | {a['stratum']} | `{a['model']}` | {a['precision_at_50']} | "
-              f"{a['pr_auc']} | {a['recall_at_50']} | {a['fpr_at_50']} |"
+    lines += [f"| {a['label_set']} | {a['stratum']} | `{a['model']}` | {_m(a['precision_at_50'])} | "
+              f"{_m(a['pr_auc'])} | {_m(a['recall_at_50'])} | {_m(a['fpr_at_50'])} |"
               for a in sorted(agg, key=lambda a: (a["label_set"], a["stratum"], a["model"]))]
     lines += ["", f"- Per-cutoff rows: `{p.get('csv')}`.", "", "## Lead time (event study)", "",
               "Weeks between a hull's designation and the earliest cutoff at which it entered the top 50. "

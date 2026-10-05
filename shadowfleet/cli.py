@@ -437,6 +437,15 @@ def llm_smoke(url: str = typer.Option(None)) -> None:
         raise typer.Exit(1)
 
 
+@app.command("report")
+def report_cmd(phase: str = typer.Argument(..., help="e.g. phase5b")) -> None:
+    """Re-render one phase report from its saved probe."""
+    from shadowfleet.util import report
+
+    report.write_report(phase)
+    typer.echo(f"wrote {config.REPORTS_DIR / f'{phase}.md'}")
+
+
 @app.command("report-phase0")
 def report_phase0() -> None:
     """Render reports/phase0.md from probe files."""

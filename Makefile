@@ -4,7 +4,7 @@ CLI = $(PY) -m shadowfleet.cli
 DATE ?=
 FULLRES ?= 0
 
-.PHONY: setup test lint doctor probe probe-dma probe-gfw probe-ofac probe-opensanctions probe-mid \
+.PHONY: report setup test lint doctor probe probe-dma probe-gfw probe-ofac probe-opensanctions probe-mid \
         window-gate ingest-dma ingest-dma-bg ingest-dma-status ingest-dma-check ingest-day llm-smoke \
         report-phase0 sync cutoffs phase1 labels identity gfw detect features backtest phase6 briefs judge forward-score forward-eval readme all \
         ui-schema ui-fixtures ui-export ui-check ui-install ui-dev ui-build test-ui test-all
@@ -72,6 +72,10 @@ llm-smoke:
 
 report-phase0:
 	$(CLI) report-phase0
+
+# make report P=phase5b  (re-render from the saved probe; reruns nothing)
+report:
+	$(CLI) report $(P)
 
 # Pull the latest hand-off bundle from the Windows folder. --ff-only refuses instead of overwriting, which
 # is the point: `git reset --hard` onto a bundle wiped regenerated files twice and once a real commit.
