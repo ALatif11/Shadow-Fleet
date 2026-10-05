@@ -7,6 +7,7 @@ the retry, the schema validation and the verifier all run in CI against a stub.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import logging
 import time
@@ -99,19 +100,22 @@ def run_batch(cutoffs: list[date] | None = None, top_k: int = TOP_K_PER_CUTOFF,
             if hull not in features:
                 continue
             path = d / f"{hull}.json"
-            if path.exists() and (d / f"{hull}.md").exists():
-                # resumable: a run of several hours must survive a crash or a Ctrl+C without redoing work
-                saved = json.loads(path.read_text())
+            b = bmod.build(hull, T, features[hull], shap.get(hull), con)
+            key = hashlib.sha256((SYSTEM_PROMPT + json.dumps(b, sort_keys=True)).encode()).hexdigest()
+            saved = json.loads(path.read_text()) if path.exists() and (d / f"{hull}.md").exists() else None
+            if saved and saved["meta"].get("key") == key:
+                # resumable: a crash or Ctrl+C costs nothing already done. A changed bundle or prompt does
+                # not match the key, so the brief is regenerated rather than verified against stale inputs.
                 out["verified"].append(verify.verify(saved["brief"], saved["bundle"],
                                                      (d / f"{hull}.md").read_text()))
                 out["resumed"] += 1
                 done += 1
                 continue
-            b = bmod.build(hull, T, features[hull], shap.get(hull), con)
             t = time.time()
             brief, meta = generate(b, completer=completer, url=url)
             gen_seconds += time.time() - t
             gen_tokens += int((meta.get("usage") or {}).get("completion_tokens") or 0)
+            meta["key"] = key
             if brief is None:
                 out["failed"].append({"cutoff": T.isoformat(), "hull_id": hull, **meta})
                 continue

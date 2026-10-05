@@ -787,9 +787,30 @@ def render_phase8(out: dict | None = None) -> str:
     if counts:
         lines += ["| failure | briefs |", "|---|---:|"]
         lines += [f"| {k.replace('_', ' ')} | {v} |" for k, v in sorted(counts.items())]
-    lines += ["", "The four checks: every cited evidence id exists; each of the top-5 SHAP drivers has a "
-              "cited record from the family it comes from; every number and date in the prose appears in "
-              "the bundle; every capitalised name in the prose appears in the bundle.", ""]
+    lines += ["", "The four checks: every cited evidence id exists; each of the top-5 SHAP drivers that has "
+              "records in the bundle has a cited record from that family; every number and date in the prose "
+              "appears in the bundle (a number may be rounded to fewer decimals); every capitalised name in "
+              "the prose appears in the bundle (a flag code grounds its country name).", ""]
+    missing = f.get("drivers_without_records") or {}
+    if missing:
+        lines += ["Top drivers with no per-record evidence (stated from the header, so not checkable "
+                  "against a citation): " + ", ".join(f"`{k}` ({v})" for k, v in missing.items()) + ".", ""]
+    lines += ["### Changed after the first run's results were seen", "",
+              "The first full run (650 briefs, Oct 6) had 14 clean briefs (2 percent). Reading the failures "
+              "showed most were the verifier's, and one was the bundle's:", "",
+              "- `(E4)` written in the summary was read as an ungrounded number 4 (the top ungrounded "
+              "\"numbers\" were 1 to 13), and the bundle's own words (Header, Drivers) and flag countries "
+              "(Panama for PAN) as ungrounded names.",
+              "- Coverage mapped every self-built detector feature to STS records, so a draught driver cited "
+              "with its draught record still failed, and it required citations for vessel size and transit "
+              "features that have no records at all.",
+              "- The bundle kept the six most recent GFW events, which were often Gulf port calls, so briefs "
+              "cited a Russian-port-visit driver against UAE and Kuwaiti ports. Russian port calls now come "
+              "first, port name and country are included, and the destinations behind "
+              "`share_russian_destination` are a new evidence family. Driver values are rounded to 2 "
+              "decimals and the prompt asks for ISO dates and `[E#]` citations.",
+              "", "Every brief was regenerated after these changes; the numbers above are the second run's.",
+              ""]
     if p.get("failed"):
         lines += [f"- {len(p['failed'])} briefs failed generation after a retry and were recorded rather "
                   "than faked. First few: "

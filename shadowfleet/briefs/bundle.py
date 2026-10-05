@@ -16,7 +16,7 @@ import duckdb
 
 from shadowfleet import config
 from shadowfleet.detect import churn, draught, loitering, spoof, sts
-from shadowfleet.features.asof import FEATURES
+from shadowfleet.features.asof import FEATURES, russian_destination_sql
 from shadowfleet.ingest.dma import connect
 from shadowfleet.resolve.identity import INTERVALS, hull_at
 from shadowfleet.util.store import glob_table, has_table
@@ -25,7 +25,7 @@ TOP_FEATURES = 8  # phase-prompts Phase 8 task 1
 MAX_RECORDS_PER_FAMILY = 6
 # Least important first: when a bundle is over budget these families lose records before the others do,
 # because a brief that drops a spoof-artefact day is still a brief, one that drops the STS is not.
-TRUNCATION_ORDER = ("spoof", "loitering", "churn", "draught", "sts", "identity")
+TRUNCATION_ORDER = ("spoof", "loitering", "churn", "draught", "destination", "sts", "identity")
 TOKEN_BUDGET = 3000
 CHARS_PER_TOKEN = 4  # crude on purpose; the real check is that the bundle fits the 8k context with room
 
@@ -43,6 +43,10 @@ def _window(T: date) -> tuple[str, str]:
 
 def _iso(v: Any) -> Any:
     return v.isoformat() if hasattr(v, "isoformat") else v
+
+
+def _round(v: Any) -> Any:
+    return round(v, 2) if isinstance(v, float) else v
 
 
 def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None) -> dict[str, list[dict]]:
@@ -107,15 +111,28 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
             WHERE mmsi IN {mine} AND observed_at <= {hi}
             ORDER BY observed_at DESC LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
+    # share_russian_destination is a top driver, so the destinations it was computed from are evidence
+    if has_table("ais_static"):
+        out["destination"] = _rows(con, f"""
+            SELECT 'destination' AS kind, min(observed_at) AS first_at, max(observed_at) AS last_at,
+                   destination, count(*) AS n_messages,
+                   bool_or({russian_destination_sql('destination')}) AS russian
+            FROM read_parquet('{glob_table('ais_static')}', hive_partitioning=true)
+            WHERE mmsi IN {mine} AND destination IS NOT NULL AND observed_at BETWEEN {lo} AND {hi}
+            GROUP BY destination ORDER BY russian DESC, n_messages DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+        """)
     # GFW events belong to the IMO they were fetched for, not to a transmitter: their value is behaviour
     # outside Danish waters, often under MMSIs DMA never saw (Phase 4a). A syn hull has no IMO, so none.
     if has_table("gfw_events") and hull_id.isdigit():
         out["gfw"] = _rows(con, f"""
             SELECT event_type AS kind, observed_at AS at, round(duration_h, 1) AS hours,
-                   round(lat, 2) AS lat, round(lon, 2) AS lon
+                   round(lat, 2) AS lat, round(lon, 2) AS lon, port_name, port_country
             FROM read_parquet('{glob_table('gfw_events')}', hive_partitioning=true)
             WHERE imo = {int(hull_id)} AND observed_at BETWEEN {lo} AND {hi}
-            ORDER BY observed_at DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+            -- Russian port calls first: they are the strongest driver, and the most recent six events
+            -- were often Gulf port calls, so a brief cited a Russian-visit driver against UAE ports
+            ORDER BY coalesce(port_country = 'RUS', false) DESC, observed_at DESC
+            LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     return {k: v for k, v in out.items() if v}
 
@@ -132,13 +149,15 @@ def build(hull_id: str, T: date, feature_row: dict, shap_top: list[dict] | None 
         for rec in records[family]:
             ids[f"E{len(ids) + 1}"] = {"family": family, **{k: _iso(v) for k, v in rec.items()}}
 
-    drivers = [{"feature": d["feature"], "value": d["value"], "contribution": d["contribution"],
+    # rounded: a model shown 11.424947996116973 copies all of it, and no reader needs more than 2 decimals
+    drivers = [{"feature": d["feature"], "value": _round(d["value"]), "contribution": _round(d["contribution"]),
                 "description": FEATURES.get(d["feature"], ("", ""))[1]}
                for d in (shap_top or [])[:TOP_FEATURES]]
     bundle = {
         "hull_id": hull_id, "cutoff": T.isoformat(),
-        "header": {k: _iso(feature_row.get(k)) for k in
-                   ("current_flag", "vessel_age_years", "length_m", "n_days_observed", "n_transits")},
+        "header": {k: _round(_iso(feature_row.get(k))) for k in
+                   ("current_flag", "vessel_age_years", "length_m", "dwt", "n_days_observed",
+                    "n_transits")},
         "drivers": drivers, "evidence": ids,
     }
     # trim least-important families first until the bundle fits; recorded so the brief can say it was cut

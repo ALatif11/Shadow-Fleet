@@ -58,6 +58,9 @@ def test_bundle_carries_real_records_with_ids_and_no_future_dates(store):
     sts_rec = next(r for r in b["evidence"].values() if r["family"] == "sts")
     assert sts_rec["partner_hull"] == IMO_B  # the partner, not the hull itself
     assert round(sts_rec["lat"], 2) == sts_rec["lat"]  # positions rounded, so prose cannot invent digits
+    # the destinations behind share_russian_destination are evidence too, Russian ones flagged
+    dest = next(r for r in b["evidence"].values() if r["family"] == "destination")
+    assert dest["destination"] == "PRIMORSK" and dest["russian"] is True
 
 
 def test_bundle_omits_drivers_rather_than_inventing_them(store):
@@ -136,11 +139,35 @@ def test_an_invented_vessel_name_is_caught():
 def test_an_uncovered_top_driver_is_caught():
     """A brief that never cites the record behind its biggest driver is unsupported, not merely terse."""
     bun = _bundle()
-    bun["evidence"] = {"E1": {"family": "identity", "at": "2025-03-02T04:00:00", "mmsi": 219000111}}
+    bun["evidence"] = {"E1": {"family": "identity", "at": "2025-03-02T04:00:00", "mmsi": 219000111},
+                       "E2": {"family": "sts", "at": "2025-03-02T04:00:00", "hours": 3.2}}
     b = _brief(findings=[{"claim": "The hull reported one identity interval.", "evidence_ids": ["E1"],
                           "severity": "low"}])
     out = verify.verify(b, bun, render(b, bun))
     assert out["uncovered_drivers"] == ["n_sts_candidates"] and not out["passes"]
+
+
+def test_a_driver_with_no_records_in_the_bundle_is_listed_not_failed():
+    """Vessel size has no per-record evidence; a brief cannot cite what the bundle does not contain."""
+    bun = _bundle()
+    bun["drivers"] = [{"feature": "length_m", "value": 274.0, "contribution": 0.4, "description": ""},
+                      {"feature": "n_draught_inconsistencies", "value": 1, "contribution": 0.3,
+                       "description": ""}]
+    bun["evidence"] = {"E1": {"family": "draught", "at": "2024-12-11T13:58:52", "delta_m": 6.0}}
+    b = _brief(findings=[{"claim": "Draught rose by 6.0 m on 2024-12-11.", "evidence_ids": ["E1"],
+                          "severity": "medium"}])
+    out = verify.verify(b, bun, render(b, bun))
+    # the draught driver is backed by the draught record (it used to be mapped to STS and always failed)
+    assert out["uncovered_drivers"] == [] and out["drivers_without_records"] == ["length_m"]
+
+
+def test_citation_ids_country_names_and_bundle_vocabulary_are_not_ungrounded():
+    """The first real run's top "ungrounded" items: 1-13 from `(E4)`, Panama for PAN, the word Header."""
+    bun = _bundle()
+    bun["header"] = {"current_flag": "PAN", "length_m": 274.0}
+    b = _brief(summary="Flagged in Panama, length 274.0 m per the Header; see (E1) for March 2025 activity.")
+    out = verify.verify(b, bun, render(b, bun))
+    assert not out["ungrounded_numbers"] and not out["ungrounded_names"], out
 
 
 def test_rounding_differences_do_not_count_as_invented_numbers():
@@ -247,6 +274,13 @@ def test_run_batch_writes_briefs_and_verifies_every_one(store):
         raise AssertionError("a brief already on disk was regenerated")
     again = gen.run_batch([T], top_k=5, completer=refuse)
     assert again["resumed"] == len(feat) and again["faithfulness"]["briefs"] == len(feat)
+
+    # but a brief built from a different bundle or prompt is stale, and is regenerated rather than resumed
+    stale = json.loads((d / f"{IMO_A}.json").read_text())
+    stale["meta"]["key"] = "old prompt"
+    (d / f"{IMO_A}.json").write_text(json.dumps(stale))
+    third = gen.run_batch([T], top_k=5, completer=_stub(good))
+    assert third["resumed"] == len(feat) - 1
 
 
 def test_phase8_report_states_the_deterministic_half_only(store):

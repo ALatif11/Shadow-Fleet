@@ -52,7 +52,11 @@ Rules you must follow:
 4. Every date, number, duration and position in your text must appear in the bundle.
 5. This is an indicator score, not an accusation. Say what the data shows, not what it proves.
 6. If the evidence is thin, say so in the caveats and set risk_level accordingly. A short honest brief is
-   correct; padding it is not."""
+   correct; padding it is not.
+7. Write dates exactly as the bundle does (YYYY-MM-DD) and copy numbers as given; do not add, subtract or
+   convert them. Cite evidence as [E1] in findings only.
+8. `drivers` are why the scoring model ranked this vessel, not evidence. Describe them as model drivers, and
+   cite the evidence records that back them where the bundle has such records."""
 
 
 def render(brief: dict, bundle: dict) -> str:
