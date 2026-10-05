@@ -48,7 +48,7 @@ def run(url: str | None = None, max_tokens: int = 200) -> dict:
         body = {
             "messages": [{"role": "system", "content": "You write terse, sourced analyst notes."},
                          {"role": "user", "content": PROMPT}],
-            "temperature": 0, "max_tokens": max_tokens,
+            "temperature": 0, "max_tokens": max_tokens, "chat_template_kwargs": {"enable_thinking": False},
             "response_format": {"type": "json_schema", "json_schema": {"name": "smoke", "schema": SCHEMA}},
         }
         t0 = time.monotonic()
@@ -60,8 +60,11 @@ def run(url: str | None = None, max_tokens: int = 200) -> dict:
             out["error"] = r.text[:500]
         else:
             data = r.json()
-            content = data["choices"][0]["message"]["content"]
+            msg = data["choices"][0]["message"]
+            content = msg.get("content") or ""
             out["content"] = content
+            # an empty answer with a full token budget is a thinking model that never stopped thinking
+            out["reasoning_chars"] = len(msg.get("reasoning_content") or "")
             out["usage"] = data.get("usage")
             timings = data.get("timings") or {}
             out["tokens_per_second"] = timings.get("predicted_per_second")

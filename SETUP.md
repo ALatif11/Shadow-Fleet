@@ -81,7 +81,7 @@ hf download <repo> <file>.gguf --local-dir ~/models
 ```
 Run the server in its own tmux window, then the smoke test:
 ```bash
-llama-server -m ~/models/<file>.gguf -ngl 99 -c 8192 --jinja --host 127.0.0.1 --port 8080
+llama-server -m ~/models/<file>.gguf -ngl 99 -c 8192 --jinja --reasoning off --host 127.0.0.1 --port 8080
 # second window:
 cd ~/shadowfleet && make llm-smoke
 ```
