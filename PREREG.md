@@ -158,3 +158,6 @@ Append-only, below, each with a date and whether Phase 5b results had been seen.
   values are kept in `reports/status-2026-09-28.md`. The forward list scored 2026-10-02 came from a model
   built on unrounded features; it stays as committed (its hash is the record of what was scored), and a
   re-score today would not reproduce it bit for bit.
+- **2026-10-06, same issue, second step.** After rounding, two builds of one cutoff still differed in 2 values
+  (a value on a rounding edge, or a tie in `mode`/`arg_max` resolved differently). Feature builds now run
+  DuckDB single-threaded, so every aggregate sees rows in a fixed order. The rounding stays.
