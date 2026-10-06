@@ -816,7 +816,10 @@ def render_phase8(out: dict | None = None) -> str:
               "on purpose: country names the bundle only has as codes beyond the standard name (Turkey, UAE, "
               "Turkish), numbers the model computed rather than copied (hours turned into days), and dates "
               "not in the bundle. Those are the model departing from the evidence, which is what this "
-              "check exists to catch; the judge grades whether they are also wrong.", ""]
+              "check exists to catch; the judge grades whether they are also wrong.", "",
+              "The re-verification run then regenerated 175 briefs it should have resumed: evidence queries "
+              "had ties under LIMIT, so record order (and the bundle hash) changed between runs. Every "
+              "evidence query now ends in a tie-breaker. The numbers above are after that run.", ""]
     if p.get("failed"):
         lines += [f"- {len(p['failed'])} briefs failed generation after a retry and were recorded rather "
                   "than faked. First few: "

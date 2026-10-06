@@ -23,6 +23,8 @@ from shadowfleet.util.store import glob_table, has_table
 
 TOP_FEATURES = 8  # phase-prompts Phase 8 task 1
 MAX_RECORDS_PER_FAMILY = 6
+# Every ORDER BY below ends in a tie-breaker. Without them, ties under LIMIT came back in a different order
+# from one run to the next, the bundle hash changed, and a resume regenerated 175 briefs that had not changed.
 # Least important first: when a bundle is over budget these families lose records before the others do,
 # because a brief that drops a spoof-artefact day is still a brief, one that drops the STS is not.
 TRUNCATION_ORDER = ("spoof", "loitering", "churn", "draught", "destination", "sts", "identity")
@@ -63,7 +65,7 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
             SELECT 'identity_interval' AS kind, "start" AS at, mmsi, name_normalised AS name,
                    callsign, flag_iso3 AS flag
             FROM read_parquet('{(config.PARQUET_DIR / INTERVALS).as_posix()}')
-            WHERE mmsi IN {mine} AND "start" <= {hi} ORDER BY "start" DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+            WHERE mmsi IN {mine} AND "start" <= {hi} ORDER BY "start" DESC, mmsi LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     if has_table(sts.TABLE):
         out["sts"] = _rows(con, f"""
@@ -77,7 +79,7 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
               ON p.mmsi = CASE WHEN s.mmsi_a IN {mine} THEN s.mmsi_b ELSE s.mmsi_a END
             WHERE (s.mmsi_a IN {mine} OR s.mmsi_b IN {mine}) AND p.hull_id <> '{h}'
               AND s.observed_at BETWEEN {lo} AND {hi}
-            ORDER BY s.hours DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+            ORDER BY s.hours DESC, s.observed_at, partner_hull LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     if has_table(loitering.TABLE):
         out["loitering"] = _rows(con, f"""
@@ -85,7 +87,7 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
                    round(lat, 2) AS lat, round(lon, 2) AS lon, modal_nav_status AS nav_status
             FROM read_parquet('{glob_table(loitering.TABLE)}', hive_partitioning=true)
             WHERE mmsi IN {mine} AND observed_at BETWEEN {lo} AND {hi}
-            ORDER BY hours DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+            ORDER BY hours DESC, observed_at LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     if has_table(draught.TABLE):
         out["draught"] = _rows(con, f"""
@@ -93,7 +95,7 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
                    round(delta_m, 1) AS delta_m, moored_between, sts_between
             FROM read_parquet('{glob_table(draught.TABLE)}', hive_partitioning=true)
             WHERE mmsi IN {mine} AND observed_at BETWEEN {lo} AND {hi}
-            ORDER BY abs(delta_m) DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+            ORDER BY abs(delta_m) DESC, observed_at LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     if has_table(spoof.TABLE):
         out["spoof"] = _rows(con, f"""
@@ -102,14 +104,14 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
             FROM read_parquet('{glob_table(spoof.TABLE)}', hive_partitioning=true)
             WHERE mmsi IN {mine} AND day BETWEEN DATE '{T - timedelta(days=config.FEATURE_WINDOW_DAYS)}'
               AND DATE '{T}' AND n_jumps > 0
-            ORDER BY excess DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+            ORDER BY excess DESC, day LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     if has_table(churn.TABLE):
         out["churn"] = _rows(con, f"""
             SELECT 'churn' AS kind, observed_at AS at, kind AS change_kind, old_value, new_value
             FROM read_parquet('{glob_table(churn.TABLE)}', hive_partitioning=true)
             WHERE mmsi IN {mine} AND observed_at <= {hi}
-            ORDER BY observed_at DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+            ORDER BY observed_at DESC, new_value LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     # share_russian_destination is a top driver, so the destinations it was computed from are evidence
     if has_table("ais_static"):
@@ -119,7 +121,7 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
                    bool_or({russian_destination_sql('destination')}) AS russian
             FROM read_parquet('{glob_table('ais_static')}', hive_partitioning=true)
             WHERE mmsi IN {mine} AND destination IS NOT NULL AND observed_at BETWEEN {lo} AND {hi}
-            GROUP BY destination ORDER BY russian DESC, n_messages DESC LIMIT {MAX_RECORDS_PER_FAMILY}
+            GROUP BY destination ORDER BY russian DESC, n_messages DESC, destination LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     # GFW events belong to the IMO they were fetched for, not to a transmitter: their value is behaviour
     # outside Danish waters, often under MMSIs DMA never saw (Phase 4a). A syn hull has no IMO, so none.
@@ -131,7 +133,7 @@ def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None
             WHERE imo = {int(hull_id)} AND observed_at BETWEEN {lo} AND {hi}
             -- Russian port calls first: they are the strongest driver, and the most recent six events
             -- were often Gulf port calls, so a brief cited a Russian-visit driver against UAE ports
-            ORDER BY coalesce(port_country = 'RUS', false) DESC, observed_at DESC
+            ORDER BY coalesce(port_country = 'RUS', false) DESC, observed_at DESC, kind, lat, lon
             LIMIT {MAX_RECORDS_PER_FAMILY}
         """)
     return {k: v for k, v in out.items() if v}
