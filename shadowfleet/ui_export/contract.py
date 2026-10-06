@@ -299,6 +299,9 @@ class Dossier(_Strict):
         ids = [e.id for e in self.events]
         if len(ids) != len(set(ids)):
             raise ValueError("duplicate event ids")
+        starts = [iv.start for iv in self.identity]
+        if starts != sorted(starts):
+            raise ValueError("identity intervals must be in start order (the console reads the last one started)")
         return self
 
 

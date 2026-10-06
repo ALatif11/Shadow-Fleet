@@ -124,6 +124,17 @@ def test_track_shape():
         Track(t=[2, 1], lon=[1.0, 1.0], lat=[1.0, 2.0], sog=[None, None], draught=[None, None])
 
 
+def test_dossier_identity_must_be_in_start_order():
+    """The console reads the last interval started by the as-of date. Sorted by MMSI instead, a reflagged
+    hull (new MMSI sorting before the old one) showed its old name and flag (9297321, Oct 6 2026)."""
+    _, _, ds = fixtures.build("tiny")
+    d = next(d for d in ds if len(d.identity) > 1)
+    raw = json.loads(d.model_dump_json())
+    raw["identity"] = raw["identity"][::-1]
+    with pytest.raises(ValidationError, match="start order"):
+        contract.Dossier.model_validate(raw)
+
+
 def test_cross_check_catches_dossier_mismatch():
     m, ws, ds = fixtures.build("tiny")
     with pytest.raises(bundle.BundleError, match="manifest.vessels"):
