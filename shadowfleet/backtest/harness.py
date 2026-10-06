@@ -208,6 +208,7 @@ def _phase6(T: date, rows: list[dict], y: np.ndarray, scored: dict, extra: dict,
             per_cutoff: list[dict]) -> dict:
     """Ablations, drift, SHAP, flagged list. Only for the primary label set (PREREG section 3)."""
     out: dict = {"cutoff": T.isoformat(), "hormuz_side": drift.hormuz_side(T.isoformat())}
+    out["scores"] = explain.write_scores(T, rows, scored, rules.b1_russia_port(rows))
     train_rows, train_y = extra["train_rows"], extra["train_y"]
 
     if len(train_y) and train_y.sum():
@@ -294,6 +295,7 @@ def lead_time(top_k_by_cutoff: dict[str, dict[date, set[str]]],
             "median_weeks": weeks[len(weeks) // 2] if weeks else None,
             "min_weeks": weeks[0] if weeks else None, "max_weeks": weeks[-1] if weeks else None,
             "examples": sorted(leads, key=lambda x: -x["weeks"])[:5],
+            "by_hull": {x["hull_id"]: x["weeks"] for x in leads},  # the console's per-hull lead time
         }
     return out
 

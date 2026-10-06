@@ -3,7 +3,9 @@ import type { Dossier as D, WatchlistRow } from "../contract";
 import { useConsole } from "../state/store";
 import { Panel } from "./Panel";
 import { eventsAsOf, endOfDay, identityAt } from "../data/asof";
-import { EVENT_LABEL, fmtDate, fmtDateTime, fmtNum, MODEL_LABEL, SOURCE_LABEL } from "../lib/format";
+import { EVENT_LABEL, flagName, fmtDate, fmtDateTime, fmtDay, fmtFeature, fmtNum, MODEL_LABEL, SOURCE_LABEL } from "../lib/format";
+import { useDecode } from "../lib/motion";
+import { EVENT_HELP, GLOSSARY } from "../lib/plain";
 
 export function Dossier({ dossier, row, loading }: { dossier: D | null; row: WatchlistRow | null; loading: boolean }) {
   const s = useConsole();
@@ -11,15 +13,15 @@ export function Dossier({ dossier, row, loading }: { dossier: D | null; row: Wat
 
   if (!s.selected) {
     return (
-      <Panel title="DOSSIER" code="03" className="dossier">
-        <div className="empty">SELECT A HULL FROM THE WATCHLIST</div>
+      <Panel title="Dossier" code="03" help="dossier" className="dossier">
+        <div className="empty">Pick a ship in the watchlist to see its file.</div>
       </Panel>
     );
   }
   if (!dossier) {
     return (
-      <Panel title="DOSSIER" code="03" className="dossier">
-        <div className="empty blink">{loading ? "RETRIEVING DOSSIER…" : "NO DOSSIER FILE FOR THIS HULL"}</div>
+      <Panel title="Dossier" code="03" help="dossier" className="dossier">
+        <div className={`empty ${loading ? "wait" : ""}`}>{loading ? "Opening file…" : "No file for this ship in this bundle."}</div>
       </Panel>
     );
   }
@@ -33,45 +35,50 @@ export function Dossier({ dossier, row, loading }: { dossier: D | null; row: Wat
 
   return (
     <Panel
-      title="DOSSIER"
+      title="Dossier"
       code="03"
+      help="dossier"
       className="dossier"
-      right={<span className="mono">{row ? `RANK ${row.rank} · ${row.score.toFixed(3)}` : "NOT IN TOP LIST"}</span>}
+      right={<span className="mono">{row ? `rank ${row.rank} · score ${row.score.toFixed(3)}` : "not in the top list"}</span>}
     >
       <div className="dos-scroll view-in" key={dossier.hull_id}>
         <div className="dos-id">
-          <div className="dos-name">{ident?.name ?? "UNKNOWN"}</div>
-          <div className="dos-meta mono">
-            <span>{dossier.hull_id}</span>
-            <span>IMO {dossier.imo ?? "—"}</span>
-            <span>MMSI {ident?.mmsi ?? "—"}</span>
-            <span>FLAG {ident?.flag_iso3 ?? "—"}</span>
+          <Name text={ident?.name ?? "UNKNOWN"} />
+          <div className="dos-facts">
+            <span data-tip={GLOSSARY.flag.short}><small>Flag</small>{flagName(ident?.flag_iso3)}</span>
+            <span><small>Type</small>{dossier.header.ship_type ?? "—"}</span>
+            <span data-tip="Length × beam"><small>Size</small>{fmtNum(dossier.header.length_m, 0)} × {fmtNum(dossier.header.beam_m, 0)} m</span>
+            <span data-tip={GLOSSARY.dwt.short}><small>Carries</small>{dossier.header.dwt ? `${Math.round(dossier.header.dwt).toLocaleString("en-GB")} t` : "—"}</span>
+            <span><small>Built</small>{dossier.header.built_year ?? "—"}</span>
           </div>
           <div className="dos-meta mono dim">
-            <span>{dossier.header.ship_type ?? "—"}</span>
-            <span>{fmtNum(dossier.header.length_m, 0)}×{fmtNum(dossier.header.beam_m, 0)} M</span>
-            <span>{dossier.header.dwt ? `${Math.round(dossier.header.dwt / 1000)}K DWT` : "—"}</span>
-            <span>BUILT {dossier.header.built_year ?? "—"}</span>
+            <span data-tip={GLOSSARY.hull_id.long}>{dossier.hull_id}</span>
+            <span data-tip={GLOSSARY.imo.long}>IMO {dossier.imo ?? "—"}</span>
+            <span data-tip={GLOSSARY.mmsi.long}>MMSI {ident?.mmsi ?? "—"}</span>
           </div>
         </div>
 
-        <h4>SCORE HISTORY · {MODEL_LABEL[s.model] ?? s.model}</h4>
+        <h4>
+          Rank, month by month <small>{MODEL_LABEL[s.model] ?? s.model}</small>
+        </h4>
+        <p className="hint-line">Higher is more suspicious. Above the dashed line, an analyst reviewing the top 50 would have seen it.</p>
         <RankSpark points={scores} cutoff={s.cutoff} designation={s.hindsight ? dossier.sanctions[0]?.date ?? null : null} />
 
         {row && (
           <>
-            <h4>WHY FLAGGED <small>contributions at {s.cutoff}</small></h4>
+            <h4 data-tip={GLOSSARY.driver.long}>Why it was flagged <small>biggest reasons first</small></h4>
+            <p className="hint-line legend-line"><span className="pos">▮</span> raised the score <span className="neg">▮</span> lowered it</p>
             <div className="drivers">
-              {row.drivers.map((d) => {
+              {row.drivers.map((d, i) => {
                 const f = features.get(d.feature);
                 const w = (Math.abs(d.contribution) / maxAbs) * 50;
                 return (
-                  <div className="driver" key={d.feature} title={f?.description}>
+                  <div className="driver" key={`${dossier.hull_id}|${s.cutoff}|${d.feature}`} style={{ ["--i" as string]: i }}>
                     <span className="dname">
-                      {d.feature}
-                      <small>{f ? `${f.family} · ${SOURCE_LABEL[f.source] ?? f.source}` : "unregistered"}</small>
+                      <b>{f?.description ?? d.feature}</b>
+                      {s.explain && <small>{f ? `${d.feature} · ${SOURCE_LABEL[f.source] ?? f.source}` : d.feature}</small>}
                     </span>
-                    <span className="dval mono">{fmtNum(d.value)}</span>
+                    <span className="dval mono">{fmtFeature(d.feature, d.value)}</span>
                     <span className="dbar">
                       <i className={d.contribution >= 0 ? "pos" : "neg"} style={d.contribution >= 0 ? { left: "50%", width: `${w}%` } : { right: "50%", width: `${w}%` }} />
                     </span>
@@ -82,7 +89,8 @@ export function Dossier({ dossier, row, loading }: { dossier: D | null; row: Wat
           </>
         )}
 
-        <h4>IDENTITY <small>{knownIdentity.length} interval{knownIdentity.length === 1 ? "" : "s"} known</small></h4>
+        <h4>Names and flags it has used <small>{knownIdentity.length} known</small></h4>
+        {s.explain && <p className="hint-line">{GLOSSARY.hull_id.long}</p>}
         <div className="identity">
           {knownIdentity.map((iv, i) => (
             <div key={i} className={`iv ${iv === ident ? "cur" : ""}`}>
@@ -96,7 +104,7 @@ export function Dossier({ dossier, row, loading }: { dossier: D | null; row: Wat
 
         {s.hindsight && dossier.sanctions.length > 0 && (
           <>
-            <h4 className="amber">DESIGNATIONS <small>hindsight</small></h4>
+            <h4 className="amber">Sanctions designations <small>hindsight</small></h4>
             <div className="identity">
               {dossier.sanctions.map((a, i) => (
                 <div key={i} className={`iv sanction ${endOfDay(a.date) <= cutoffEnd ? "" : "future"}`}>
@@ -110,14 +118,16 @@ export function Dossier({ dossier, row, loading }: { dossier: D | null; row: Wat
           </>
         )}
 
-        <h4>EVENT LOG <small>{events.length} known as of {fmtDate(s.asOf)}</small></h4>
+        <h4>What happened <small>{events.length} known by {fmtDay(s.asOf)}</small></h4>
+        <p className="hint-line">Newest first. Click one to fly the map to it.</p>
         <div className="events">
-          {events.length === 0 && <div className="empty small">NOTHING OBSERVED YET</div>}
+          {events.length === 0 && <div className="empty small">Nothing had been observed by this date.</div>}
           {events.slice(0, 200).map((e) => (
             <button
               key={e.id}
               className={`ev ${s.focusEvent === e.id ? "on" : ""}`}
               style={{ ["--c" as string]: `var(--ev-${e.type})` }}
+              data-tip={EVENT_HELP[e.type]}
               onClick={() => s.focus(e.id, e.lon, e.lat)}
             >
               <i />
@@ -159,4 +169,9 @@ function RankSpark({ points, cutoff, designation }: { points: D["scores"]; cutof
       <text className="lbl" x={4} y={H - 3}>{maxRank}+</text>
     </svg>
   );
+}
+
+function Name({ text }: { text: string }) {
+  const shown = useDecode(text);
+  return <div className="dos-name" aria-label={text}><span aria-hidden="true">{shown}</span></div>;
 }

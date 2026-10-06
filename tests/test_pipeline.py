@@ -101,6 +101,37 @@ def test_every_phase_runs_in_order_and_hands_the_next_one_what_it_expects(ingest
     assert (config.REPORTS_DIR / "phase6.md").exists()
     assert (config.REPORTS_DIR / "metrics_by_cutoff.csv").exists()
 
+    # Phase C: the console bundle is built from exactly those outputs and passes the contract's checks
+    from shadowfleet.ui_export import bundle as ubundle
+    from shadowfleet.ui_export import export
+
+    config.WINDOW_FILE.parent.mkdir(parents=True, exist_ok=True)
+    config.WINDOW_FILE.write_text(json.dumps({"start": DAY.date().isoformat(), "end": T.isoformat()}))
+    from shadowfleet.ingest import gfw
+    from tests.test_gfw_events import GAP, PORT_NAMELESS
+    gfw_rows = [gfw.flatten(e, int(IMOS[0])) for e in (GAP, PORT_NAMELESS)]
+    gfw.write({"vessel_map": [], "events": gfw_rows, "misses": [], "datasets": [], "client_stats": {}})
+    ui_dir = config.REPORTS_DIR.parent / "ui_data"
+    written = export.export_live(ui_dir, con)
+    manifest, watchlists, dossiers = ubundle.read_bundle(ui_dir)
+    assert manifest.origin == "live" and written["watchlists"] == len(watchlists) >= 1
+    assert "lightgbm" not in {w.model for w in watchlists}, "no closed horizon yet, so no supervised list"
+    alpha = next(d for d in dossiers if d.hull_id == IMOS[0])
+    assert alpha.track.t and {e.type for e in alpha.events} >= {"sts_candidate", "draught_inconsistency"}
+    gfw_ev = {e.type: e for e in alpha.events if e.source == "gfw"}
+    assert {k: v.observed_at.replace(tzinfo=None) for k, v in gfw_ev.items()} == {
+        r["event_type"]: r["observed_at"] for r in gfw_rows}, "observed_at reaches the console unshifted"
+    sts_ev = next(e for e in alpha.events if e.type == "sts_candidate")
+    assert sts_ev.partner_hull_id == IMOS[1], "the STS partner is named as the hull it is"
+    assert alpha.sanctions and alpha.sanctions[0].authority == "OFAC"
+    row_ = next(r for w in watchlists for r in w.rows if r.hull_id == IMOS[0])
+    assert row_.outcome.designation_date == (DAY + timedelta(days=DAYS)).date()
+    metrics_csv = {(r["model"], r["stratum"]): r for r in csv.DictReader(
+        (config.REPORTS_DIR / "metrics_by_cutoff.csv").read_text().splitlines()) if r["label_set"] == "union"}
+    w = next(w for w in watchlists if w.model == "b2_rules")
+    copied = next(m for m in w.metrics if m.stratum == "all")
+    assert copied.pr_auc == float(metrics_csv[("B2_weighted", "all")]["pr_auc"]), "metrics are copied (rule 4)"
+
     # PREREG section 10: a failing leakage test blocks every metric, and removes the last run's CSV
     from shadowfleet.backtest import leakage
     real = leakage.run_all

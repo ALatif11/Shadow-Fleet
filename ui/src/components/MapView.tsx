@@ -1,28 +1,46 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DeckGL from "@deck.gl/react";
-import { FlyToInterpolator, type MapViewState, type PickingInfo } from "@deck.gl/core";
+import { FlyToInterpolator, WebMercatorViewport, type MapViewState, type PickingInfo } from "@deck.gl/core";
 import { GeoJsonLayer, PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from "@deck.gl/layers";
 import type { FeatureCollection } from "geojson";
 import type { Dossier, Event, EventType } from "../contract";
 import { useConsole } from "../state/store";
-import { featureWindow, isKnown, segments, trackCount, type Segment } from "../data/asof";
+import { boundsOf, crossedEvents, featureWindow, isKnown, nextFixTime, positionAt, segments, type Fix, type Segment } from "../data/asof";
 import { rgba } from "../lib/colors";
 import { EVENT_LABEL, EVENT_TYPES, fmtDateTime, SOURCE_LABEL } from "../lib/format";
+import { EVENT_HELP } from "../lib/plain";
 import { Panel } from "./Panel";
 
 const HOME: MapViewState = { longitude: 11.2, latitude: 56.3, zoom: 5.4, pitch: 0, bearing: 0 };
 
-function useLand() {
-  const [land, setLand] = useState<FeatureCollection | null>(null);
+/**
+ * Natural Earth land (public domain), bundled via world-atlas: no tile server, works offline.
+ * 50m is loaded first and used while zoomed out; 10m (5x the geometry, 3 MB) is fetched only when the
+ * view is close enough for the extra coastline detail to be visible. Both are cached after first use.
+ */
+const DETAIL_ZOOM = 7;
+const landCache = new Map<string, FeatureCollection>();
+
+function useLand(zoom: number): FeatureCollection | null {
+  const want = zoom >= DETAIL_ZOOM ? "10m" : "50m";
+  const [, bump] = useState(0);
   useEffect(() => {
-    // Natural Earth 1:10m land (public domain), bundled via world-atlas; no tile server, works offline.
-    Promise.all([import("world-atlas/land-10m.json"), import("topojson-client")]).then(([topo, tc]) => {
+    if (landCache.has(want)) return;
+    let live = true;
+    Promise.all([
+      want === "10m" ? import("world-atlas/land-10m.json") : import("world-atlas/land-50m.json"),
+      import("topojson-client"),
+    ]).then(([topo, tc]) => {
       const t = (topo as { default: unknown }).default as Parameters<typeof tc.feature>[0];
       const obj = (t as unknown as { objects: { land: Parameters<typeof tc.feature>[1] } }).objects.land;
-      setLand(tc.feature(t, obj) as unknown as FeatureCollection);
+      landCache.set(want, tc.feature(t, obj) as unknown as FeatureCollection);
+      if (live) bump((n) => n + 1);
     });
-  }, []);
-  return land;
+    return () => {
+      live = false;
+    };
+  }, [want]);
+  return landCache.get(want) ?? landCache.get("50m") ?? null;
 }
 
 const GRATICULE: [number, number][][] = (() => {
@@ -32,49 +50,79 @@ const GRATICULE: [number, number][][] = (() => {
   return lines;
 })();
 
-const reducedMotion = () => typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-/** Clock for the pulsing rings, ~30 fps; frozen when the OS asks for reduced motion. */
-function usePulse(active: boolean) {
-  const [t, setT] = useState(0);
-  useEffect(() => {
-    if (!active || reducedMotion()) return;
-    let raf = 0;
-    let last = 0;
-    const tick = (now: number) => {
-      if (now - last > 33) {
-        last = now;
-        setT(now / 1000);
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [active]);
-  return t;
-}
-
 interface Split {
   past: Segment[];
   future: Segment[];
-  head: [number, number] | null;
-  headSog: number | null;
 }
 
-function splitTrack(d: Dossier | null, asOf: number, hindsight: boolean): Split {
-  if (!d || d.track.t.length === 0) return { past: [], future: [], head: null, headSog: null };
-  const n = trackCount(d.track, asOf);
-  const past = segments(d.track, 0, n);
-  const future = hindsight ? segments(d.track, Math.max(0, n - 1), d.track.t.length) : [];
-  const head: [number, number] | null = n > 0 ? [d.track.lon[n - 1], d.track.lat[n - 1]] : null;
-  return { past, future, head, headSog: n > 0 ? d.track.sog[n - 1] : null };
+/**
+ * Segmenting a 5,000-point track on every playback frame was the expensive part. The whole track is cut
+ * into passages once per hull; each frame only clips the passage the ship is currently inside.
+ */
+function useSegments(d: Dossier | null) {
+  return useMemo(() => (d ? segments(d.track, 0, d.track.t.length) : []), [d]);
+}
+
+function clip(all: Segment[], d: Dossier | null, asOf: number, hindsight: boolean): Split {
+  if (!d || all.length === 0) return { past: [], future: [] };
+  const cut = asOf;
+  const past: Segment[] = [];
+  const future: Segment[] = [];
+  for (const seg of all) {
+    if (seg.t1 <= cut) past.push(seg);
+    else if (seg.t0 > cut) {
+      if (hindsight) future.push(seg);
+    } else {
+      // The ship is inside this passage: split it at the playhead.
+      const n = Math.max(2, Math.round((seg.path.length * (cut - seg.t0)) / Math.max(1, seg.t1 - seg.t0)));
+      past.push({ path: seg.path.slice(0, n), t0: seg.t0, t1: cut });
+      if (hindsight) future.push({ path: seg.path.slice(n - 1), t0: cut, t1: seg.t1 });
+    }
+  }
+  return { past, future };
+}
+
+/** Events that crossed the playhead recently, for the expanding ring and the ticker. */
+interface Ping {
+  event: Event;
+  at: number;
+}
+const PING_MS = 1600;
+const pingProgress = (p: Ping, lag: number) => Math.min(1, Math.max(0, (performance.now() - p.at) / PING_MS - lag) / (1 - lag));
+const pingEase = (p: Ping, lag: number) => 1 - (1 - pingProgress(p, lag)) ** 3;
+
+function usePings(dossier: Dossier | null, asOf: number) {
+  const [pings, setPings] = useState<Ping[]>([]);
+  const prev = useRef(asOf);
+  const hull = dossier?.hull_id;
+  useEffect(() => {
+    setPings([]);
+    prev.current = asOf;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hull]);
+  useEffect(() => {
+    const from = prev.current;
+    prev.current = asOf;
+    if (!dossier || asOf <= from) return;
+    const fresh = crossedEvents(dossier.events, from, asOf);
+    if (fresh.length === 0) return;
+    const now = performance.now();
+    setPings((cur) => [...cur.filter((p) => now - p.at < PING_MS), ...fresh.map((event) => ({ event, at: now }))]);
+    const id = setTimeout(() => setPings((cur) => cur.filter((p) => performance.now() - p.at < PING_MS)), PING_MS + 60);
+    return () => clearTimeout(id);
+  }, [asOf, dossier]);
+  return pings;
+}
+
+function eventsAll(d: Dossier, asOf: number, hindsight: boolean): Event[] {
+  return d.events.filter((e) => e.lat != null && e.lon != null && (hindsight || isKnown(e, asOf)));
 }
 
 export function MapView({ dossier }: { dossier: Dossier | null }) {
   const s = useConsole();
-  const land = useLand();
   const [view, setView] = useState<MapViewState>(HOME);
-  const pulse = usePulse(!!dossier);
+  const canvas = useRef<HTMLDivElement>(null);
+  const land = useLand(view.zoom);
 
   useEffect(() => {
     if (!s.fly) return;
@@ -88,8 +136,23 @@ export function MapView({ dossier }: { dossier: Dossier | null }) {
     }));
   }, [s.fly]);
 
-  const track = useMemo(() => splitTrack(dossier, s.asOf, s.hindsight), [dossier, s.asOf, s.hindsight]);
+  const allSegments = useSegments(dossier);
+  const track = useMemo(() => clip(allSegments, dossier, s.asOf, s.hindsight), [allSegments, dossier, s.asOf, s.hindsight]);
+  const fix: Fix | null = useMemo(() => (dossier ? positionAt(dossier.track, s.asOf) : null), [dossier, s.asOf]);
+  const pings = usePings(dossier, s.asOf);
+
+  // Tell the clock when the ship is next seen, so playback can skip coverage gaps.
+  const setNextFix = s.setNextFix;
+  useEffect(() => {
+    setNextFix(dossier && (!fix || fix.stale) ? nextFixTime(dossier.track, s.asOf) : null);
+  }, [dossier, fix, s.asOf, setNextFix]);
   const [fwLo] = useMemo(() => featureWindow(s.cutoff), [s.cutoff]);
+
+  // Keep the ship in view during playback. No transition: the fixes are dense enough to read as motion.
+  useEffect(() => {
+    if (!s.playing || !s.follow || !fix || fix.stale) return;
+    setView((v) => ({ ...v, longitude: fix.lon, latitude: fix.lat, transitionDuration: 0 }));
+  }, [fix, s.playing, s.follow]);
 
   const events = useMemo(() => {
     if (!dossier) return { known: [] as Event[], future: [] as Event[] };
@@ -103,13 +166,21 @@ export function MapView({ dossier }: { dossier: Dossier | null }) {
   const overlays = s.manifest?.overlays ?? [];
   const focused = dossier?.events.find((e) => e.id === s.focusEvent) ?? null;
   const evColor = (t: EventType, a: number) => rgba(`--ev-${t}`, a);
-  const wave = (pulse * 0.8) % 1;
 
-  const layers = [
+  // Basemap: heavy and never changes. Built once, so panning does not rebuild the land geometry.
+  const baseLayers = useMemo(() => [
     new PathLayer({ id: "graticule", data: GRATICULE, getPath: (d) => d, getColor: rgba("--map-graticule", 18), widthMinPixels: 1 }),
-    land && new GeoJsonLayer({ id: "land", data: land, filled: true, stroked: false, getFillColor: rgba("--map-land") }),
-    land && new GeoJsonLayer({ id: "land-glow", data: land, filled: false, stroked: true, getLineColor: rgba("--map-land-edge", 26), lineWidthMinPixels: 4 }),
-    land && new GeoJsonLayer({ id: "land-edge", data: land, filled: false, stroked: true, getLineColor: rgba("--map-land-edge", 200), lineWidthMinPixels: 1 }),
+    // One pass over the coastline, not three: Natural Earth 10m is ~3 MB of geometry and this layer is
+    // redrawn on every pan frame. ponytail: if it still drags on a weak GPU, drop to world-atlas land-50m.
+    land && new GeoJsonLayer({
+      id: "land",
+      data: land,
+      filled: true,
+      stroked: true,
+      getFillColor: rgba("--map-land"),
+      getLineColor: rgba("--map-land-edge", 200),
+      lineWidthMinPixels: 1,
+    }),
     new PolygonLayer({
       id: "overlay-box",
       data: overlays.filter((o) => o.bbox),
@@ -146,6 +217,10 @@ export function MapView({ dossier }: { dossier: Dossier | null }) {
       fontFamily: "JetBrains Mono, monospace",
       characterSet: "auto",
     }),
+  ], [land, overlays]);
+
+  const layers = [
+    ...baseLayers,
     new PathLayer<Segment>({
       id: "track-future",
       data: track.future,
@@ -210,65 +285,118 @@ export function MapView({ dossier }: { dossier: Dossier | null }) {
       id: "focus-ring",
       data: [focused],
       getPosition: (e: Event) => [e.lon!, e.lat!],
-      getRadius: 10 + 18 * wave,
+      getRadius: 13,
       radiusUnits: "pixels",
       filled: false,
       stroked: true,
-      getLineColor: evColor(focused.type, 150 * (1 - wave)),
+      getLineColor: evColor(focused.type, 220),
       lineWidthMinPixels: 1.5,
-      updateTriggers: { getRadius: wave, getLineColor: wave },
     }),
-    track.head && new ScatterplotLayer({
+    fix && new ScatterplotLayer({
       id: "head-ring",
-      data: [0, 0.5],
-      getPosition: () => track.head!,
-      getRadius: (k: number) => 8 + 26 * ((wave + k) % 1),
+      data: [10, 17],
+      getPosition: () => [fix.lon, fix.lat],
+      getRadius: (r: number) => r,
       radiusUnits: "pixels",
       filled: false,
       stroked: true,
-      getLineColor: (k: number) => rgba("--map-track", 150 * (1 - ((wave + k) % 1))),
-      lineWidthMinPixels: 1.2,
-      updateTriggers: { getRadius: wave, getLineColor: wave },
+      getLineColor: (r: number) => rgba("--map-track", r > 12 ? 70 : 150),
+      lineWidthMinPixels: 1,
+      updateTriggers: { getPosition: [fix.lon, fix.lat] },
     }),
-    track.head && new ScatterplotLayer({
+    fix && new ScatterplotLayer({
       id: "head",
-      data: [track.head],
-      getPosition: (p: [number, number]) => p,
+      data: [fix],
+      getPosition: (f: Fix) => [f.lon, f.lat],
       getRadius: 5,
       radiusUnits: "pixels",
-      getFillColor: rgba("--ink"),
+      getFillColor: fix.stale ? rgba("--map-track-old") : rgba("--ink"),
       stroked: true,
       getLineColor: rgba("--map-track"),
       lineWidthMinPixels: 2,
     }),
+    // Incidents announce themselves as the clock passes them.
+    // Two rings per incident, the second a beat behind, each fast out and slow to settle (ease-out cubic).
+    pings.length > 0 && new ScatterplotLayer<[Ping, number]>({
+      id: "pings",
+      data: pings.filter((p) => p.event.lon != null).flatMap((p) => [[p, 0], [p, 0.22]] as [Ping, number][]),
+      getPosition: ([p]) => [p.event.lon!, p.event.lat!],
+      getRadius: ([p, lag]) => 6 + 46 * pingEase(p, lag),
+      radiusUnits: "pixels",
+      filled: false,
+      stroked: true,
+      getLineColor: ([p, lag]) => evColor(p.event.type, 255 * (1 - pingProgress(p, lag)) * (lag ? 0.6 : 1)),
+      lineWidthMinPixels: 2,
+      updateTriggers: { getRadius: s.asOf, getLineColor: s.asOf },
+    }),
   ];
 
-  const fitAll = () => {
-    if (!dossier) return;
-    const lons = [...dossier.events.map((e) => e.lon ?? NaN), ...dossier.track.lon].filter(Number.isFinite);
-    const lats = [...dossier.events.map((e) => e.lat ?? NaN), ...dossier.track.lat].filter(Number.isFinite);
-    if (!lons.length) return;
-    const span = Math.max(Math.max(...lons) - Math.min(...lons), (Math.max(...lats) - Math.min(...lats)) * 1.6, 1);
-    s.flyTo((Math.max(...lons) + Math.min(...lons)) / 2, (Math.max(...lats) + Math.min(...lats)) / 2, Math.max(1.5, Math.log2(360 / span) + 0.2));
+  /** Frame a set of points in the actual canvas, rather than guessing a zoom from a longitude span. */
+  const fitTo = (pts: [number, number][]) => {
+    const box = canvas.current?.getBoundingClientRect();
+    const bounds = boundsOf(pts);
+    if (!box || !bounds) return;
+    const fitted = new WebMercatorViewport({ width: box.width, height: box.height }).fitBounds(bounds, { padding: 48 });
+    s.flyTo(fitted.longitude, fitted.latitude, Math.min(fitted.zoom, 11));
   };
+
+  /** "Fit this ship" means where the ship is, i.e. its track. Its GFW events are global and would frame Europe. */
+  const fitShip = () => {
+    if (!dossier) return;
+    const n = dossier.track.t.length;
+    const visible = track.past.flatMap((seg) => seg.path);
+    const all: [number, number][] = Array.from({ length: n }, (_, i) => [dossier.track.lon[i], dossier.track.lat[i]]);
+    const pts = visible.length ? visible : all;
+    if (pts.length) fitTo(pts);
+    else fitTo(dossier.events.filter((e) => e.lon != null).map((e) => [e.lon!, e.lat!] as [number, number]));
+  };
+
+  /** Everything known about the hull, worldwide: gaps, encounters, port calls. */
+  const fitWorld = () => {
+    if (!dossier) return;
+    const evs = eventsAll(dossier, s.asOf, s.hindsight).map((e) => [e.lon!, e.lat!] as [number, number]);
+    const trk = track.past.flatMap((seg) => seg.path);
+    fitTo([...evs, ...trk]);
+  };
+
+  // A new ship means a new place: frame it. Keyed on the hull so scrubbing never moves the camera.
+  const hull = dossier?.hull_id;
+  useEffect(() => {
+    if (hull) fitShip();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hull]);
+
+  // The key starts closed on small screens, where it would cover most of the map.
+  const [keyOpen, setKeyOpen] = useState(() => !matchMedia("(max-width: 1150px)").matches);
+  const hidden = s.hiddenTypes.size;
 
   return (
     <Panel
-      title="TACTICAL PLOT"
+      title="Map"
       code="02"
+      help="map"
       className="map"
       right={
         <span className="map-tools">
-          <button onClick={() => s.flyTo(HOME.longitude, HOME.latitude, HOME.zoom)}>STRAITS</button>
-          <button onClick={fitAll} disabled={!dossier}>FIT HULL</button>
+          <button onClick={() => s.flyTo(HOME.longitude, HOME.latitude, HOME.zoom)} data-tip="Back to the Danish straits, where the tracks come from">Straits</button>
+          <button onClick={fitShip} disabled={!dossier} data-tip="Frame this ship's track in Danish waters">Fit ship</button>
+          <button onClick={fitWorld} disabled={!dossier} data-tip="Also include its worldwide events: port calls, gaps, meetings at sea">Fit all</button>
+          <button
+            className={s.follow ? "on" : ""}
+            aria-pressed={s.follow}
+            onClick={() => s.setFollow(!s.follow)}
+            data-tip="Keep the ship centred while playback runs"
+          >
+            Follow
+          </button>
         </span>
       }
     >
-      <div className="map-canvas">
+      <div className="map-canvas" ref={canvas}>
         <DeckGL
           viewState={view}
           onViewStateChange={({ viewState }) => setView(viewState as MapViewState)}
-          controller={{ dragRotate: false, touchRotate: false }}
+          controller={{ dragRotate: false, touchRotate: false, inertia: 300, scrollZoom: { speed: 0.012, smooth: true } }}
           layers={layers.filter(Boolean)}
           getCursor={({ isHovering }) => (isHovering ? "pointer" : "crosshair")}
           getTooltip={({ object, layer }: PickingInfo) =>
@@ -285,25 +413,40 @@ export function MapView({ dossier }: { dossier: Dossier | null }) {
           <div>ZOOM {view.zoom.toFixed(1)}</div>
         </div>
         <div className="map-hud bl">
-          {EVENT_TYPES.map((t) => (
-            <button key={t} className={`legend ${s.hiddenTypes.has(t) ? "off" : ""}`} style={{ ["--c" as string]: `var(--ev-${t})` }} onClick={() => s.toggleType(t)}>
-              <i />
-              {EVENT_LABEL[t]}
-            </button>
-          ))}
+          <button className="legend key-toggle" aria-expanded={keyOpen} onClick={() => setKeyOpen(!keyOpen)} data-tip="Colour key. Click a type to hide it on the map and in the timeline.">
+            {keyOpen ? "▾" : "▸"} Event key{hidden ? ` · ${hidden} hidden` : ""}
+          </button>
+          {keyOpen && (
+            <div className="key-list view-in">
+              {EVENT_TYPES.map((t) => (
+                <button key={t} className={`legend ${s.hiddenTypes.has(t) ? "off" : ""}`} aria-pressed={!s.hiddenTypes.has(t)}
+                  style={{ ["--c" as string]: `var(--ev-${t})` }} onClick={() => s.toggleType(t)} data-tip={EVENT_HELP[t]}>
+                  <i />
+                  {EVENT_LABEL[t]}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="map-hud br mono">
-          {track.head ? (
+          {fix ? (
             <>
               <div>
-                LAST FIX {track.head[1].toFixed(3)}N {track.head[0].toFixed(3)}E
+                {fix.stale ? "last seen" : "position"} {fix.lat.toFixed(3)}N {fix.lon.toFixed(3)}E
               </div>
-              <div>SOG {track.headSog ?? "—"} KN · {track.past.length} TRANSIT SEG</div>
+              <div>
+                {fix.stale ? "outside Danish coverage" : `speed ${fix.sog ?? "—"} kn`} · {track.past.length} passages
+              </div>
             </>
           ) : (
-            <div>{dossier ? "NO DMA FIX BEFORE AS-OF" : "NO HULL SELECTED"}</div>
+            <div>{dossier ? "no position yet at this date" : "no ship selected"}</div>
           )}
-          <div className="dim">FEATURE WINDOW TRACK BRIGHT · OLDER DIM{s.hindsight ? " · FUTURE AMBER" : ""}</div>
+          {pings.slice(-3).map((p) => (
+            <div key={p.event.id + p.at} className="ping-line" style={{ ["--c" as string]: `var(--ev-${p.event.type})` }}>
+              ▸ {EVENT_LABEL[p.event.type]} · {p.event.summary.slice(0, 44)}
+            </div>
+          ))}
+          <div className="dim">bright track = scored window · dim = older{s.hindsight ? " · tan = after the cutoff" : ""}</div>
         </div>
         <div className="vignette" />
       </div>
