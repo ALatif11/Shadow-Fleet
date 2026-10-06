@@ -89,6 +89,9 @@ def test_every_phase_runs_in_order_and_hands_the_next_one_what_it_expects(ingest
     # Phase 5a: the feature store sees every detector's table
     rows = asof.features(T, con)
     assert rows and set(rows[0]) == {"hull_id", "cutoff", *asof.FEATURES}
+    # rounded, so DuckDB's thread-order float noise cannot reach LightGBM (it trained a new model each rerun)
+    assert all(v == round(v, asof.FEATURE_DECIMALS) for r in rows for v in r.values() if isinstance(v, float))
+    assert any(isinstance(v, float) for r in rows for v in r.values()), "the check above must see floats"
     alpha = next(r for r in rows if r["hull_id"] == IMOS[0])
     assert alpha["n_sts_candidates"] > 0, "Phase 4b's STS table must reach the Phase 5a feature row"
     assert alpha["n_draught_inconsistencies"] + alpha["n_sts_with_draught_change"] > 0

@@ -149,3 +149,12 @@ Append-only, below, each with a date and whether Phase 5b results had been seen.
   forward list scored 2026-10-01 came out as 50 identical scores. That list is kept, hash intact, and
   reported; the primary forward test is a second list scored 2026-10-02 (declared in
   `reports/forward/README.md` before it was scored). Phase 6 is re-run with the fix and both runs are kept.
+- **2026-10-06, AFTER results had been seen. Reproducibility fix, not a design change; reported.** A Phase 6
+  re-run reproduced every model to four decimals except LightGBM (B1 precision@50 0.1815 committed Oct 4,
+  0.1908 on Oct 6, same code and data). Cause, measured: DuckDB sums floats across threads in no fixed order,
+  so two feature builds of the same cutoff differed in 2,096 of its values at the 14th significant digit, and
+  LightGBM, which bins on exact values, trained a different model each time. Feature values are now rounded
+  to 6 decimals. The LightGBM numbers reported from here on are the first run after this fix; both earlier
+  values are kept in `reports/status-2026-09-28.md`. The forward list scored 2026-10-02 came from a model
+  built on unrounded features; it stays as committed (its hash is the record of what was scored), and a
+  re-score today would not reproduce it bit for bit.

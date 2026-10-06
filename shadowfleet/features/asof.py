@@ -306,6 +306,9 @@ def _static(T: date, con: duckdb.DuckDBPyConnection) -> dict[str, dict]:
     """).fetchall()}
 
 
+FEATURE_DECIMALS = 6
+
+
 def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict]:
     """One row per hull in the population at T, every column in FEATURES."""
     con = con or connect()
@@ -319,7 +322,12 @@ def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict
         for name in FEATURES:
             if name not in row:
                 row[name] = None if name in NULLABLE else 0
-        rows.append({k: row[k] for k in ["hull_id", "cutoff", *FEATURES]})
+        # Rounded so a re-run gives the same numbers: DuckDB sums floats across threads in no fixed order,
+        # so averages differed in the 14th digit between runs (2,096 of a cutoff's values on Oct 6 2026), and
+        # LightGBM, which bins on exact values, trained a different model each time. Six decimals is far
+        # below anything a feature measures.
+        rows.append({k: round(row[k], FEATURE_DECIMALS) if isinstance(row[k], float) else row[k]
+                     for k in ["hull_id", "cutoff", *FEATURES]})
     return rows
 
 
