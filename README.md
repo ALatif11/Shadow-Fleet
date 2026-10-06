@@ -4,18 +4,18 @@ Evasion-indicator scoring for tankers from cooperative data (terrestrial AIS and
 
 It is not dark-fleet detection. Every input is cooperative, and the evaluation is pre-registered in `PREREG.md`, committed before any label existed. Every number below is generated from `reports/` by `make readme`; nothing here is typed by hand.
 
-*Generated 2026-10-05.*
+*Generated 2026-10-06.*
 
 ## Headline result
 
-On the pre-registered endpoint (precision@50 within the Russia-port stratum, label = OFAC ∪ EU ∪ UK, macro-averaged over 13 monthly cutoffs), the pre-registered primary model, **`LGBM`, reaches precision@50 0.1815** (PR-AUC 0.1798, recall@50 0.2884): of the 50 tankers it ranks highest each month, that share is designated by the US, EU or UK within the next 182 days.
+On the pre-registered endpoint (precision@50 within the Russia-port stratum, label = OFAC ∪ EU ∪ UK, macro-averaged over 13 monthly cutoffs), the pre-registered primary model, **`LGBM`, reaches precision@50 0.1846** (PR-AUC 0.1783, recall@50 0.2968): of the 50 tankers it ranks highest each month, that share is designated by the US, EU or UK within the next 182 days.
 
 Every model on the same cutoffs (the supervised models cannot score the earliest ones, which have the highest base rates, so all-cutoff averages are not comparable):
 
 | model | precision@50 | lift over random | PR-AUC | cutoffs |
 |---|---:|---:|---:|---:|
 | `ISO_forest` | 0.1862 | 2.7x | 0.1739 | 13 |
-| `LGBM` | 0.1815 | 2.6x | 0.1798 | 13 |
+| `LGBM` | 0.1846 | 2.7x | 0.1783 | 13 |
 | `B3_logistic` | 0.1662 | 2.4x | 0.1465 | 13 |
 | `B2_weighted` | 0.16 | 2.3x | 0.094 | 13 |
 | `B1_russia_port` | 0.0985 | 1.4x | 0.0712 | 13 |
@@ -23,7 +23,7 @@ Every model on the same cutoffs (the supervised models cannot score the earliest
 
 The signal is modest and simple: every learned model lands close to the others, and the per-family ablations in `reports/phase6.md` show which data carries it.
 
-Median lead time for hulls it flagged before designation: **10.9 weeks** (65 of 1189 designated hulls flagged in time).
+Median lead time for hulls it flagged before designation: **10.9 weeks** (64 of 1189 designated hulls flagged in time).
 
 Full tables: `reports/phase5b.md`, `reports/phase6.md`, `reports/metrics_by_cutoff.csv`.
 
@@ -49,7 +49,7 @@ Every one is recorded in `PREREG.md` section 12 and labelled post-hoc in the rep
 | Identity | 0.8059 of MMSI-days resolved to an IMO-based hull id | `reports/phase3.md` |
 | Self-built detectors | 25 STS candidates, 11357 loitering events | `reports/phase4b.md` |
 | Feature store | 32 features in 7 frozen families | `reports/phase5a.md` |
-| Briefs | **not measured yet** (`make briefs`) generated, **not measured yet** (`make briefs`) with zero verifier failures | `reports/phase8.md` |
+| Briefs | 650 generated, 0.7815 with zero verifier failures | `reports/phase8.md` |
 | Judge | entailment **not measured yet** (`make judge`), kappa vs human **not measured yet** (`fill reports/audit_sheet.csv`) | `reports/phase9.md` |
 
 ## How the point-in-time claim is enforced
@@ -86,7 +86,7 @@ make all
 
 ## Analyst console
 
-`ui/` is a local React console (ADR-18): a ranked watchlist per cutoff, a map of each hull's DMA track and its events, and a timeline that shows each hull only as it was knowable at the chosen instant. It renders a JSON bundle the Python side writes and never computes a metric itself. Until `make ui-export` is wired to the real outputs (Phase C) it runs on a synthetic bundle, labelled as such. Local only: its dossiers carry GFW-derived events (rule 7). See `SETUP.md` section 9.
+`ui/` is a local React console (ADR-18): a ranked watchlist per cutoff, a map of each hull's DMA track and its events, and a timeline that shows each hull only as it was knowable at the chosen instant. It renders a JSON bundle the Python side writes and never computes a metric itself. `make ui-export` builds that bundle from the real outputs (every model's scores, the copied metrics, and per-hull dossiers); `make ui-fixtures` builds a synthetic one, labelled as such. Local only: its dossiers carry GFW-derived events (rule 7). See `SETUP.md` section 9.
 
 ## Documents
 
