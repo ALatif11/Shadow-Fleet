@@ -285,7 +285,7 @@ class _Gen:
             for _ in range(r.randint(0, 3)):
                 t = self._rand_time()
                 self._event(h, "spoof_day", "self_built", t.replace(hour=0, minute=0, second=0, microsecond=0),
-                            24, self._jitter(19.5, 0.8), self._jitter(57.5, 0.5),
+                            24, self._jitter(57.5, 0.5), self._jitter(19.5, 0.8),
                             "Position jumps above the cell-day baseline", jumps=r.randint(3, 20),
                             baseline_share=round(r.uniform(0.01, 0.1), 3))
         for _ in range(int(r.expovariate(1 / (0.2 + 1.5 * h.risk)))):
@@ -393,6 +393,9 @@ def overlays() -> list[Overlay]:
 def build(size: str = "full", seed: int = 7) -> tuple[Manifest, list[Watchlist], list[Dossier]]:
     if size == "full":
         start, end, n_hulls, ppl, population, top_n = date(2024, 1, 1), date(2026, 8, 31), 160, 6, 1840, 100
+    elif size == "demo":
+        # Smaller hull pool so a bundle fits an artifact's file-count and size limits; same shapes as full.
+        start, end, n_hulls, ppl, population, top_n = date(2024, 1, 1), date(2026, 8, 31), 100, 4, 1840, 50
     elif size == "tiny":
         start, end, n_hulls, ppl, population, top_n = date(2024, 7, 1), date(2025, 9, 30), 6, 1, 40, 5
     else:
@@ -412,6 +415,7 @@ def build(size: str = "full", seed: int = 7) -> tuple[Manifest, list[Watchlist],
     if size == "tiny":
         cuts = cuts[-3:]
     k_values = list(config.TOP_K)
+    models = ["lightgbm", "b2_rules"] if size == "demo" else MODELS
 
     ranks: dict[tuple[str, date], dict[str, tuple[int, float]]] = {}
     watchlists: list[Watchlist] = []
@@ -421,7 +425,7 @@ def build(size: str = "full", seed: int = 7) -> tuple[Manifest, list[Watchlist],
         pop_size = population - sum(1 for h in g.hulls if h.first_listed is not None and h.first_listed <= T)
         for h in pop_hulls:
             feats_at[(h.hull_id, T)] = g.features(h, T)
-        for model in MODELS:
+        for model in models:
             if model in SUPERVISED_MODELS and T not in supervised:
                 continue  # expanding-window training has nothing to train on yet (ADR-11)
             nr = random.Random(f"{seed}:{model}:{T}")
@@ -444,7 +448,7 @@ def build(size: str = "full", seed: int = 7) -> tuple[Manifest, list[Watchlist],
                         drivers=drivers, outcome=Outcome(label=lab, designation_date=d,
                                                          designation_authorities=auths, lead_weeks=None),
                         has_dossier=True))
-                n_pos = sum(1 for h in pop_hulls if _label(h, T, ls)[0] == 1) + nr.randint(0, 6) * (size == "full")
+                n_pos = sum(1 for h in pop_hulls if _label(h, T, ls)[0] == 1) + nr.randint(0, 6) * (size != "tiny")
                 b1 = [r for r in rows if r.b1_stratum]
                 b1 = [r.model_copy(update={"rank": j}) for j, r in enumerate(b1, 1)]
                 b1_pos = sum(1 for h in pop_hulls if _label(h, T, ls)[0] == 1 and (
@@ -495,7 +499,7 @@ def build(size: str = "full", seed: int = 7) -> tuple[Manifest, list[Watchlist],
         cutoffs=[CutoffInfo(cutoff=T, horizon_end=T + timedelta(days=config.HORIZON_DAYS),
                             horizon_closed=T <= config.evaluation_limit(FIXTURE_TODAY), supervised=T in supervised)
                  for T in cuts],
-        models=MODELS, default_model="lightgbm", label_sets=LABEL_SETS, default_label_set="ofac_eu_uk",
+        models=models, default_model="lightgbm", label_sets=LABEL_SETS, default_label_set="ofac_eu_uk",
         k_values=k_values,
         features=[FeatureDef(name=n, family=f, source=s, description=d) for n, f, s, d in FEATURES],
         vessels=[h.hull_id for h in g.hulls],

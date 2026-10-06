@@ -163,3 +163,18 @@ def test_thin_track_keeps_gaps_and_caps_size():
     assert len(idx) <= 510
     assert t.index(300_000) in idx and idx[0] == 0 and idx[-1] == len(t) - 1
     assert all(b > a for a, b in zip(idx, idx[1:], strict=False))
+
+
+def test_no_console_source_is_gitignored():
+    """An unanchored `data/` once hid ui/src/data/ from git, so the console could not build from a clone."""
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    if shutil.which("git") is None or not (repo / ".git").exists():
+        pytest.skip("not a git checkout")
+    src = [str(p.relative_to(repo)) for p in (repo / "ui" / "src").rglob("*") if p.is_file()]
+    hit = subprocess.run(["git", "check-ignore", "--stdin"], input="\n".join(src), text=True,
+                         capture_output=True, cwd=repo).stdout.split()
+    assert hit == [], f"ignored console sources: {hit}"

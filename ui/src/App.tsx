@@ -2,14 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import { loadManifest } from "./data/api";
 import { useDossier, useWatchlist } from "./data/hooks";
 import { useConsole } from "./state/store";
+import { useClock } from "./data/clock";
 import { TopBar } from "./components/TopBar";
 import { Watchlist } from "./components/Watchlist";
 import { MapView } from "./components/MapView";
 import { Dossier } from "./components/Dossier";
 import { Timeline } from "./components/Timeline";
+import { Rail } from "./components/Rail";
+import { Brief } from "./components/Brief";
+import { Chat } from "./components/Chat";
+import { Guide } from "./components/Guide";
+import { Tooltip } from "./components/Tooltip";
+import { DOCK, usePick, type DockId } from "./state/store";
+import { DockSlot } from "./components/Panel";
+import { useMedia } from "./lib/motion";
 
 export default function App() {
-  const s = useConsole();
+  const s = usePick("manifest", "init");
   const [fatal, setFatal] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,7 +32,7 @@ export default function App() {
 }
 
 function Console() {
-  const s = useConsole();
+  const s = usePick("manifest", "cutoff", "model", "labelSet", "selected", "select", "layout");
   const cuts = s.manifest!.cutoffs.map((c) => c.cutoff);
   const prevCut = cuts[cuts.indexOf(s.cutoff) - 1] ?? null;
   const wl = useWatchlist(s.cutoff, s.model, s.labelSet);
@@ -38,21 +47,49 @@ function Console() {
   }, [wl.data]);
 
   useKeys(wl.data?.rows.map((r) => r.hull_id) ?? []);
+  useClock();
+
+  const { showList, dock, pinned } = s.layout;
+  const wide = useMedia("(min-width: 1760px)");
+  const body = (id: DockId) =>
+    id === "dossier" ? <Dossier dossier={dossier.data} row={row} loading={dossier.loading} />
+    : id === "brief" ? <Brief dossier={dossier.data} row={row} />
+    : id === "chat" ? <Chat dossier={dossier.data} row={row} />
+    : <Guide />;
 
   return (
     <div className="console">
       <TopBar />
-      <main className="deck">
-        <Watchlist data={wl.data} previous={prev.data} loading={wl.loading} error={wl.error} />
-        <MapView dossier={dossier.data} />
-        <Dossier dossier={dossier.data} row={row} loading={dossier.loading} />
-      </main>
+      <div className="work">
+        <Rail wide={wide} />
+        <main className="deck">
+          {showList && <Watchlist data={wl.data} previous={prev.data} loading={wl.loading} error={wl.error} />}
+          <MapView dossier={dossier.data} />
+          {wide && pinned && (
+            <DockSlot id={pinned} pinned>
+              {body(pinned)}
+            </DockSlot>
+          )}
+          {dock && (
+            <DockSlot id={dock} canPin={wide}>
+              {body(dock)}
+            </DockSlot>
+          )}
+        </main>
+      </div>
       <Timeline dossier={dossier.data} />
       <footer className="footbar mono">
-        <span>↑↓ HULL · [ ] CUTOFF · ←→ DAY (SHIFT ×30) · SPACE PLAY · H HINDSIGHT</span>
-        <span>AIS: DANISH MARITIME AUTHORITY · EVENTS: GLOBAL FISHING WATCH (CC BY-NC) · LAND: NATURAL EARTH</span>
-        <span>CONTRACT {s.manifest!.contract_version} · {s.manifest!.origin.toUpperCase()} · GENERATED {s.manifest!.generated_at.slice(0, 16)}Z</span>
+        <span className="keys-hint">
+          <kbd>↑↓</kbd> ship <kbd>[ ]</kbd> month <kbd>space</kbd> play <kbd>H</kbd> hindsight <kbd>?</kbd> explain <kbd>1–6</kbd> panels
+        </span>
+        <span className="sources" data-tip="AIS tracks: Danish Maritime Authority. Worldwide events: Global Fishing Watch (CC BY-NC). Coastline: Natural Earth.">
+          Sources: DMA · GFW · Natural Earth
+        </span>
+        <span className="build">
+          {s.manifest!.origin} bundle · contract {s.manifest!.contract_version} · built {s.manifest!.generated_at.slice(0, 10)}
+        </span>
       </footer>
+      <Tooltip />
     </div>
   );
 }
@@ -60,7 +97,8 @@ function Console() {
 function useKeys(order: string[]) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const st = useConsole.getState();
       const i = st.selected ? order.indexOf(st.selected) : -1;
       const day = 86_400_000 * (e.shiftKey ? 30 : 1);
@@ -87,11 +125,23 @@ function useKeys(order: string[]) {
         case "H":
           st.toggleHindsight();
           break;
+        case "?":
+          st.setExplain(!st.explain);
+          break;
         case " ":
           st.setPlaying(!st.playing);
           break;
-        default:
-          return;
+        case "1":
+          st.toggleList();
+          break;
+        case "2":
+          st.toggleMapOnly();
+          break;
+        default: {
+          const d = DOCK.find((x) => x.key === e.key);
+          if (d) st.openDock(d.id);
+          else return;
+        }
       }
       e.preventDefault();
     };

@@ -18,25 +18,18 @@ function parse(value: string): [number, number, number] {
   return [255, 255, 255];
 }
 
-function readToken(name: string, depth = 0): [number, number, number] {
+function token(name: string, depth = 0): [number, number, number] {
+  const hit = cache.get(name);
+  if (hit) return hit;
   if (typeof document === "undefined" || depth > 4) return [255, 255, 255];
   const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   const alias = raw.match(/^var\(\s*(--[\w-]+)\s*\)$/); // theme.css aliases tokens to other tokens
-  return alias ? readToken(alias[1], depth + 1) : parse(raw);
-}
-
-export function cssRgb(name: string): [number, number, number] {
-  let c = cache.get(name);
-  if (!c) {
-    c = readToken(name);
-    cache.set(name, c);
-  }
-  return c;
+  const rgb = alias ? token(alias[1], depth + 1) : parse(raw);
+  cache.set(name, rgb);
+  return rgb;
 }
 
 export function rgba(name: string, alpha = 255): RGBA {
-  const [r, g, b] = cssRgb(name);
+  const [r, g, b] = token(name);
   return [r, g, b, Math.round(alpha)];
 }
-
-export const parseColor = parse;

@@ -1,62 +1,35 @@
-// Point-in-time arithmetic for the console (CLAUDE.md rule 1). Nothing here computes a metric: it only
-// decides what was *knowable* at an instant. `observed_at` is the one key that answers that, so every
-// filter in this file keys on it and never on `start`/`end`, which are when a thing happened.
+// Point-in-time helpers. The console shows a hull exactly as it was knowable at the as-of instant:
+// an event appears only once its observed_at has passed (CLAUDE.md rule 1), a track point once it was received.
 import type { Event, IdentityInterval, Track } from "../contract";
 
 export const DAY_MS = 86_400_000;
-/** config.FEATURE_WINDOW_DAYS (plan ADR-11). Display only; the store's numbers come from Python. */
-export const FEATURE_WINDOW_DAYS = 180;
+export const FEATURE_WINDOW_DAYS = 180; // config.FEATURE_WINDOW_DAYS
+export const HORIZON_DAYS = 182; // config.HORIZON_DAYS
 
-export const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
+/** Last millisecond of a UTC calendar day ("records observed on T count", same as the Python side). */
+export const endOfDay = (isoDate: string) => Date.parse(`${isoDate}T00:00:00Z`) + DAY_MS - 1;
+export const startOfDay = (isoDate: string) => Date.parse(`${isoDate}T00:00:00Z`);
 
-/** A bundle date ("YYYY-MM-DD") or timestamp at 00:00:00.000 UTC. */
-export function startOfDay(iso: string): number {
-  return Date.parse(iso.slice(0, 10) + "T00:00:00Z");
-}
-
-/** The same day at 23:59:59.999 UTC: a cutoff T means "everything observed on or before T". */
-export function endOfDay(iso: string): number {
-  return startOfDay(iso) + DAY_MS - 1;
-}
-
-/** `[lo, hi]` of the 180-day feature window that ends at this cutoff. */
+/** Feature window for cutoff T: (T+1d-180d, T+1d), inclusive of T. */
 export function featureWindow(cutoff: string): [number, number] {
-  const hi = endOfDay(cutoff);
-  return [hi - FEATURE_WINDOW_DAYS * DAY_MS + 1, hi];
+  const hi = endOfDay(cutoff) + 1;
+  return [hi - FEATURE_WINDOW_DAYS * DAY_MS, hi - 1];
 }
 
-/** Was this record knowable at `asOf`? The whole point-in-time claim, in one line. */
-export function isKnown(e: Pick<Event, "observed_at">, asOf: number): boolean {
-  return Date.parse(e.observed_at) <= asOf;
-}
+export const isKnown = (e: Event, asOf: number) => Date.parse(e.observed_at) <= asOf;
 
-/** Knowable events, oldest first (callers reverse for newest-first). */
 export function eventsAsOf(events: Event[], asOf: number): Event[] {
-  return events.filter((e) => isKnown(e, asOf)).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  return events.filter((e) => isKnown(e, asOf));
 }
 
-/** The identity in force at `asOf`, or null before the first interval. `end: null` means "still open". */
-export function identityAt(intervals: IdentityInterval[], asOf: number): IdentityInterval | null {
-  for (let i = intervals.length - 1; i >= 0; i--) {
-    const iv = intervals[i];
-    if (Date.parse(iv.start) <= asOf && (iv.end === null || Date.parse(iv.end) > asOf)) return iv;
-  }
-  return null;
-}
-
-/**
- * How many leading track points were observed at or before `asOf`.
- *
- * `track.t` is epoch **seconds** and contract-guaranteed ordered, so this is a binary search rather than a
- * filter: the scrubber calls it on every animation frame.
- */
+/** Number of track points with t <= asOf (t is epoch seconds, sorted). */
 export function trackCount(track: Track, asOf: number): number {
-  const limit = Math.floor(asOf / 1000);
+  const target = Math.floor(asOf / 1000);
   let lo = 0;
   let hi = track.t.length;
   while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (track.t[mid] <= limit) lo = mid + 1;
+    const mid = (lo + hi) >>> 1;
+    if (track.t[mid] <= target) lo = mid + 1;
     else hi = mid;
   }
   return lo;
@@ -64,24 +37,93 @@ export function trackCount(track: Track, asOf: number): number {
 
 export interface Segment {
   path: [number, number][];
-  /** End of the segment in ms, so the map can dim anything older than the feature window. */
-  t1: number;
+  t0: number; // ms
+  t1: number; // ms
 }
 
-/** Gap (seconds) that ends a segment. Longer and deck.gl would draw a straight line across the Baltic. */
-const SEGMENT_GAP_S = 6 * 3600;
-
-/** Track points `[from, to)` as drawable polylines, broken wherever the AIS record has a gap. */
-export function segments(track: Track, from: number, to: number): Segment[] {
+/** Split the track into segments at time gaps (each DMA transit becomes its own line). */
+export function segments(track: Track, from: number, to: number, maxGapS = 6 * 3600): Segment[] {
   const out: Segment[] = [];
-  let path: [number, number][] = [];
-  for (let i = Math.max(0, from); i < Math.min(to, track.t.length); i++) {
-    if (path.length && track.t[i] - track.t[i - 1] > SEGMENT_GAP_S) {
-      if (path.length > 1) out.push({ path, t1: track.t[i - 1] * 1000 });
-      path = [];
+  let cur: Segment | null = null;
+  for (let i = from; i < to; i++) {
+    const t = track.t[i];
+    if (!cur || t - track.t[i - 1] > maxGapS) {
+      if (cur && cur.path.length > 1) out.push(cur);
+      cur = { path: [], t0: t * 1000, t1: t * 1000 };
     }
-    path.push([track.lon[i], track.lat[i]]);
+    cur.path.push([track.lon[i], track.lat[i]]);
+    cur.t1 = t * 1000;
   }
-  if (path.length > 1) out.push({ path, t1: track.t[Math.min(to, track.t.length) - 1] * 1000 });
+  if (cur && cur.path.length > 1) out.push(cur);
   return out;
+}
+
+export function identityAt(identity: IdentityInterval[], asOf: number): IdentityInterval | null {
+  let found: IdentityInterval | null = null;
+  for (const iv of identity) {
+    if (Date.parse(iv.start) <= asOf) found = iv;
+  }
+  return found;
+}
+
+export function clamp(v: number, lo: number, hi: number) {
+  return Math.min(hi, Math.max(lo, v));
+}
+
+/** Bounding box of lon/lat points, padded, for framing the map. Null when there is nothing to frame. */
+export function boundsOf(points: [number, number][], pad = 0.05): [[number, number], [number, number]] | null {
+  if (points.length === 0) return null;
+  let [w, s, e, n] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const [lon, lat] of points) {
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    w = Math.min(w, lon); e = Math.max(e, lon);
+    s = Math.min(s, lat); n = Math.max(n, lat);
+  }
+  if (!Number.isFinite(w)) return null;
+  return [[w - pad, s - pad], [e + pad, n + pad]];
+}
+
+/** Where the hull was at `asOf`, interpolated between the two surrounding fixes. */
+export interface Fix {
+  lon: number;
+  lat: number;
+  sog: number | null;
+  /** True when the last fix is older than `staleAfterS`: the ship is outside DMA coverage, not sitting still. */
+  stale: boolean;
+  t: number;
+}
+
+export function positionAt(track: Track, asOf: number, staleAfterS = 6 * 3600): Fix | null {
+  const n = trackCount(track, asOf);
+  if (n === 0) return null;
+  const i = n - 1;
+  const ti = track.t[i];
+  const last: Fix = { lon: track.lon[i], lat: track.lat[i], sog: track.sog[i] ?? null, stale: false, t: ti * 1000 };
+  const next = i + 1 < track.t.length ? i + 1 : -1;
+  if (next < 0) return { ...last, stale: asOf / 1000 - ti > staleAfterS };
+  const gap = track.t[next] - ti;
+  if (gap > staleAfterS) return { ...last, stale: asOf / 1000 - ti > staleAfterS };
+  const f = gap === 0 ? 0 : (asOf / 1000 - ti) / gap;
+  return {
+    lon: last.lon + (track.lon[next] - last.lon) * f,
+    lat: last.lat + (track.lat[next] - last.lat) * f,
+    sog: last.sog,
+    stale: false,
+    t: asOf,
+  };
+}
+
+/** Events whose observed_at falls in (from, to] — what just became knowable as the clock ran forward. */
+export function crossedEvents(events: Event[], from: number, to: number): Event[] {
+  if (to <= from) return [];
+  return events.filter((e) => {
+    const t = Date.parse(e.observed_at);
+    return t > from && t <= to;
+  });
+}
+
+/** When the hull is next seen after `asOf`, in ms. Null when there is nothing ahead. */
+export function nextFixTime(track: Track, asOf: number): number | null {
+  const n = trackCount(track, asOf);
+  return n < track.t.length ? track.t[n] * 1000 : null;
 }

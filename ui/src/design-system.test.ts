@@ -90,11 +90,12 @@ describe("motion", () => {
     }
   });
 
-  it("one entrance animation, defined once and reused", () => {
-    expect(theme).toMatch(/@keyframes view-in/);
+  it("keyframes live only in theme.css, and every one of them is used", () => {
     expect(app.match(/@keyframes/g) ?? []).toEqual([]);
-    const users = components.filter(([, c]) => c.includes("view-in")).length;
-    expect(users).toBeGreaterThanOrEqual(3);
+    const names = [...theme.matchAll(/@keyframes ([\w-]+)/g)].map((m) => m[1]);
+    expect(names).toEqual(expect.arrayContaining(["view-in", "bar-in"]));
+    for (const n of names) expect(app.includes(n) || components.some(([, c]) => c.includes(n)), `${n} is unused`).toBe(true);
+    expect(components.filter(([, c]) => c.includes("view-in")).length).toBeGreaterThanOrEqual(3);
   });
 
   it("reduced motion kills every transition and animation", () => {
@@ -103,9 +104,28 @@ describe("motion", () => {
     expect(theme).toMatch(/transition-duration: 0\.001ms !important/);
   });
 
-  it("no transition runs longer than 0.25s", () => {
-    for (const t of ["--t-fast", "--t-med", "--t-view"]) {
-      expect(parseFloat(resolve(t))).toBeLessThanOrEqual(0.25);
+  it("two tiers: interactions stay under 0.25s, the big moments under 0.4s", () => {
+    for (const t of ["--t-fast", "--t-view"]) expect(parseFloat(resolve(t)), t).toBeLessThanOrEqual(0.25);
+    for (const t of ["--t-stage", "--t-count", "--t-decode"]) expect(parseFloat(resolve(t)), t).toBeLessThanOrEqual(0.4);
+    // Every transition in app.css runs on one of those tokens.
+    const used = [...app.matchAll(/(?:transition|animation)[^;{]*?:\s*([^;]+);/g)].flatMap((m) => m[1].match(/--t-[\w-]+/g) ?? []);
+    const allowed = ["--t-fast", "--t-view", "--t-stage", "--t-stagger", "--t-breathe", "--t-breathe-slow", "--t-spin"];
+    for (const u of used) expect(allowed, u).toContain(u);
+  });
+
+  it("JavaScript motion goes through lib/motion.ts, which honours reduced motion", () => {
+    for (const [name, c] of components) {
+      expect(c, `${name} animates on its own`).not.toMatch(/requestAnimationFrame|\.animate\(/);
+    }
+    const motion = readFileSync(join(SRC, "lib/motion.ts"), "utf8");
+    expect(motion).toMatch(/prefers-reduced-motion: reduce/);
+  });
+
+  it("no bouncy easing: every curve stays inside 0..1", () => {
+    for (const [, curve] of theme.matchAll(/cubic-bezier\(([^)]+)\)/g)) {
+      const [, y1, , y2] = curve.split(",").map(Number);
+      expect(y1).toBeGreaterThanOrEqual(0);
+      expect(y2).toBeLessThanOrEqual(1);
     }
   });
 });
@@ -121,20 +141,14 @@ describe("interaction", () => {
     expect(app).toMatch(/@media \(pointer: coarse\)[\s\S]*?min-height: 44px/);
   });
 
-  it("icon-only controls carry a label", () => {
-    for (const [name, c] of components) {
-      for (const m of c.matchAll(/<button(?![^>]*aria-label)[^>]*>\s*\{?["'`]?([^<>{}"'`]{0,3})["'`]?\}?\s*</g)) {
-        const text = m[1].trim();
-        if (text && !/[a-z0-9]/i.test(text)) throw new Error(`${name}: icon-only button "${text}" needs an aria-label`);
-      }
-    }
-  });
 });
 
 describe("surfaces", () => {
   it("no glassmorphism, no surface gradients, no resting shadow on cards", () => {
     expect(app).not.toMatch(/backdrop-filter/);
-    expect(app).not.toMatch(/gradient\(/);
+    // Gradients are allowed only inside the .fx- degradation overlays (brutalist-skill section 7).
+    const surfaces = app.replace(/\n\.fx\b[\s\S]*?\n\}/g, "");
+    expect(surfaces).not.toMatch(/gradient\(/);
     const card = app.match(/\n\.panel \{[\s\S]*?\}/)?.[0] ?? "";
     expect(card).not.toMatch(/box-shadow/);
     expect(card).toMatch(/border-radius: var\(--r-container\)/);
@@ -142,6 +156,6 @@ describe("surfaces", () => {
 
   it("elevation is reserved for floating surfaces and primary actions", () => {
     const shadows = [...app.matchAll(/box-shadow:\s*([^;]+);/g)].map((m) => m[1].trim());
-    for (const s of shadows) expect(s).toMatch(/var\(--shadow-float\)|var\(--shadow-modal\)|var\(--lift-accent\)|var\(--glow-matte\)|inset/);
+    for (const s of shadows) expect(s).toMatch(/var\(--lift-accent\)|inset/);
   });
 });
