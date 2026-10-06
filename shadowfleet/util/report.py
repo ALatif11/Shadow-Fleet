@@ -845,8 +845,10 @@ def render_phase9(out: dict | None = None) -> str:
     if not p:
         return "# Phase 9 report\n\n" + NOT_RUN + " - run `make judge`.\n"
     k = p.get("kappa") or {}
+    # the server reports a file path; the home directory has no business in a committed report
+    judge_name = str(p.get("judge_model") or "").replace("\\", "/").rsplit("/", 1)[-1].removesuffix(".gguf")
     lines = [f"# Phase 9 report (generated {date.today().isoformat()} by `make judge`)", "",
-             f"Generator: `{p.get('generator_model')}`. Judge: `{p.get('judge_model')}`. Different "
+             f"Generator: `{p.get('generator_model')}`. Judge: `{judge_name}`. Different "
              "families by construction; the command refuses to run otherwise, because a model grading its "
              "own output agrees with its own blind spots (ADR-10).", "",
              "## Claim-level entailment", "",

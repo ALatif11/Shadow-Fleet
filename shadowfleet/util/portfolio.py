@@ -53,6 +53,65 @@ def _comparison(backtest: dict | None) -> list[str]:
     return lines
 
 
+def _rival(backtest: dict | None) -> str:
+    """One sentence comparing the primary with the strongest other model, worded from the numbers.
+
+    The headline stays the pre-registered model; this keeps a rival that matches it from being buried in
+    the table, which is the honest reading when the primary does not clearly win.
+    """
+    rows = _b1_union(backtest, "aggregate_matched") or _b1_union(backtest, "aggregate")
+    best = _primary(backtest)
+    others = [a for a in rows if a["model"] not in (PRIMARY_MODEL, "B0_random")]
+    if not best or not others:
+        return ""
+    top = max(others, key=lambda a: a["precision_at_50"])
+    gap = round(best["precision_at_50"] - top["precision_at_50"], 4)
+    if gap > 0.01:
+        return (f"`{PRIMARY_MODEL}` leads the next model, `{top['model']}`, by {gap} in precision@50.")
+    return (f"`{PRIMARY_MODEL}` does not clearly beat `{top['model']}` on the primary endpoint "
+            f"({best['precision_at_50']} vs {top['precision_at_50']}; PR-AUC {best.get('pr_auc')} vs "
+            f"{top.get('pr_auc')}). It stays the headline because it was pre-registered; the reading is that "
+            "the learned and unsupervised models find the same, mostly Russia-trade, signal.")
+
+
+def _model_name(path: str | None) -> str | None:
+    """`/home/x/models/Qwen3-14B-Q4_K_M.gguf` -> `Qwen3-14B-Q4_K_M`. Home paths stay out of the repo."""
+    return path.replace("\\", "/").rsplit("/", 1)[-1].removesuffix(".gguf") if path else path
+
+
+def _bold(value, command: str) -> str:
+    """Bold a measured value; leave the not-measured marker alone, or the markdown nests (`****`)."""
+    return f"**{value}**" if value not in (None, "", []) else _n(value, command)
+
+
+def _briefs_section(briefs: dict, judge: dict) -> list[str]:
+    f = briefs.get("faithfulness") or {}
+    k = judge.get("kappa") or {}
+    sev = judge.get("by_severity") or {}
+    return [
+        "## Analyst briefs from a local LLM", "",
+        f"For each cutoff's top 50, a locally hosted model (`{_n(judge.get('generator_model'), 'make judge')}`) "
+        "writes a short brief under a JSON schema that forces "
+        "every claim to cite evidence-record ids from a bundle built as of the cutoff. Nothing leaves the "
+        "machine. Three checks then grade it, from cheapest to most trusted:", "",
+        f"- **Deterministic verifier:** {_n(f.get('clean'), 'make briefs')} of {_n(f.get('briefs'), 'make briefs')} "
+        f"briefs ({_n(f.get('share_clean'), 'make briefs')}) cite only real records, cover their top drivers, "
+        "and state no number, date or name the bundle does not contain. The rest are the model departing from "
+        "the evidence (converting hours to days, naming a country it was only given a code for).",
+        f"- **Cross-family judge:** `{_n(_model_name(judge.get('judge_model')), 'make judge')}` grades each of "
+        f"{_n(judge.get('findings'), 'make judge')} claims against only the records it cited: "
+        f"{_bold(judge.get('entailment_rate'), 'make judge')} entailed"
+        + (f" (high-severity claims {sev.get('high')}, medium {sev.get('medium')}, low {sev.get('low')})."
+           if sev else "."),
+        f"- **Human audit:** 30 claims sampled across the judge's verdicts and graded blind. Judge-versus-human "
+        f"Cohen's kappa: {_bold(k.get('kappa'), 'fill reports/audit_sheet.csv, then make kappa')}. Until that "
+        "number exists the judge's rate is one model's opinion of another's.", "",
+        "The first full run failed most briefs. Most of those failures were the verifier's own "
+        "(it read `(E4)` as the number 4), one was the evidence bundle's (Russian port calls had been cut "
+        "for space); both were fixed, disclosed in `reports/phase8.md`, and every brief regenerated. "
+        "Details: `reports/phase8.md`, `reports/phase9.md`.", ""]
+
+
 def _forward_lists() -> list[str]:
     """The committed forward-test lists, read from the append-only manifest."""
     manifest = config.REPORTS_DIR / "forward" / "README.md"
@@ -98,6 +157,7 @@ def render_readme() -> str:
                 "Every model on the same cutoffs (the supervised models cannot score the earliest ones, which "
                 "have the highest base rates, so all-cutoff averages are not comparable):", "",
                 *_comparison(back), "",
+                _rival(back), "",
                 "The signal is modest and simple: every learned model lands close to the others, and the "
                 "per-family ablations in `reports/phase6.md` show which data carries it.", "",
                 "Median lead time for hulls it flagged before designation: "
@@ -118,8 +178,11 @@ def render_readme() -> str:
             "## Changes made after results were seen", "",
             "Every one is recorded in `PREREG.md` section 12 and labelled post-hoc in the reports, with the "
             "numbers from before the change kept beside the numbers after it. Most were bug fixes that "
-            "brought the code in line with what was pre-registered. The forward test is the check none of "
-            "them can influence."]
+            "brought the code in line with what was pre-registered. One mattered for every number above: "
+            "LightGBM gave different results on identical re-runs, because the database summed floats across "
+            "threads in no fixed order. Feature builds are now single-threaded and rounded, two builds of a "
+            "cutoff compare equal, and every reported number is from after that fix. The forward test is "
+            "the check none of these changes can influence."]
     out += ["", "## What was built, and what it measured", "",
             "| stage | measured | source |", "|---|---|---|",
             f"| Window | {_n(win.get('months'), 'make window-gate')} months, "
@@ -141,6 +204,7 @@ def render_readme() -> str:
             f"| Judge | entailment {_n(judge.get('entailment_rate'), 'make judge')}, kappa vs human "
             f"{_n((judge.get('kappa') or {}).get('kappa'), 'fill reports/audit_sheet.csv')} | "
             "`reports/phase9.md` |", "",
+            *_briefs_section(briefs, judge),
             "## How the point-in-time claim is enforced", "",
             "`features(hull_id, T)` may only read records with `observed_at <= T`. Five tests hold that "
             "claim up, and `make backtest` runs them before it reports anything:", "",

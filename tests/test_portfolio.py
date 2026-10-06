@@ -98,3 +98,22 @@ def test_readme_on_disk_has_no_section_the_generator_would_delete():
     generated = portfolio.render_readme()
     orphans = [h for h in re.findall(r"^## .*", disk, re.M) if h not in generated]
     assert not orphans, f"{orphans} exist only in README.md; move them into portfolio.render_readme()"
+
+
+def test_briefs_section_and_rival_sentence_come_from_the_probes(tmp_data):
+    """The brief layer's numbers, and an honest line when the primary does not clearly beat a rival."""
+    row = {"label_set": "union", "stratum": "b1", "recall_at_50": 0.3, "cutoffs": 13}
+    probes.write("backtest", {"aggregate_matched": [
+        {**row, "model": "LGBM", "precision_at_50": 0.1846, "pr_auc": 0.1783},
+        {**row, "model": "ISO_forest", "precision_at_50": 0.1862, "pr_auc": 0.1739},
+        {**row, "model": "B0_random", "precision_at_50": 0.0692, "pr_auc": 0.085}]})
+    probes.write("briefs", {"faithfulness": {"briefs": 650, "clean": 515, "share_clean": 0.7923}})
+    probes.write("judge", {"judge_model": "/home/someone/models/Qwen3-14B-Q4_K_M.gguf", "findings": 3100,
+                           "entailment_rate": 0.8477, "by_severity": {"high": 0.79, "medium": 0.92, "low": 0.82},
+                           "kappa": {"skipped": "0 usable rows"}})
+    text = portfolio.render_readme()
+    assert "does not clearly beat `ISO_forest`" in text and "(0.1846 vs 0.1862" in text
+    assert "515 of 650" in text and "**0.8477** entailed" in text and "`Qwen3-14B-Q4_K_M`" in text
+    assert "/home/someone" not in text, "a home directory must not reach the README"
+    assert "make kappa" in text, "kappa stays a visible gap until Adam fills the audit sheet"
+    assert "****" not in text, "an unmeasured value inside bold markers renders as broken markdown"
