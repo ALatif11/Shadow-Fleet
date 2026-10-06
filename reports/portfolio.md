@@ -8,7 +8,7 @@ Every figure is pulled from `reports/probes/`. A bullet that still shows "not me
 - Engineered a leakage-tested as-of feature store (DuckDB/Parquet) with 32 features in 7 frozen families, enforced by five leakage tests that block metric reporting on failure.
 - Resolved vessel identity across MMSI reassignments and renames by IMO majority vote over AIS static messages, reaching 0.8059 of MMSI-days on an IMO-based hull id, with the resolver's own hit rate reported separately from the unavoidable warm-up.
 - Built the project's own detection layer on raw AIS tracks rather than consuming a vendor's: 25 ship-to-ship transfer candidates and 11357 loitering events, with ablations isolating their contribution from Global Fishing Watch's.
-- Generated analyst briefs with a locally hosted LLM under schema-constrained decoding; 0.7815 passed deterministic citation and numeric-grounding checks, with claim-level entailment **not measured yet** (`make judge`) under a cross-family judge and judge-versus-human kappa **not measured yet** (`fill reports/audit_sheet.csv`).
+- Generated analyst briefs with a locally hosted LLM under schema-constrained decoding; 0.7923 passed deterministic citation and numeric-grounding checks, with claim-level entailment 0.8477 under a cross-family judge and judge-versus-human kappa **not measured yet** (`fill reports/audit_sheet.csv`).
 
 ## The 60-second version
 

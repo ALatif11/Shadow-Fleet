@@ -21,6 +21,8 @@ Every model on the same cutoffs (the supervised models cannot score the earliest
 | `B1_russia_port` | 0.0985 | 1.4x | 0.0712 | 13 |
 | `B0_random` | 0.0692 | 1.0x | 0.085 | 13 |
 
+`LGBM` does not clearly beat `ISO_forest` on the primary endpoint (0.1846 vs 0.1862; PR-AUC 0.1783 vs 0.1739). It stays the headline because it was pre-registered; the reading is that the learned and unsupervised models find the same, mostly Russia-trade, signal.
+
 The signal is modest and simple: every learned model lands close to the others, and the per-family ablations in `reports/phase6.md` show which data carries it.
 
 Median lead time for hulls it flagged before designation: **10.9 weeks** (64 of 1189 designated hulls flagged in time).
@@ -38,7 +40,7 @@ A backtest can be tuned without meaning to. So the primary model's top 50 is com
 
 ## Changes made after results were seen
 
-Every one is recorded in `PREREG.md` section 12 and labelled post-hoc in the reports, with the numbers from before the change kept beside the numbers after it. Most were bug fixes that brought the code in line with what was pre-registered. The forward test is the check none of them can influence.
+Every one is recorded in `PREREG.md` section 12 and labelled post-hoc in the reports, with the numbers from before the change kept beside the numbers after it. Most were bug fixes that brought the code in line with what was pre-registered. One mattered for every number above: LightGBM gave different results on identical re-runs, because the database summed floats across threads in no fixed order. Feature builds are now single-threaded and rounded, two builds of a cutoff compare equal, and every reported number is from after that fix. The forward test is the check none of these changes can influence.
 
 ## What was built, and what it measured
 
@@ -49,8 +51,18 @@ Every one is recorded in `PREREG.md` section 12 and labelled post-hoc in the rep
 | Identity | 0.8059 of MMSI-days resolved to an IMO-based hull id | `reports/phase3.md` |
 | Self-built detectors | 25 STS candidates, 11357 loitering events | `reports/phase4b.md` |
 | Feature store | 32 features in 7 frozen families | `reports/phase5a.md` |
-| Briefs | 650 generated, 0.7815 with zero verifier failures | `reports/phase8.md` |
-| Judge | entailment **not measured yet** (`make judge`), kappa vs human **not measured yet** (`fill reports/audit_sheet.csv`) | `reports/phase9.md` |
+| Briefs | 650 generated, 0.7923 with zero verifier failures | `reports/phase8.md` |
+| Judge | entailment 0.8477, kappa vs human **not measured yet** (`fill reports/audit_sheet.csv`) | `reports/phase9.md` |
+
+## Analyst briefs from a local LLM
+
+For each cutoff's top 50, a locally hosted model (`Gemma 4 12B instruct, Q4_K_M GGUF`) writes a short brief under a JSON schema that forces every claim to cite evidence-record ids from a bundle built as of the cutoff. Nothing leaves the machine. Three checks then grade it, from cheapest to most trusted:
+
+- **Deterministic verifier:** 515 of 650 briefs (0.7923) cite only real records, cover their top drivers, and state no number, date or name the bundle does not contain. The rest are the model departing from the evidence (converting hours to days, naming a country it was only given a code for).
+- **Cross-family judge:** `Qwen3-14B-Q4_K_M` grades each of 3100 claims against only the records it cited: **0.8477** entailed (high-severity claims 0.7955, medium 0.9172, low 0.8168).
+- **Human audit:** 30 claims sampled across the judge's verdicts and graded blind. Judge-versus-human Cohen's kappa: **not measured yet** (`fill reports/audit_sheet.csv, then make kappa`). Until that number exists the judge's rate is one model's opinion of another's.
+
+The first full run failed most briefs. Most of those failures were the verifier's own (it read `(E4)` as the number 4), one was the evidence bundle's (Russian port calls had been cut for space); both were fixed, disclosed in `reports/phase8.md`, and every brief regenerated. Details: `reports/phase8.md`, `reports/phase9.md`.
 
 ## How the point-in-time claim is enforced
 

@@ -1,6 +1,6 @@
 # Phase 9 report (generated 2026-10-06 by `make judge`)
 
-Generator: `Gemma 4 12B instruct, Q4_K_M GGUF`. Judge: `/home/adam1/models/Qwen3-14B-Q4_K_M.gguf`. Different families by construction; the command refuses to run otherwise, because a model grading its own output agrees with its own blind spots (ADR-10).
+Generator: `Gemma 4 12B instruct, Q4_K_M GGUF`. Judge: `Qwen3-14B-Q4_K_M`. Different families by construction; the command refuses to run otherwise, because a model grading its own output agrees with its own blind spots (ADR-10).
 
 ## Claim-level entailment
 
