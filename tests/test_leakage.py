@@ -157,3 +157,4 @@ def test_features_cli_writes_a_matrix_and_the_report(store, tmp_path):
     text = report.render_phase5a(out)
     assert "Phase 5a report" in text and "`gfw_gaps`" in text
     assert "never faked" in text  # the GFW-absent disclosure has to survive refactors
+
