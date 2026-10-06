@@ -133,8 +133,18 @@ def _sheet_path():
 def _read_sheet() -> list[dict]:
     if not _sheet_path().exists():
         return []
-    with open(_sheet_path()) as f:
+    # utf-8-sig: Excel's "CSV UTF-8" save adds a byte-order mark that would rename the first column
+    with open(_sheet_path(), encoding="utf-8-sig") as f:
         return list(csv.DictReader(f))
+
+
+def _key(cutoff: str, hull_id: str, finding_index) -> tuple[str, str, int]:
+    """Join key that survives a round trip through Excel, which rewrites 2025-03-31 as 3/31/2025."""
+    c = str(cutoff).strip()
+    if "/" in c:
+        m, d, y = (int(x) for x in c.split("/"))
+        c = f"{y:04d}-{m:02d}-{d:02d}"
+    return c, str(hull_id).strip(), int(float(finding_index))
 
 
 def write_audit_sheet(rows: list[dict], briefs: list[dict], n: int = 30, seed: int = 0) -> str:
@@ -185,10 +195,10 @@ def kappa_from_sheet(judge_rows: list[dict] | None = None) -> dict:
         return {"skipped": "audit_sheet.csv missing; run `make judge` first"}
     if judge_rows is None:
         judge_rows = (probes.read("judge") or {}).get("rows") or []
-    machine = {(r["cutoff"], r["hull_id"], str(r["finding_index"])): r.get("verdict") for r in judge_rows}
+    machine = {_key(r["cutoff"], r["hull_id"], r["finding_index"]): r.get("verdict") for r in judge_rows}
     filled = [r for r in _read_sheet() if (r.get("human_verdict") or "").strip()]
     bad = [r["human_verdict"] for r in filled if r["human_verdict"].strip().lower() not in VERDICTS]
-    pairs = [(r["human_verdict"].strip().lower(), machine.get((r["cutoff"], r["hull_id"], r["finding_index"])))
+    pairs = [(r["human_verdict"].strip().lower(), machine.get(_key(r["cutoff"], r["hull_id"], r["finding_index"])))
              for r in filled if r["human_verdict"].strip().lower() in VERDICTS]
     pairs = [(h, m) for h, m in pairs if m]
     if len(pairs) < 2:

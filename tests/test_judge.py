@@ -132,6 +132,23 @@ def test_kappa_is_one_when_the_human_and_the_judge_agree(tmp_data):
     assert out["n"] == 12 and out["raw_agreement"] == 1.0 and out["kappa"] == 1.0
 
 
+def test_kappa_survives_an_excel_round_trip(tmp_data):
+    """Excel saves dates as 3/31/2025 and may prepend a byte-order mark; neither may lose a row."""
+    rows = [{**r, "cutoff": "2025-03-31"} for r in _rows(["entailed", "partially", "not_entailed"] * 2)]
+    judge.write_audit_sheet(rows, [{**b, "bundle": {**b["bundle"], "cutoff": "2025-03-31"}} for b in _briefs(6)],
+                            n=6)
+    path = config.REPORTS_DIR / "audit_sheet.csv"
+    got = list(csv.DictReader(path.read_text().splitlines()))
+    for r in got:
+        r["cutoff"], r["human_verdict"] = "3/31/2025", next(x["verdict"] for x in rows if x["hull_id"] == r["hull_id"])
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        wr = csv.DictWriter(f, fieldnames=judge.AUDIT_COLUMNS)
+        wr.writeheader()
+        wr.writerows(got)
+    out = judge.kappa_from_sheet(rows)
+    assert out["n"] == 6 and out["kappa"] == 1.0
+
+
 def test_kappa_is_undefined_rather_than_misleading_when_one_rater_never_varies(tmp_data):
     rows = _rows(["entailed"] * 6)
     judge.write_audit_sheet(rows, _briefs(6), n=6)
