@@ -809,8 +809,14 @@ def render_phase8(out: dict | None = None) -> str:
               "first, port name and country are included, and the destinations behind "
               "`share_russian_destination` are a new evidence family. Driver values are rounded to 2 "
               "decimals and the prompt asks for ISO dates and `[E#]` citations.",
-              "", "Every brief was regenerated after these changes; the numbers above are the second run's.",
-              ""]
+              "", "Every brief was regenerated after these changes (second run: 450 of 650 clean).", "",
+              "After the second run, one more verifier fix and no regeneration: names are matched word by "
+              "word and case-blind, because SUEZ SOUTH ANCHORAGE in the bundle failed as Suez South Anchorage "
+              "in the prose, and field names (DWT, callsign) count as known words. Still counted as failures, "
+              "on purpose: country names the bundle only has as codes beyond the standard name (Turkey, UAE, "
+              "Turkish), numbers the model computed rather than copied (hours turned into days), and dates "
+              "not in the bundle. Those are the model departing from the evidence, which is what this "
+              "check exists to catch; the judge grades whether they are also wrong.", ""]
     if p.get("failed"):
         lines += [f"- {len(p['failed'])} briefs failed generation after a retry and were recorded rather "
                   "than faked. First few: "

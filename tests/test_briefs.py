@@ -147,6 +147,19 @@ def test_an_uncovered_top_driver_is_caught():
     assert out["uncovered_drivers"] == ["n_sts_candidates"] and not out["passes"]
 
 
+def test_names_match_the_bundle_word_by_word_and_case_blind():
+    """Second real run: SUEZ SOUTH ANCHORAGE written as Suez South Anchorage, RU ULU UST LUGA as UST-LUGA."""
+    bun = _bundle()
+    bun["evidence"]["E2"] = {"family": "gfw", "kind": "port_visit", "port_name": "SUEZ SOUTH ANCHORAGE"}
+    bun["evidence"]["E3"] = {"family": "destination", "destination": "RU ULU UST LUGA"}
+    bun["evidence"]["E4"] = {"family": "identity", "mmsi": 219000111}
+    bun["header"]["dwt"] = None
+    b = _brief(summary="Called at Suez South Anchorage, then reported UST-LUGA; two MMSIs, DWT unknown.")
+    assert not verify.verify(b, bun, render(b, bun))["ungrounded_names"]
+    b = _brief(summary="Called at Port Said and then at Suez South Anchorage before heading north again.")
+    assert verify.verify(b, bun, render(b, bun))["ungrounded_names"] == ["Port Said"]
+
+
 def test_a_driver_with_no_records_in_the_bundle_is_listed_not_failed():
     """Vessel size has no per-record evidence; a brief cannot cite what the bundle does not contain."""
     bun = _bundle()

@@ -21,6 +21,7 @@ from shadowfleet.features.asof import FEATURES
 NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
 DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 # Capitalised runs of two or more characters, which is how a vessel, port or company name would appear.
+WORD = re.compile(r"[A-Za-z]+")
 NAME = re.compile(r"\b[A-Z][A-Za-z]{2,}(?:\s+[A-Z][A-Za-z]{2,})*\b")
 # Citation markers are ids, not facts: the renderer writes `[E4]`, and the model writes `(E4)` in its summary.
 # Grounding has to ignore both, or `(E4)` reads as an ungrounded 4 (it did: 1-13 were the top "numbers").
@@ -32,7 +33,7 @@ NAME_ALLOWLIST = {
     "Available", "Data", "AIS", "IMO", "MMSI", "STS", "GFW", "OFAC", "EU", "UK", "Russian", "Baltic",
     "Danish", "Denmark", "Skagen", "Phase", "Identity", "Loitering", "Spoof", "Families",
     # the bundle's own section names and source, which the model refers to by name
-    "Russia", "Header", "Drivers", "Driver", "Ship", "IDs", "ID", "Flag", "DMA", "SHAP", "LOCODE",
+    "GPS", "Russia", "Header", "Drivers", "Driver", "Ship", "IDs", "ID", "Flag", "DMA", "SHAP", "LOCODE",
 }
 
 
@@ -122,10 +123,10 @@ def _bundle_values(bundle: dict) -> tuple[set[str], set[str], set[str]]:
             elif isinstance(v, str):
                 dates |= set(DATE.findall(v))
                 numbers |= _numbers(v)
-                names |= set(NAME.findall(v))  # bundle values are data, so every run counts as known
+                names.add(v)  # bundle values are data, so every word in them counts as known
     for d in bundle.get("drivers") or []:
         numbers |= {_norm(d.get("value")), _norm(d.get("contribution"))}
-        names |= set(NAME.findall(d.get("description") or ""))
+        names.add(d.get("description") or "")
         numbers |= _numbers(d.get("description") or "")
     for v in (bundle.get("header") or {}).values():
         if isinstance(v, (int, float)) and not isinstance(v, bool):
@@ -141,7 +142,10 @@ def _bundle_values(bundle: dict) -> tuple[set[str], set[str], set[str]]:
     dates.add(bundle.get("cutoff", ""))
     numbers.add(_norm(bundle.get("hull_id")))
     names.add(str(bundle.get("hull_id")))
-    return numbers, dates, names
+    # field names too: a brief may say "DWT" or "callsign" because the bundle labels a value that way
+    names |= {k.replace("_", " ") for blob in (bundle.get("evidence") or {}).values() for k in blob}
+    names |= {k.replace("_", " ") for k in bundle.get("header") or {}}
+    return numbers, dates, {w.lower() for n in names for w in WORD.findall(n)}
 
 
 def verify(brief: dict, bundle: dict, prose: str, top_drivers: int = 5) -> dict:
@@ -164,8 +168,11 @@ def verify(brief: dict, bundle: dict, prose: str, top_drivers: int = 5) -> dict:
     prose_body = CITATION.sub(" ", prose.split("## Evidence cited")[0])
     ungrounded_numbers = sorted(n for n in _numbers(prose_body) if not _grounded(n, numbers))
     ungrounded_dates = sorted(d for d in DATE.findall(prose_body) if d not in dates)
+    # word by word and case-blind: the bundle says SUEZ SOUTH ANCHORAGE and RU ULU UST LUGA, the prose
+    # says Suez South Anchorage and UST-LUGA. A plural (MMSIs) counts as its singular.
     ungrounded_names = sorted(n for n in _names(prose_body)
-                              if n not in names and not all(w in NAME_ALLOWLIST for w in n.split()))
+                              if not all(w in NAME_ALLOWLIST or w.lower() in names
+                                         or w.lower().removesuffix("s") in names for w in WORD.findall(n)))
 
     failures = {"dangling_citations": dangling, "uncovered_drivers": uncovered,
                 "ungrounded_numbers": ungrounded_numbers, "ungrounded_dates": ungrounded_dates,
