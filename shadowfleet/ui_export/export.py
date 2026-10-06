@@ -324,7 +324,9 @@ def dossiers_for(con, hulls: list[str], end: date, adds, score_points) -> list[D
         out.append(Dossier(
             origin="live", hull_id=h, imo=imo,
             header=VesselHeader(length_m=lengths.get(h), beam_m=None, dwt=None, built_year=None, ship_type="Tanker"),
-            identity=identity.get(h, []), track=Track(**t),
+            # time order across transmitters: the console takes the last interval started by the as-of date,
+            # so sorting by MMSI first showed a reflagged ship under its old name (9297321, Oct 6 2026)
+            identity=sorted(identity.get(h, []), key=lambda iv: (iv.start, iv.mmsi or 0)), track=Track(**t),
             events=sorted(events.get(h, []), key=lambda e: (e.start, e.id)),
             scores=score_points.get(h, []),
             sanctions=[SanctionAction(authority=a["source"], action=a["action"], date=a["date"],
