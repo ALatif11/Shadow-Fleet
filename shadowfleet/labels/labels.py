@@ -233,6 +233,11 @@ def _actions(path: Path | None = None) -> list[dict]:
     return pq.read_table(path).to_pylist()
 
 
+def actions(path: Path | None = None) -> list[dict]:
+    """Every dated sanctions action (the console shows them as hindsight)."""
+    return _actions(path)
+
+
 def listed_as_of(T: date, sources: tuple[str, ...] = SOURCES, path: Path | None = None) -> dict[int, Listing]:
     """IMOs with an unrevoked add on or before T, and the date of that add.
 

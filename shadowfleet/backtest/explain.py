@@ -60,6 +60,20 @@ def write_shap(T: date, contribs: list[dict]) -> str | None:
     return rel_path(d)
 
 
+def write_scores(T: date, rows: list[dict], scored: dict, b1) -> str:
+    """`data/parquet/scores/cutoff=T/`: every model's score for every hull in the population at T, plus the
+    B1 stratum flag. The console's watchlists and score histories are read from here (ADR-18), so the
+    exporter never re-scores anything. Gitignored with the rest of data/ (scores derive from GFW features).
+    """
+    d = config.PARQUET_DIR / "scores" / f"cutoff={T.isoformat()}"
+    d.mkdir(parents=True, exist_ok=True)
+    cols = {"hull_id": [r["hull_id"] for r in rows], "b1": [bool(x) for x in b1]}
+    for model, score in scored.items():
+        cols[model] = [None] * len(rows) if score is None else [float(x) for x in score]
+    pq.write_table(pa.table(cols), d / "part-0.parquet", compression="zstd")
+    return rel_path(d)
+
+
 def read_shap(T: date) -> dict[str, list[dict]]:
     """The SHAP table `write_shap` produced, as hull_id -> top contributions.
 

@@ -1,18 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dossier } from "../contract";
-import { asOfBounds, useConsole } from "../state/store";
+import { asOfBounds, SPEEDS, useConsole } from "../state/store";
 import { DAY_MS, endOfDay, featureWindow, isKnown, startOfDay } from "../data/asof";
-import { fmtDate } from "../lib/format";
+import { fmtDate, fmtDay } from "../lib/format";
+import { GLOSSARY } from "../lib/plain";
+import { Segmented } from "./Segmented";
 
 const LANES = [
-  { key: "identity", label: "IDENTITY", match: (_src: string, t: string) => t === "identity_change" },
-  { key: "dma", label: "DMA TRACK", match: () => false },
-  { key: "gfw", label: "GFW EVENTS", match: (src: string) => src === "gfw" },
-  { key: "self", label: "SELF-BUILT", match: (src: string, t: string) => src === "self_built" && t !== "identity_change" },
-  { key: "sanctions", label: "DESIGNATION", match: () => false },
+  { key: "identity", label: "NAME / FLAG", match: (_src: string, t: string) => t === "identity_change" },
+  { key: "dma", label: "SEEN IN DK", match: () => false },
+  { key: "gfw", label: "WORLDWIDE", match: (src: string) => src === "gfw" },
+  { key: "self", label: "OUR DETECTORS", match: (src: string, t: string) => src === "self_built" && t !== "identity_change" },
+  { key: "sanctions", label: "SANCTIONED", match: () => false },
 ];
 const LANE_H = 16;
 const LEFT = 104;
+const SPEED_LABEL: Record<number, string> = { 0.5: "½ day/s", 2: "2 days/s", 7: "1 wk/s", 30: "1 mo/s" };
 const TOP = 18;
 
 function useWidth() {
@@ -66,21 +69,6 @@ export function Timeline({ dossier }: { dossier: Dossier | null }) {
     return out;
   }, [lo, hiWindow]);
 
-  // Playback: one day per frame-step, stopping at the limit.
-  useEffect(() => {
-    if (!s.playing) return;
-    const id = setInterval(() => {
-      const st = useConsole.getState();
-      const [, hi] = asOfBounds(st);
-      if (st.asOf >= hi) {
-        st.setPlaying(false);
-        return;
-      }
-      st.setAsOf(st.asOf + DAY_MS);
-    }, 60);
-    return () => clearInterval(id);
-  }, [s.playing]);
-
   const onPointer = (e: React.PointerEvent) => {
     if (e.type === "pointerdown") {
       dragging.current = true;
@@ -98,21 +86,24 @@ export function Timeline({ dossier }: { dossier: Dossier | null }) {
   return (
     <div className="timeline" ref={ref}>
       <div className="tl-bar">
-        <button className="play" aria-label={s.playing ? "Pause playback" : "Play the feature window"} onClick={() => {
+        <button className={`play ${s.playing ? "on" : ""}`} aria-label={s.playing ? "Pause" : "Play"} onClick={() => {
           if (!s.playing && s.asOf >= maxAsOf) s.setAsOf(fwLo);
           s.setPlaying(!s.playing);
-        }} title="Play the feature window (space)">
+        }} data-tip={s.playing ? "Pause (space)" : "Play: the ship sails its track and incidents ping as they happen (space)"}>
           {s.playing ? "❚❚" : "▶"}
         </button>
-        <button onClick={() => s.setAsOf(fwLo)} title="Jump to feature-window start">⇤ T−180D</button>
-        <button onClick={() => s.setAsOf(endOfDay(s.cutoff))} title="Jump to cutoff">T</button>
-        <span className="asof mono">
-          AS-OF <b>{fmtDate(s.asOf)}</b>
-          {s.asOf > endOfDay(s.cutoff) ? <em className="amber"> +{Math.round((s.asOf - endOfDay(s.cutoff)) / DAY_MS)}D PAST CUTOFF</em> : <em> T−{Math.round((endOfDay(s.cutoff) - s.asOf) / DAY_MS)}D</em>}
+        <Segmented className="speed" value={s.speed} options={SPEEDS} label={(v) => SPEED_LABEL[v] ?? `${v}d/s`}
+          tip={(v) => `Playback speed: ${SPEED_LABEL[v] ?? v} of ship time per real second`} onChange={s.setSpeed} ariaLabel="Playback speed" />
+        <button onClick={() => s.setAsOf(fwLo)} data-tip={GLOSSARY.feature_window.long}>⇤ Window start</button>
+        <button onClick={() => s.setAsOf(endOfDay(s.cutoff))} data-tip="Jump back to pretend-today">Pretend today ⇥</button>
+        <span className="asof mono" aria-live="off">
+          Showing <b>{fmtDay(s.asOf)}</b>
+          {s.asOf > endOfDay(s.cutoff)
+            ? <em className="amber"> · {Math.round((s.asOf - endOfDay(s.cutoff)) / DAY_MS)} days after pretend-today</em>
+            : <em> · {Math.round((endOfDay(s.cutoff) - s.asOf) / DAY_MS) || "0"} days before pretend-today</em>}
         </span>
-        <span className="tl-note mono">
-          HORIZON → {cutoffInfo?.horizon_end} {cutoffInfo?.horizon_closed ? "(CLOSED)" : "(OPEN)"}
-          {!s.hindsight && " · FUTURE LOCKED (H)"}
+        <span className="tl-note mono" data-tip={GLOSSARY.horizon.long}>
+          {s.hindsight ? `outcomes count until ${cutoffInfo?.horizon_end}` : "the future is hidden · press H to reveal"}
         </span>
       </div>
       <svg
@@ -146,7 +137,7 @@ export function Timeline({ dossier }: { dossier: Dossier | null }) {
           );
         })}
         <rect x={X(fwLo)} y={TOP - 6} width={Math.max(1, X(fwHi) - X(fwLo))} height={LANES.length * LANE_H + 8} className="fw" />
-        <text x={X(fwLo) + 3} y={TOP - 8} className="fw-lbl">FEATURE WINDOW</text>
+        <text x={X(fwLo) + 3} y={TOP - 8} className="fw-lbl">SCORE WINDOW · 180 D</text>
         {!s.hindsight && <rect x={cutoffX} y={TOP - 6} width={Math.max(0, LEFT + plotW - cutoffX)} height={LANES.length * LANE_H + 8} fill="url(#hatch)" className="locked" />}
         <rect x={cutoffX} y={TOP - 6} width={Math.max(0, X(endOfDay(cutoffInfo?.horizon_end ?? s.cutoff)) - cutoffX)} height={3} className="horizon" />
         {LANES.map((l, i) => (
@@ -186,8 +177,8 @@ export function Timeline({ dossier }: { dossier: Dossier | null }) {
             className={c.cutoff === s.cutoff ? "ctick on" : "ctick"} onPointerDown={(ev) => { ev.stopPropagation(); s.setCutoff(c.cutoff); }} />
         ))}
         <line x1={cutoffX} x2={cutoffX} y1={TOP - 10} y2={height - 16} className="cutoff" />
-        <text x={cutoffX + 3} y={10} className="cutoff-lbl">T {s.cutoff}</text>
-        <g transform={`translate(${asOfX}, 0)`} className="asof-handle">
+        <text x={cutoffX + 3} y={10} className="cutoff-lbl">PRETEND TODAY {s.cutoff}</text>
+        <g style={{ transform: `translateX(${asOfX}px)` }} className={`asof-handle ${s.playing || dragging.current ? "" : "glide"}`}>
           <line y1={TOP - 8} y2={height - 16} />
           <path d={`M-5,${TOP - 14} L5,${TOP - 14} L0,${TOP - 7} Z`} />
         </g>

@@ -185,8 +185,9 @@ def render_readme() -> str:
             "`ui/` is a local React console (ADR-18): a ranked watchlist per cutoff, a map of each "
             "hull's DMA track and its events, and a timeline that shows each hull only as it was "
             "knowable at the chosen instant. It renders a JSON bundle the Python side writes and never "
-            "computes a metric itself. Until `make ui-export` is wired to the real outputs (Phase C) it "
-            "runs on a synthetic bundle, labelled as such. Local only: its dossiers carry GFW-derived "
+            "computes a metric itself. `make ui-export` builds that bundle from the real outputs (every "
+            "model's scores, the copied metrics, and per-hull dossiers); `make ui-fixtures` builds a synthetic "
+            "one, labelled as such. Local only: its dossiers carry GFW-derived "
             "events (rule 7). See `SETUP.md` section 9.", "",
             "## Documents", "",
             "- `shadow-fleet-plan.md`: architecture, risks, ADRs, evaluation design.",
