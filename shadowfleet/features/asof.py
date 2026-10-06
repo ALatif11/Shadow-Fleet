@@ -312,8 +312,16 @@ FEATURE_DECIMALS = 6
 def features(T: date, con: duckdb.DuckDBPyConnection | None = None) -> list[dict]:
     """One row per hull in the population at T, every column in FEATURES."""
     con = con or connect()
-    hulls = population(T, con)
-    parts = (_identity(T, con), _ais(T, con), _gfw(T, con), _detect(T, con), _static(T, con))
+    # Single-threaded, so every aggregate sees rows in the same order: with 8 threads DuckDB's float sums
+    # and its tie-breaks (mode, arg_max) varied between runs, and rounding alone left 2 values a cutoff that
+    # still flipped. Costs seconds per cutoff; reproducibility is worth more.
+    threads = con.execute("SELECT current_setting('threads')").fetchone()[0]
+    con.execute("SET threads = 1")
+    try:
+        hulls = population(T, con)
+        parts = (_identity(T, con), _ais(T, con), _gfw(T, con), _detect(T, con), _static(T, con))
+    finally:
+        con.execute(f"SET threads = {int(threads)}")
     rows = []
     for h in hulls:
         row: dict = {"hull_id": h, "cutoff": T}

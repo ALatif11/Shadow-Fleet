@@ -92,6 +92,8 @@ def test_every_phase_runs_in_order_and_hands_the_next_one_what_it_expects(ingest
     # rounded, so DuckDB's thread-order float noise cannot reach LightGBM (it trained a new model each rerun)
     assert all(v == round(v, asof.FEATURE_DECIMALS) for r in rows for v in r.values() if isinstance(v, float))
     assert any(isinstance(v, float) for r in rows for v in r.values()), "the check above must see floats"
+    # features run single-threaded for reproducibility, and must hand the caller's thread count back
+    assert con.execute("SELECT current_setting('threads')").fetchone()[0] == config.DUCKDB_THREADS
     alpha = next(r for r in rows if r["hull_id"] == IMOS[0])
     assert alpha["n_sts_candidates"] > 0, "Phase 4b's STS table must reach the Phase 5a feature row"
     assert alpha["n_draught_inconsistencies"] + alpha["n_sts_with_draught_change"] > 0
