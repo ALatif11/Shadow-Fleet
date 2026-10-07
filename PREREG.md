@@ -161,3 +161,10 @@ Append-only, below, each with a date and whether Phase 5b results had been seen.
 - **2026-10-06, same issue, second step.** After rounding, two builds of one cutoff still differed in 2 values
   (a value on a rounding edge, or a tie in `mode`/`arg_max` resolved differently). Feature builds now run
   DuckDB single-threaded, so every aggregate sees rows in a fixed order. The rounding stays.
+- **2026-10-07, AFTER Phase 8/9 results had been seen. Post-hoc; brief layer only.** Brief generation v2: the
+  evidence bundle spells out `days` beside `hours` and a country name beside each ISO3 code; a brief that
+  fails the deterministic verifier gets one repair round (its failures sent back, the rewrite kept only if it
+  passes every check); and a high-severity finding must cite two distinct records (prompt rule 10 and a
+  verifier check). No scoring model, feature, label or metric changes. v1 numbers (515 of 650 clean, 0.8477
+  entailed) are kept in `reports/phase8.md` and `reports/status-2026-09-28.md`; v2 reports the first-pass
+  rate (comparable to v1) beside the after-repair rate.

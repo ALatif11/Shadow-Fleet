@@ -307,3 +307,87 @@ def test_phase8_report_states_the_deterministic_half_only(store):
     assert "3 of 4 briefs have zero verifier failures" in text
     assert "deterministic half only" in text  # the judge is missing and the report must say so
     assert "audit_sheet.csv" in text
+
+
+# ---------------------------------------------------------------- v2: enrichment, two-record high, repair
+def test_bundle_spells_out_days_and_country_names_for_the_model_to_copy():
+    """v1's commonest failures were 60.5 hours written as 2.5 days and TUR written as Turkey."""
+    rec = bmod._enrich({"family": "gfw", "hours": 60.5, "port_country": "TUR"})
+    assert rec["days"] == 2.5 and rec["port_country_name"] == "Türkiye"
+    assert "days" not in bmod._enrich({"hours": 3.2})  # under a day, nobody converts
+    assert bmod._enrich({"current_flag": "IRN"})["current_flag_name"] == "Iran"
+    assert "flag_name" not in bmod._enrich({"flag": None})
+    bun = _bundle()
+    bun["evidence"]["E1"] = bmod._enrich({**bun["evidence"]["E1"], "hours": 60.5})
+    b = _brief(findings=[{"claim": "One STS candidate lasted 2.5 days (60.5 hours).",
+                          "evidence_ids": ["E1"], "severity": "medium"}])
+    assert not verify.verify(b, bun, render(b, bun))["ungrounded_numbers"]
+
+
+def test_high_severity_needs_two_distinct_records():
+    bun = _bundle()
+    bun["evidence"]["E2"] = {"family": "sts", "at": "2025-03-05T04:00:00", "hours": 3.2}
+    one = _brief(findings=[{"claim": "One STS candidate lasting 3.2 hours was detected.",
+                            "evidence_ids": ["E1", "E1"], "severity": "high"}])
+    out = verify.verify(one, bun, render(one, bun))
+    assert out["thin_high_severity"] == ["finding 1"] and not out["passes"]
+    two = _brief(findings=[{"claim": "Two STS candidates each lasted 3.2 hours.",
+                            "evidence_ids": ["E1", "E2"], "severity": "high"}])
+    assert verify.verify(two, bun, render(two, bun))["passes"]
+
+
+def _seq(*contents):
+    """A stub server that answers in turn, and records what it was sent."""
+    seen: list[list[dict]] = []
+
+    def completer(messages, schema=None, url=None):
+        seen.append(messages)
+        return contents[min(len(seen), len(contents)) - 1], {"completion_tokens": 100}
+    return completer, seen
+
+
+def _flag_list(store) -> dict:
+    feat = {r["hull_id"]: r for r in asof.features(T, store)}
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    with open(config.REPORTS_DIR / f"flagged_{T.isoformat()}.csv", "w", newline="") as f:
+        wr = csv.writer(f)
+        wr.writerow(["rank", "hull_id", "score", "label", "designation_date"])
+        wr.writerow([1, IMO_A, 0.9, 0, ""])
+    return feat
+
+
+def _json_brief(claim: str) -> str:
+    return json.dumps({"summary": "A" * 40, "risk_level": "medium",
+                       "findings": [{"claim": claim, "evidence_ids": ["E1"], "severity": "low"}],
+                       "caveats": []})
+
+
+def test_a_failing_brief_gets_one_repair_round_and_both_rates_are_reported(store):
+    from shadowfleet.briefs import generate as gen
+
+    _flag_list(store)
+    completer, seen = _seq(_json_brief("It loitered for 987.6 hours in total."), _json_brief("B" * 20))
+    out = gen.run_batch([T], top_k=1, completer=completer)
+    assert len(seen) == 2, "one first pass, one repair"
+    assert seen[1][-1]["role"] == "user" and "987.6" in seen[1][-1]["content"]  # the failure goes back
+    assert seen[1][-2]["role"] == "assistant"  # with the model's own answer
+    f = out["faithfulness"]
+    assert f["clean"] == 1 and f["clean_first_pass"] == 0 and f["repaired"] == 1
+    saved = json.loads((config.REPORTS_DIR / "briefs" / T.isoformat() / f"{IMO_A}.json").read_text())
+    assert saved["meta"]["first_pass"]["ungrounded_numbers"] == ["987.6"]
+    assert "987.6" not in saved["brief"]["findings"][0]["claim"]
+    # resumed briefs keep their first-pass result, so a rerun reports the same two rates
+    again = gen.run_batch([T], top_k=1, completer=lambda *a, **k: (_ for _ in ()).throw(AssertionError()))
+    assert again["faithfulness"]["clean_first_pass"] == 0 and again["faithfulness"]["repaired"] == 1
+
+
+def test_a_repair_that_still_fails_is_dropped_for_the_original(store):
+    from shadowfleet.briefs import generate as gen
+
+    _flag_list(store)
+    first, second = _json_brief("It loitered for 987.6 hours in total."), _json_brief("It moved 555.5 km.")
+    out = gen.run_batch([T], top_k=1, completer=_seq(first, second)[0])
+    f = out["faithfulness"]
+    assert f["clean"] == 0 and f["repaired"] == 0
+    saved = json.loads((config.REPORTS_DIR / "briefs" / T.isoformat() / f"{IMO_A}.json").read_text())
+    assert "987.6" in saved["brief"]["findings"][0]["claim"] and saved["meta"]["repair"]["passes"] is False

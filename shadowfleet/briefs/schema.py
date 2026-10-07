@@ -56,7 +56,11 @@ Rules you must follow:
 7. Write dates exactly as the bundle does (YYYY-MM-DD) and copy numbers as given; do not add, subtract or
    convert them. Cite evidence as [E1] in findings only.
 8. `drivers` are why the scoring model ranked this vessel, not evidence. Describe them as model drivers, and
-   cite the evidence records that back them where the bundle has such records."""
+   cite the evidence records that back them where the bundle has such records.
+9. Where the bundle gives a value two ways (`hours` and `days`, `flag` and `flag_name`), copy either one;
+   never convert a value yourself. Write country names exactly as the `_name` fields spell them.
+10. Severity "high" needs at least two distinct evidence ids that each support the claim. A claim resting on
+   one record is "medium" at most."""
 
 
 def render(brief: dict, bundle: dict) -> str:

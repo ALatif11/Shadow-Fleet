@@ -13,6 +13,7 @@ from datetime import date, timedelta
 from typing import Any
 
 import duckdb
+import pycountry
 
 from shadowfleet import config
 from shadowfleet.detect import churn, draught, loitering, spoof, sts
@@ -49,6 +50,31 @@ def _iso(v: Any) -> Any:
 
 def _round(v: Any) -> Any:
     return round(v, 2) if isinstance(v, float) else v
+
+
+def country_name(code: Any) -> str | None:
+    """`TUR` -> `Türkiye`, `IRN` -> `Iran`: the short form where pycountry has one, else the ISO name."""
+    c = pycountry.countries.get(alpha_3=code) if isinstance(code, str) and len(code) == 3 else None
+    return (getattr(c, "common_name", None) or c.name) if c else None
+
+
+COUNTRY_FIELDS = ("flag", "port_country", "current_flag")
+
+
+def _enrich(rec: dict) -> dict:
+    """Derived values the model would otherwise compute itself, and get wrong or unverifiable.
+
+    Phase 8's remaining failures were the model converting 60.5 hours into "2.5 days" and writing "Turkey"
+    for TUR. Both are now in the bundle to copy: `days` for anything a day or longer, and a country name next
+    to every ISO3 code. Nothing new is learned about the vessel; the same value is spelled a second way.
+    """
+    out = dict(rec)
+    if isinstance(rec.get("hours"), (int, float)) and rec["hours"] >= 24:
+        out["days"] = round(rec["hours"] / 24, 1)
+    for k in COUNTRY_FIELDS:
+        if (name := country_name(rec.get(k))):
+            out[f"{k}_name"] = name
+    return out
 
 
 def evidence(hull_id: str, T: date, con: duckdb.DuckDBPyConnection | None = None) -> dict[str, list[dict]]:
@@ -149,7 +175,7 @@ def build(hull_id: str, T: date, feature_row: dict, shap_top: list[dict] | None 
     for family in sorted(records, key=lambda f: TRUNCATION_ORDER.index(f)
                          if f in TRUNCATION_ORDER else len(TRUNCATION_ORDER)):
         for rec in records[family]:
-            ids[f"E{len(ids) + 1}"] = {"family": family, **{k: _iso(v) for k, v in rec.items()}}
+            ids[f"E{len(ids) + 1}"] = _enrich({"family": family, **{k: _iso(v) for k, v in rec.items()}})
 
     # rounded: a model shown 11.424947996116973 copies all of it, and no reader needs more than 2 decimals
     drivers = [{"feature": d["feature"], "value": _round(d["value"]), "contribution": _round(d["contribution"]),
@@ -157,9 +183,9 @@ def build(hull_id: str, T: date, feature_row: dict, shap_top: list[dict] | None 
                for d in (shap_top or [])[:TOP_FEATURES]]
     bundle = {
         "hull_id": hull_id, "cutoff": T.isoformat(),
-        "header": {k: _round(_iso(feature_row.get(k))) for k in
-                   ("current_flag", "vessel_age_years", "length_m", "dwt", "n_days_observed",
-                    "n_transits")},
+        "header": _enrich({k: _round(_iso(feature_row.get(k))) for k in
+                           ("current_flag", "vessel_age_years", "length_m", "dwt", "n_days_observed",
+                            "n_transits")}),
         "drivers": drivers, "evidence": ids,
     }
     # trim least-important families first until the bundle fits; recorded so the brief can say it was cut

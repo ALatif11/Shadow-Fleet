@@ -52,10 +52,17 @@ def complete(messages: list[dict], schema: dict | None = None, url: str | None =
     return body["choices"][0]["message"]["content"], body.get("usage") or {}
 
 
-def generate(bundle: dict, completer=complete, url: str | None = None) -> tuple[dict | None, dict]:
-    """A validated brief, or (None, meta) after the retry. Never returns unvalidated model output."""
+def generate(bundle: dict, completer=complete, url: str | None = None,
+             repair: tuple[dict, str] | None = None) -> tuple[dict | None, dict]:
+    """A validated brief, or (None, meta) after the retry. Never returns unvalidated model output.
+
+    `repair` is (the previous brief, the verifier's feedback): the model sees its own answer and what failed
+    in it, as a second turn of the same conversation."""
     messages = [{"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": json.dumps(bundle, separators=(",", ":"))}]
+    if repair:
+        messages += [{"role": "assistant", "content": json.dumps(repair[0])},
+                     {"role": "user", "content": repair[1]}]
     meta: dict = {"attempts": 0, "usage": {}, "errors": []}
     for _ in range(RETRIES + 1):
         meta["attempts"] += 1
@@ -66,6 +73,13 @@ def generate(bundle: dict, completer=complete, url: str | None = None) -> tuple[
         except Exception as exc:  # a schema failure, a refusal, or a dead server: all retried once
             meta["errors"].append(f"{type(exc).__name__}: {exc}"[:300])
     return None, meta
+
+
+def _stamp(result: dict, meta: dict) -> dict:
+    """Carry first-pass vs after-repair onto a verify result, for aggregate()."""
+    fp = meta.get("first_pass")  # absent on a brief written before v2: then the brief is its own first pass
+    return {**result, "first_pass_passes": result["passes"] if fp is None else not fp,
+            "repaired": bool((meta.get("repair") or {}).get("passes"))}
 
 
 def _flagged(cutoff: date, top_k: int) -> list[str]:
@@ -79,8 +93,6 @@ def _flagged(cutoff: date, top_k: int) -> list[str]:
 def run_batch(cutoffs: list[date] | None = None, top_k: int = TOP_K_PER_CUTOFF,
               completer=complete, url: str | None = None) -> dict:
     """Briefs for the top-k flagged hulls at each cutoff, with the verifier run on every one."""
-
-
     con = connect()
     cutoffs = cutoffs or config.monthly_cutoffs(config.load_window(), date.today())
     out: dict = {"cutoffs": [], "verified": [], "failed": [], "resumed": 0}
@@ -106,8 +118,8 @@ def run_batch(cutoffs: list[date] | None = None, top_k: int = TOP_K_PER_CUTOFF,
             if saved and saved["meta"].get("key") == key:
                 # resumable: a crash or Ctrl+C costs nothing already done. A changed bundle or prompt does
                 # not match the key, so the brief is regenerated rather than verified against stale inputs.
-                out["verified"].append(verify.verify(saved["brief"], saved["bundle"],
-                                                     (d / f"{hull}.md").read_text()))
+                out["verified"].append(_stamp(verify.verify(saved["brief"], saved["bundle"],
+                                                            (d / f"{hull}.md").read_text()), saved["meta"]))
                 out["resumed"] += 1
                 done += 1
                 continue
@@ -120,9 +132,26 @@ def run_batch(cutoffs: list[date] | None = None, top_k: int = TOP_K_PER_CUTOFF,
                 out["failed"].append({"cutoff": T.isoformat(), "hull_id": hull, **meta})
                 continue
             prose = render(brief, b)
+            res = verify.verify(brief, b, prose)
+            meta["first_pass"] = {k: res[k] for k in verify.FAILURE_KEYS if res[k]}
+            if not res["passes"]:
+                # one repair round (v2, disclosed): the failures go back as feedback, and the rewrite is kept
+                # only if it passes every check. A rewrite that still fails is dropped for the original.
+                t = time.time()
+                fixed, rmeta = generate(b, completer=completer, url=url,
+                                        repair=(brief, verify.feedback(res)))
+                gen_seconds += time.time() - t
+                gen_tokens += int((rmeta.get("usage") or {}).get("completion_tokens") or 0)
+                meta["repair"] = {"attempts": rmeta["attempts"], "errors": rmeta["errors"]}
+                if fixed is not None:
+                    fprose = render(fixed, b)
+                    fres = verify.verify(fixed, b, fprose)
+                    meta["repair"]["passes"] = fres["passes"]
+                    if fres["passes"]:
+                        brief, prose, res = fixed, fprose, fres
             path.write_text(json.dumps({"brief": brief, "bundle": b, "meta": meta}, indent=1))
             (d / f"{hull}.md").write_text(prose)
-            out["verified"].append(verify.verify(brief, b, prose))
+            out["verified"].append(_stamp(res, meta))
             done += 1
         out["cutoffs"].append({"cutoff": T.isoformat(), "briefs": done, "dir": str(d)})
     out["seconds"] = round(time.time() - t0, 1)

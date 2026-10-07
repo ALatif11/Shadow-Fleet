@@ -782,15 +782,18 @@ def render_phase8(out: dict | None = None) -> str:
              "at start-up, so this is the peak.", "",
              "## Deterministic faithfulness", "",
              f"- **{f.get('clean', 0)} of {f.get('briefs', 0)} briefs have zero verifier failures "
-             f"({f.get('share_clean')}).**", ""]
+             f"({f.get('share_clean')}) after one repair round.**"
+             + (f" First pass, the model alone: {f['clean_first_pass']} ({f['share_clean_first_pass']}); "
+                f"{f.get('repaired', 0)} were repaired." if "clean_first_pass" in f else ""), ""]
     counts = f.get("briefs_with") or {}
     if counts:
         lines += ["| failure | briefs |", "|---|---:|"]
         lines += [f"| {k.replace('_', ' ')} | {v} |" for k, v in sorted(counts.items())]
-    lines += ["", "The four checks: every cited evidence id exists; each of the top-5 SHAP drivers that has "
+    lines += ["", "The checks: every cited evidence id exists; each of the top-5 SHAP drivers that has "
               "records in the bundle has a cited record from that family; every number and date in the prose "
               "appears in the bundle (a number may be rounded to fewer decimals); every capitalised name in "
-              "the prose appears in the bundle (a flag code grounds its country name).", ""]
+              "the prose appears in the bundle (a flag code grounds its country name); and (v2) every "
+              "high-severity finding cites at least two distinct records.", ""]
     missing = f.get("drivers_without_records") or {}
     if missing:
         lines += ["Top drivers with no per-record evidence (stated from the header, so not checkable "
@@ -819,7 +822,21 @@ def render_phase8(out: dict | None = None) -> str:
               "check exists to catch; the judge grades whether they are also wrong.", "",
               "The re-verification run then regenerated 175 briefs it should have resumed: evidence queries "
               "had ties under LIMIT, so record order (and the bundle hash) changed between runs. Every "
-              "evidence query now ends in a tie-breaker. The numbers above are after that run.", ""]
+              "evidence query now ends in a tie-breaker. That run, v1, gave 515 of 650 clean (0.7923), and "
+              "the Phase 9 judge entailed 0.8477 of its 3,100 findings.", "",
+              "### v2 (Oct 7), also after results were seen", "",
+              "v1's remaining failures were mostly the model converting hours to days and naming countries "
+              "it was given only as codes (Turkey for TUR), and the judge entailed high-severity findings "
+              "least often (0.7955). Three changes, none of which touches the scoring models:", "",
+              "- The bundle spells derived values out for copying: `days` beside `hours` (a day or longer) "
+              "and a `_name` beside each ISO3 country code. No new fact about any vessel.",
+              "- One repair round: a brief that fails the verifier goes back to the model with the list of "
+              "failures (never the answer), and the rewrite is kept only if it passes every check. The "
+              "first-pass rate above is the comparable number to v1; the after-repair rate is what a "
+              "reader of the briefs gets.",
+              "- Prompt rule 10 and a matching check: severity high needs two distinct supporting records.",
+              "", "Every brief was regenerated for v2. The v1 numbers stay in this report and in "
+              "`reports/status-2026-09-28.md`.", ""]
     if p.get("failed"):
         lines += [f"- {len(p['failed'])} briefs failed generation after a retry and were recorded rather "
                   "than faked. First few: "

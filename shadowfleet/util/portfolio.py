@@ -96,8 +96,11 @@ def _briefs_section(briefs: dict, judge: dict) -> list[str]:
         "machine. Three checks then grade it, from cheapest to most trusted:", "",
         f"- **Deterministic verifier:** {_n(f.get('clean'), 'make briefs')} of {_n(f.get('briefs'), 'make briefs')} "
         f"briefs ({_n(f.get('share_clean'), 'make briefs')}) cite only real records, cover their top drivers, "
-        "and state no number, date or name the bundle does not contain. The rest are the model departing from "
-        "the evidence (converting hours to days, naming a country it was only given a code for).",
+        "state no number, date or name the bundle does not contain, and back every high-severity claim with "
+        "two records"
+        + (f". That is after one repair round, in which a failing brief is sent back with its failures and the "
+           f"rewrite kept only if it passes; the model alone, first pass: {f['clean_first_pass']} "
+           f"({f['share_clean_first_pass']})." if "clean_first_pass" in f else "."),
         f"- **Cross-family judge:** `{_n(_model_name(judge.get('judge_model')), 'make judge')}` grades each of "
         f"{_n(judge.get('findings'), 'make judge')} claims against only the records it cited: "
         f"{_bold(judge.get('entailment_rate'), 'make judge')} entailed"
@@ -109,6 +112,8 @@ def _briefs_section(briefs: dict, judge: dict) -> list[str]:
         "The first full run failed most briefs. Most of those failures were the verifier's own "
         "(it read `(E4)` as the number 4), one was the evidence bundle's (Russian port calls had been cut "
         "for space); both were fixed, disclosed in `reports/phase8.md`, and every brief regenerated. "
+        "v1 then scored 515 of 650 clean and 0.8477 entailed; v2 added unit and country spellings to the "
+        "bundle, the repair round and the two-record rule for high severity, also disclosed. "
         "Details: `reports/phase8.md`, `reports/phase9.md`.", ""]
 
 

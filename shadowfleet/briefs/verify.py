@@ -174,26 +174,44 @@ def verify(brief: dict, bundle: dict, prose: str, top_drivers: int = 5) -> dict:
                               if not all(w in NAME_ALLOWLIST or w.lower() in names
                                          or w.lower().removesuffix("s") in names for w in WORD.findall(n)))
 
+    # prompt rule 10 (v2): "high" needs two distinct real records. Phase 9's judge entailed high-severity
+    # claims least often (0.80 vs 0.92 for medium), and most of those rested on a single record.
+    thin_high = [f"finding {n}" for n, f in enumerate(brief.get("findings") or [], start=1)
+                 if f.get("severity") == "high" and len({i for i in f.get("evidence_ids") or [] if i in ids}) < 2]
+
     failures = {"dangling_citations": dangling, "uncovered_drivers": uncovered,
                 "ungrounded_numbers": ungrounded_numbers, "ungrounded_dates": ungrounded_dates,
-                "ungrounded_names": ungrounded_names}
+                "ungrounded_names": ungrounded_names, "thin_high_severity": thin_high}
     return {"hull_id": bundle.get("hull_id"), "cutoff": bundle.get("cutoff"),
             "drivers_without_records": sorted(set(drivers) - set(citable)),
             "n_findings": len(brief.get("findings") or []), "n_cited": len(set(cited)),
             **failures, "passes": not any(failures.values())}
 
 
+FAILURE_KEYS = ("dangling_citations", "uncovered_drivers", "ungrounded_numbers", "ungrounded_dates",
+                "ungrounded_names", "thin_high_severity")
 
+
+def feedback(result: dict) -> str:
+    """The repair prompt: which checks failed and on what, never what the right answer is."""
+    lines = [f"- {k.replace('_', ' ')}: {', '.join(map(str, result[k]))}" for k in FAILURE_KEYS if result.get(k)]
+    return ("Your brief failed these automatic checks:\n" + "\n".join(lines) + "\n\nRewrite the whole brief "
+            "under the same rules. Remove or correct each item listed: copy numbers, dates and names exactly "
+            "as the bundle gives them, cite a record for every top driver that has one, and use \"high\" "
+            "only with two or more supporting evidence ids.")
 
 
 def aggregate(results: list[dict]) -> dict:
     """The headline Phase 9 number: the share of briefs with zero deterministic failures."""
     if not results:
         return {"briefs": 0}
-    counts = {k: sum(1 for r in results if r.get(k)) for k in
-              ("dangling_citations", "uncovered_drivers", "ungrounded_numbers", "ungrounded_dates",
-               "ungrounded_names")}
+    counts = {k: sum(1 for r in results if r.get(k)) for k in FAILURE_KEYS}
     clean = sum(1 for r in results if r["passes"])
+    # first pass is the model alone; the headline is after one repair round. Both are reported, because
+    # the repair is a v2 change made after the Phase 8 numbers were seen (PREREG section 12).
+    first = sum(1 for r in results if r.get("first_pass_passes", r["passes"]))
     missing = Counter(f for r in results for f in r.get("drivers_without_records") or [])
     return {"briefs": len(results), "clean": clean, "share_clean": round(clean / len(results), 4),
+            "clean_first_pass": first, "share_clean_first_pass": round(first / len(results), 4),
+            "repaired": sum(1 for r in results if r.get("repaired")),
             "briefs_with": counts, "drivers_without_records": dict(missing.most_common())}
