@@ -1,10 +1,10 @@
-# Phase 9 report (generated 2026-10-06 by `make judge`)
+# Phase 9 report (generated 2026-10-12 by `make judge`)
 
 Generator: `Gemma 4 12B instruct, Q4_K_M GGUF`. Judge: `Qwen3-14B-Q4_K_M`. Different families by construction; the command refuses to run otherwise, because a model grading its own output agrees with its own blind spots (ADR-10).
 
 ## Claim-level entailment
 
-- 3100 findings judged. **Entailment rate 0.8477.**
+- 2648 findings judged. **Entailment rate 0.8659.**
 - Judge errors (server or schema): 0.
 
 The judge sees only the records a finding cited, never the whole bundle. Given the whole bundle it can justify a claim from evidence the brief never pointed at, which is the failure being measured.
@@ -13,27 +13,27 @@ The judge sees only the records a finding cited, never the whole bundle. Given t
 
 | | entailment |
 |---|---:|
-| high | 0.7955 |
-| low | 0.8168 |
-| medium | 0.9172 |
+| high | 0.8027 |
+| low | 0.9 |
+| medium | 0.8904 |
 
 ### By cutoff
 
 | | entailment |
 |---|---:|
-| 2025-03-31 | 0.8952 |
-| 2025-04-30 | 0.879 |
-| 2025-05-31 | 0.9028 |
-| 2025-06-30 | 0.8884 |
-| 2025-07-31 | 0.86 |
-| 2025-08-31 | 0.8517 |
-| 2025-09-30 | 0.8425 |
-| 2025-10-31 | 0.8246 |
-| 2025-11-30 | 0.7949 |
-| 2025-12-31 | 0.8472 |
-| 2026-01-31 | 0.807 |
-| 2026-02-28 | 0.7803 |
-| 2026-03-31 | 0.8326 |
+| 2025-03-31 | 0.8852 |
+| 2025-04-30 | 0.8683 |
+| 2025-05-31 | 0.9187 |
+| 2025-06-30 | 0.8763 |
+| 2025-07-31 | 0.9082 |
+| 2025-08-31 | 0.8571 |
+| 2025-09-30 | 0.8879 |
+| 2025-10-31 | 0.8333 |
+| 2025-11-30 | 0.8756 |
+| 2025-12-31 | 0.849 |
+| 2026-01-31 | 0.8374 |
+| 2026-02-28 | 0.8081 |
+| 2026-03-31 | 0.845 |
 
 ## Judge versus human
 

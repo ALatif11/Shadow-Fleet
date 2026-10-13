@@ -1,23 +1,24 @@
-# Phase 8/9 report (generated 2026-10-06 by `make briefs`)
+# Phase 8/9 report (generated 2026-10-12 by `make briefs`)
 
-650 briefs in 9445.1 s. Every one was generated under a pydantic-derived JSON schema and then checked by the deterministic verifier; nothing that failed validation was written to disk.
+650 briefs in 9626.7 s. Every one was generated under a pydantic-derived JSON schema and then checked by the deterministic verifier; nothing that failed validation was written to disk.
 
-- Throughput: 51.2 completion tokens/s, end to end per brief.
-- GPU memory in use at the end of the run (used, total): 10530 MiB, 12227 MiB. llama.cpp allocates weights and KV cache at start-up, so this is the peak.
+- Throughput: 48.7 completion tokens/s, end to end per brief.
+- GPU memory in use at the end of the run (used, total): 10197 MiB, 12227 MiB. llama.cpp allocates weights and KV cache at start-up, so this is the peak.
 
 ## Deterministic faithfulness
 
-- **515 of 650 briefs have zero verifier failures (0.7923).**
+- **623 of 650 briefs have zero verifier failures (0.9585) after one repair round.** First pass, the model alone: 521 (0.8015); 102 were repaired.
 
 | failure | briefs |
 |---|---:|
 | dangling citations | 0 |
-| uncovered drivers | 18 |
-| ungrounded dates | 10 |
-| ungrounded names | 56 |
-| ungrounded numbers | 55 |
+| thin high severity | 1 |
+| uncovered drivers | 20 |
+| ungrounded dates | 2 |
+| ungrounded names | 1 |
+| ungrounded numbers | 5 |
 
-The four checks: every cited evidence id exists; each of the top-5 SHAP drivers that has records in the bundle has a cited record from that family; every number and date in the prose appears in the bundle (a number may be rounded to fewer decimals); every capitalised name in the prose appears in the bundle (a flag code grounds its country name).
+The checks: every cited evidence id exists; each of the top-5 SHAP drivers that has records in the bundle has a cited record from that family; every number and date in the prose appears in the bundle (a number may be rounded to fewer decimals); every capitalised name in the prose appears in the bundle (a flag code grounds its country name); and (v2) every high-severity finding cites at least two distinct records.
 
 Top drivers with no per-record evidence (stated from the header, so not checkable against a citation): `length_m` (573), `mean_transit_speed_kn` (80), `n_days_observed` (64), `n_transits` (16), `spoof_jump_rate_excess` (10), `n_port_visits` (3), `anchorage_loitering_hours` (2), `days_since_last_russian_port_visit` (1), `n_laden_transits` (1).
 
@@ -33,7 +34,17 @@ Every brief was regenerated after these changes (second run: 450 of 650 clean).
 
 After the second run, one more verifier fix and no regeneration: names are matched word by word and case-blind, because SUEZ SOUTH ANCHORAGE in the bundle failed as Suez South Anchorage in the prose, and field names (DWT, callsign) count as known words. Still counted as failures, on purpose: country names the bundle only has as codes beyond the standard name (Turkey, UAE, Turkish), numbers the model computed rather than copied (hours turned into days), and dates not in the bundle. Those are the model departing from the evidence, which is what this check exists to catch; the judge grades whether they are also wrong.
 
-The re-verification run then regenerated 175 briefs it should have resumed: evidence queries had ties under LIMIT, so record order (and the bundle hash) changed between runs. Every evidence query now ends in a tie-breaker. The numbers above are after that run.
+The re-verification run then regenerated 175 briefs it should have resumed: evidence queries had ties under LIMIT, so record order (and the bundle hash) changed between runs. Every evidence query now ends in a tie-breaker. That run, v1, gave 515 of 650 clean (0.7923), and the Phase 9 judge entailed 0.8477 of its 3,100 findings.
+
+### v2 (Oct 7), also after results were seen
+
+v1's remaining failures were mostly the model converting hours to days and naming countries it was given only as codes (Turkey for TUR), and the judge entailed high-severity findings least often (0.7955). Three changes, none of which touches the scoring models:
+
+- The bundle spells derived values out for copying: `days` beside `hours` (a day or longer) and a `_name` beside each ISO3 country code. No new fact about any vessel.
+- One repair round: a brief that fails the verifier goes back to the model with the list of failures (never the answer), and the rewrite is kept only if it passes every check. The first-pass rate above is the comparable number to v1; the after-repair rate is what a reader of the briefs gets.
+- Prompt rule 10 and a matching check: severity high needs two distinct supporting records.
+
+Every brief was regenerated for v2. The v1 numbers stay in this report and in `reports/status-2026-09-28.md`.
 
 ## Per cutoff
 
