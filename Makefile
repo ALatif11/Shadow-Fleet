@@ -79,7 +79,7 @@ report:
 
 # Pull the latest hand-off bundle from the Windows folder. --ff-only refuses instead of overwriting, which
 # is the point: `git reset --hard` onto a bundle wiped regenerated files twice and once a real commit.
-BUNDLE ?= /mnt/c/Users/adam1/Downloads/New Proj Files/shadowfleet-latest.bundle
+BUNDLE ?= /mnt/c/Users/adam1/Projects/Shadow-Fleet/shadowfleet-latest.bundle
 sync:
 	git pull --ff-only "$(BUNDLE)" main
 

@@ -29,3 +29,5 @@ ui/dist/
 ui/public/ui_data/
 ui/public/ui_data.old/
 ui/public/.ui_data_*
+# hand-off bundles (make sync) are dropped in the Windows clone of this repo
+*.bundle
