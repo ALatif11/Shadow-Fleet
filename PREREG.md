@@ -168,3 +168,10 @@ Append-only, below, each with a date and whether Phase 5b results had been seen.
   verifier check). No scoring model, feature, label or metric changes. v1 numbers (515 of 650 clean, 0.8477
   entailed) are kept in `reports/phase8.md` and `reports/status-2026-09-28.md`; v2 reports the first-pass
   rate (comparable to v1) beside the after-repair rate.
+- **2026-10-26, AFTER results had been seen. Implementation bug fixed to match this document; reported.**
+  Section 5 bounds event-study lead time by the 182-day horizon, but `harness.lead_time` counted the earliest
+  top-k flag at any cutoff before the designation, so a hull in the top 50 a year before its listing showed
+  up to 55.6 weeks of lead. That earlier flag was a false positive at its own cutoff. Only flags whose horizon
+  contains the designation now count. The previously reported LightGBM figures (64 of 1,189 hulls, median
+  10.9 weeks) are kept in `reports/status-2026-09-28.md` beside the corrected ones. No score, metric or
+  ranking changes; only lead time.

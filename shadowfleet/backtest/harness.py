@@ -276,14 +276,18 @@ def lead_time(top_k_by_cutoff: dict[str, dict[date, set[str]]],
     hull" is the question an analyst has; averaging per-cutoff distances instead mostly measures how far
     each cutoff sat from the next designation wave.
 
-    Right-censored by construction: a hull flagged at the first cutoff cannot show a longer lead than the
-    window allows, and one designated after the last horizon is not here at all. Both are reported.
+    Bounded above by the horizon: the earliest flag counted is the earliest whose horizon contains the
+    designation, so no lead exceeds 26 weeks (fixed 2026-10-26; it was unbounded before, PREREG section 12).
+    Right-censored: a hull designated after the last horizon is not here at all. Both are reported.
     """
     out: dict = {}
     for model, by_cutoff in top_k_by_cutoff.items():
         leads = []
         for hull, designated in designations.items():
-            seen = sorted(T for T, hulls in by_cutoff.items() if hull in hulls and T < designated)
+            # only a flag whose 182-day horizon contains the designation counts (PREREG section 5, line 106):
+            # a hull in the top k a year earlier was a false positive at that cutoff, not an early warning
+            seen = sorted(T for T, hulls in by_cutoff.items()
+                          if hull in hulls and T < designated <= T + timedelta(days=config.HORIZON_DAYS))
             if seen:
                 leads.append({"hull_id": hull, "first_flagged": seen[0].isoformat(),
                               "designated": designated.isoformat(),

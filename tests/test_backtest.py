@@ -181,6 +181,15 @@ def test_lead_time_is_measured_from_the_earliest_flag_not_the_latest():
     assert out["LGBM"]["designated_in_window"] == 2
 
 
+def test_lead_time_never_exceeds_the_horizon():
+    """PREREG: lead is bounded by the 182-day horizon. A top-k flag a year before the designation was a
+    false positive at that cutoff; the lead is measured from the earliest flag whose horizon contains it."""
+    top = {"LGBM": {date(2025, 3, 31): {"A"}, date(2025, 11, 30): {"A"}, date(2024, 12, 31): {"B"}}}
+    out = harness.lead_time(top, {"A": date(2026, 4, 24), "B": date(2026, 4, 24)})["LGBM"]
+    assert out["by_hull"] == {"A": pytest.approx(20.7, abs=0.1)}, "A from 2025-11-30, B never within horizon"
+    assert out["max_weeks"] <= config.HORIZON_DAYS / 7
+
+
 def test_a_hull_flagged_only_after_its_designation_does_not_count_as_lead():
     top = {"LGBM": {date(2025, 8, 31): {"A"}}}
     out = harness.lead_time(top, {"A": date(2025, 6, 30)})

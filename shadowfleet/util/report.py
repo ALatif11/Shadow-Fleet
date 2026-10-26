@@ -635,8 +635,10 @@ def render_phase5b(out: dict | None = None) -> str:
               f"| `{m}` | {v['flagged_before_designation']} | {v['designated_in_window']} | "
               f"{v['median_weeks']} | {v['max_weeks']} |"
               for m, v in sorted((p.get("lead_time") or {}).items())] + ["",
-              "Right-censored by construction: a hull flagged at the first cutoff cannot show a longer lead "
-              "than the window allows, and one designated after the last horizon does not appear at all.",
+              "Only a flag whose 182-day horizon contains the designation counts, so no lead exceeds 26 "
+              "weeks (PREREG section 5). Until 2026-10-26 the code counted any earlier top-k flag, up to "
+              "a year before the designation; corrected and disclosed in PREREG section 12. Right-censored: "
+              "a hull designated after the last horizon does not appear at all.",
               "", "## Leakage suite", ""] + _leakage(p) + ["",
               "## What is not contributing yet", "",
               f"- B2 term firing counts at the last cutoff: {p.get('b2_live_terms')}."]
