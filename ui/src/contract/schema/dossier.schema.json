@@ -1,5 +1,71 @@
 {
   "$defs": {
+    "BriefFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "evidence_ids": {
+          "items": {
+            "pattern": "^E[0-9]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "judge_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Judge Reason"
+        },
+        "judge_verdict": {
+          "anyOf": [
+            {
+              "enum": [
+                "entailed",
+                "partially",
+                "not_entailed"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Phase 9 cross-family judge; null when not judged, or when the judge saw a different text of this claim",
+          "title": "Judge Verdict"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim",
+        "severity",
+        "evidence_ids",
+        "judge_verdict",
+        "judge_reason"
+      ],
+      "title": "BriefFinding",
+      "type": "object"
+    },
     "Event": {
       "additionalProperties": false,
       "properties": {
@@ -281,6 +347,103 @@
       "title": "SanctionAction",
       "type": "object"
     },
+    "SavedBrief": {
+      "additionalProperties": false,
+      "description": "A Phase 8 brief exactly as generated and verified offline. The console shows it; it never rewrites it.\n\n`evidence` holds the bundle records the findings cite, under the brief's own ids (E1, E2, ...), which are\nnot dossier event ids: the bundle was built as of `cutoff`, the dossier at the end of the window.",
+      "properties": {
+        "caveats": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Caveats",
+          "type": "array"
+        },
+        "cutoff": {
+          "format": "date",
+          "title": "Cutoff",
+          "type": "string"
+        },
+        "evidence": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object"
+          },
+          "title": "Evidence",
+          "type": "object"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/BriefFinding"
+          },
+          "minItems": 1,
+          "title": "Findings",
+          "type": "array"
+        },
+        "passes_checks": {
+          "description": "zero deterministic verifier failures (Phase 9 task 1)",
+          "title": "Passes Checks",
+          "type": "boolean"
+        },
+        "repaired": {
+          "description": "passed only after the one repair round (briefs v2)",
+          "title": "Repaired",
+          "type": "boolean"
+        },
+        "risk_level": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Risk Level",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "truncated_families": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Truncated Families",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cutoff",
+        "risk_level",
+        "summary",
+        "findings",
+        "caveats",
+        "evidence",
+        "passes_checks",
+        "repaired",
+        "truncated_families"
+      ],
+      "title": "SavedBrief",
+      "type": "object"
+    },
     "ScorePoint": {
       "additionalProperties": false,
       "properties": {
@@ -461,8 +624,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "briefs": {
+      "default": [],
+      "description": "saved Phase 8 briefs, one per cutoff the hull was briefed at",
+      "items": {
+        "$ref": "#/$defs/SavedBrief"
+      },
+      "title": "Briefs",
+      "type": "array"
+    },
     "contract_version": {
-      "default": "1.0.0",
+      "default": "1.1.0",
       "title": "Contract Version",
       "type": "string"
     },
@@ -535,9 +707,10 @@
     "track",
     "events",
     "scores",
-    "sanctions"
+    "sanctions",
+    "briefs"
   ],
   "title": "Dossier",
   "type": "object",
-  "x-contract-version": "1.0.0"
+  "x-contract-version": "1.1.0"
 }

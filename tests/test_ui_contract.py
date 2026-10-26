@@ -189,3 +189,62 @@ def test_no_console_source_is_gitignored():
     hit = subprocess.run(["git", "check-ignore", "--stdin"], input="\n".join(src), text=True,
                          capture_output=True, cwd=repo).stdout.split()
     assert hit == [], f"ignored console sources: {hit}"
+
+
+# ---------------------------------------------------------------- saved briefs (contract 1.1.0)
+def _saved(cutoff=date(2025, 3, 31), ids=("E1",), evidence=None):
+    return contract.SavedBrief(
+        cutoff=cutoff, risk_level="medium", summary="s", caveats=[], passes_checks=True, repaired=False,
+        findings=[contract.BriefFinding(claim="c", severity="low", evidence_ids=list(ids))],
+        evidence=evidence if evidence is not None else {"E1": {"family": "sts", "hours": 3.2}})
+
+
+def test_saved_brief_must_carry_every_record_it_cites():
+    with pytest.raises(ValidationError, match="E2"):
+        _saved(ids=("E1", "E2"))
+
+
+def test_dossier_briefs_are_one_per_cutoff_in_order():
+    _, _, ds = fixtures.build("tiny")
+    d = ds[0]
+    two = [_saved(date(2025, 4, 30)), _saved(date(2025, 3, 31))]
+    with pytest.raises(ValidationError, match="cutoff order"):
+        contract.Dossier(**{**d.model_dump(), "briefs": [b.model_dump() for b in two]})
+
+
+def test_cross_check_rejects_a_brief_for_an_undeclared_cutoff():
+    m, w, ds = fixtures.build("tiny")
+    bad = ds[0].model_copy(update={"briefs": [_saved(date(1999, 1, 31))]})
+    with pytest.raises(bundle.BundleError, match="undeclared cutoff"):
+        bundle.cross_check(m, w, [bad, *ds[1:]])
+
+
+def test_saved_briefs_join_the_judge_only_on_the_same_claim(tmp_data):
+    """The console shows the verified brief from disk; a verdict for an older text of a claim is not its verdict."""
+    from shadowfleet.util import probes
+
+    T, h = date(2025, 3, 31), "9074729"
+    bun = {"hull_id": h, "cutoff": T.isoformat(), "header": {}, "drivers": [], "truncated_families": ["spoof"],
+           "evidence": {"E1": {"family": "sts", "at": "2025-03-02T04:00:00", "hours": 3.2}}}
+    brief = {"summary": "One ship-to-ship transfer candidate in the window.", "risk_level": "medium",
+             "caveats": ["Indicator only."],
+             "findings": [{"claim": "One STS candidate lasting 3.2 hours.", "evidence_ids": ["E1"], "severity": "low"},
+                          {"claim": "A second claim citing a missing record.", "evidence_ids": ["E9"],
+                           "severity": "low"}]}
+    d = config.REPORTS_DIR / "briefs" / T.isoformat()
+    d.mkdir(parents=True)
+    from shadowfleet.briefs.schema import render
+    (d / f"{h}.json").write_text(json.dumps({"brief": brief, "bundle": bun, "meta": {"repair": {"passes": True}}}))
+    (d / f"{h}.md").write_text(render(brief, bun))
+    probes.write("judge", {"rows": [
+        {"cutoff": T.isoformat(), "hull_id": h, "finding_index": 0, "claim": brief["findings"][0]["claim"],
+         "verdict": "entailed", "reason": "r"},
+        {"cutoff": T.isoformat(), "hull_id": h, "finding_index": 1, "claim": "an older text", "verdict": "entailed"}]})
+
+    out = export.saved_briefs({h, "9176187"}, [T, date(2025, 4, 30)])
+    assert list(out) == [h], "a hull with no brief on disk gets none, and a missing cutoff dir is skipped"
+    b = out[h][0]
+    assert [f.judge_verdict for f in b.findings] == ["entailed", None]
+    assert b.evidence["E9"] == {"note": "not in the evidence bundle"}, "a dangling citation stays visible"
+    assert b.passes_checks is False, "the verifier is re-run, and E9 is a dangling citation"
+    assert b.repaired is True and b.truncated_families == ["spoof"]

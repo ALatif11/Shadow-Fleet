@@ -16,6 +16,7 @@ from datetime import UTC, date, datetime, timedelta
 
 from shadowfleet import config
 from shadowfleet.ui_export.contract import (
+    BriefFinding,
     CutoffInfo,
     Dossier,
     Driver,
@@ -27,6 +28,7 @@ from shadowfleet.ui_export.contract import (
     Outcome,
     Overlay,
     SanctionAction,
+    SavedBrief,
     ScorePoint,
     Track,
     VesselHeader,
@@ -390,6 +392,20 @@ def overlays() -> list[Overlay]:
     return out
 
 
+def _brief(h: Hull, T: date) -> list[SavedBrief]:
+    """A canned brief over the hull's own events before T, so the console's saved-brief panel has data."""
+    ev = [e for e in h.events if e.observed_at.date() <= T][-2:]
+    if not ev:
+        return []
+    rec = {f"E{n}": {"family": e.source, "kind": e.type, "at": e.start.isoformat(), "lat": e.lat, "lon": e.lon,
+                     "summary": e.summary} for n, e in enumerate(ev, start=1)}
+    return [SavedBrief(
+        cutoff=T, risk_level="medium", summary="SYNTHETIC brief: canned text over this invented hull's events.",
+        findings=[BriefFinding(claim=f"SYNTHETIC: {r['summary']}.", severity="medium", evidence_ids=[i],
+                               judge_verdict="entailed" if i == "E1" else "partially") for i, r in rec.items()],
+        caveats=["Synthetic fixture, not a model output."], evidence=rec, passes_checks=True, repaired=False)]
+
+
 def build(size: str = "full", seed: int = 7) -> tuple[Manifest, list[Watchlist], list[Dossier]]:
     if size == "full":
         start, end, n_hulls, ppl, population, top_n = date(2024, 1, 1), date(2026, 8, 31), 160, 6, 1840, 100
@@ -492,7 +508,7 @@ def build(size: str = "full", seed: int = 7) -> tuple[Manifest, list[Watchlist],
             header=VesselHeader(length_m=h.length_m, beam_m=round(h.length_m / 5.6, 1),
                                 dwt=round(h.length_m * 450, -3), built_year=h.built_year, ship_type="Tanker"),
             identity=h.identity, track=Track(t=t, lon=lon, lat=lat, sog=sog, draught=dr),
-            events=h.events, scores=scores, sanctions=sanctions))
+            events=h.events, scores=scores, sanctions=sanctions, briefs=_brief(h, cuts[-1])))
 
     manifest = Manifest(
         origin="synthetic", generated_at=GENERATED_AT, window_start=start, window_end=end,

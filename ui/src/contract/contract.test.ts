@@ -7,7 +7,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { CONTRACT_VERSION } from "./types.gen";
 import type { Dossier, Manifest, Watchlist } from "./index";
-import { fileKey, watchlistFile } from "../data/api";
+import { assertCompatible, fileKey, watchlistFile } from "../data/api";
 
 const here = new URL(".", import.meta.url).pathname;
 const read = (p: string) => JSON.parse(readFileSync(join(here, p), "utf8"));
@@ -31,6 +31,14 @@ describe("contract sample", () => {
       expect(read(`schema/${n}.schema.json`)["x-contract-version"]).toBe(CONTRACT_VERSION);
     }
     expect(manifest.contract_version).toBe(CONTRACT_VERSION);
+  });
+
+  it("saved briefs (1.1.0) carry every record they cite, and a 1.0.0 bundle still loads", () => {
+    const d = read("sample/vessels/fixture_0001.json") as Dossier;
+    expect(d.briefs.length).toBeGreaterThan(0);
+    for (const b of d.briefs) for (const f of b.findings) for (const id of f.evidence_ids) expect(b.evidence).toHaveProperty(id);
+    // minor bump: an older bundle (no briefs field) is still accepted; Brief.tsx treats a missing field as none
+    expect(() => assertCompatible("1.0.0", "old.json")).not.toThrow();
   });
 
   it("every sample file validates", () => {

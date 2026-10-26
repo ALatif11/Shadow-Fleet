@@ -18,6 +18,9 @@ Field-by-field source map (the contract in contract.py is fixed; only this file 
   dossier.sanctions               data/parquet/sanctions_actions.parquet                             (Phase 2)
   dossier.header                  length from the latest feature row; dwt and build year have no
                                   dated source, so they stay null                                    (5a)
+  dossier.briefs                  reports/briefs/<cutoff>/<hull>.json, re-verified here; judge verdicts
+                                  from the judge probe, joined only where the judged claim text matches.
+                                  Optional: no briefs on disk means an empty list, not a failed export (8, 9)
 
 Registry ownership fields never enter a bundle (ADR-16), same rule as features.
 
@@ -28,18 +31,21 @@ supervised models were only scored under it; dossiers map transmitters to hulls 
 from __future__ import annotations
 
 import csv
+import json
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from shadowfleet import config
 from shadowfleet.backtest import explain
+from shadowfleet.briefs import verify
 from shadowfleet.features.asof import FEATURES, SOURCE_OF_FAMILY
 from shadowfleet.ingest.dma import connect
 from shadowfleet.labels import labels as lab
 from shadowfleet.resolve.identity import INTERVALS, hull_at
 from shadowfleet.ui_export import bundle as ubundle
 from shadowfleet.ui_export.contract import (
+    BriefFinding,
     CutoffInfo,
     Dossier,
     Driver,
@@ -51,6 +57,7 @@ from shadowfleet.ui_export.contract import (
     Outcome,
     Overlay,
     SanctionAction,
+    SavedBrief,
     ScorePoint,
     Track,
     VesselHeader,
@@ -229,6 +236,8 @@ def export_live(out_dir: Path | None = None, con=None) -> dict:
     models = [m for m in MODELS.values() if any(w.model == m for w in watchlists)]
     hulls = sorted({r.hull_id for w in watchlists for r in w.rows})
     dossiers = dossiers_for(con, hulls, window.end, adds, score_points)
+    briefs = saved_briefs(set(hulls), cutoffs)
+    dossiers = [d.model_copy(update={"briefs": briefs.get(d.hull_id, [])}) for d in dossiers]
     manifest = Manifest(
         origin="live", generated_at=datetime.now(UTC), window_start=window.start, window_end=window.end,
         cutoffs=[CutoffInfo(cutoff=T, horizon_end=T + timedelta(days=config.HORIZON_DAYS),
@@ -252,6 +261,43 @@ def export_live(out_dir: Path | None = None, con=None) -> dict:
                "Dossier tracks map transmitters to hulls as known at the end of the window (ADR-23)."],
     )
     return ubundle.write_bundle(out_dir or config.UI_DATA_DIR, manifest, watchlists, dossiers)
+
+
+def saved_briefs(hulls: set[str], cutoffs: list[date]) -> dict[str, list[SavedBrief]]:
+    """Phase 8 briefs from disk, with the verifier re-run and the Phase 9 judge's verdict per finding.
+
+    The verifier is re-run rather than trusted from the batch, so the badge reflects the brief as it is on disk.
+    A judge row whose claim text differs belongs to an older version of the brief, so it is left out.
+    """
+    judged = {(r["cutoff"], r["hull_id"], int(r["finding_index"])): r
+              for r in (probes.read("judge") or {}).get("rows") or []}
+    out: dict[str, list[SavedBrief]] = {}
+    for T in cutoffs:
+        d = config.REPORTS_DIR / "briefs" / T.isoformat()
+        for h in sorted(hulls):
+            path, md = d / f"{h}.json", d / f"{h}.md"
+            if not (path.exists() and md.exists()):
+                continue
+            saved = json.loads(path.read_text())
+            brief, bundle = saved["brief"], saved["bundle"]
+            evidence = bundle.get("evidence") or {}
+            findings, cited = [], {}
+            for n, f in enumerate(brief.get("findings") or []):
+                j = judged.get((T.isoformat(), h, n))
+                same = bool(j) and j.get("claim") == f["claim"]
+                findings.append(BriefFinding(
+                    claim=f["claim"], severity=f["severity"], evidence_ids=f["evidence_ids"],
+                    judge_verdict=j.get("verdict") if same else None, judge_reason=j.get("reason") if same else None))
+                for i in f["evidence_ids"]:
+                    # a dangling citation stays visible as one, instead of failing the export
+                    cited[i] = evidence.get(i) or {"note": "not in the evidence bundle"}
+            out.setdefault(h, []).append(SavedBrief(
+                cutoff=T, risk_level=brief["risk_level"], summary=brief["summary"], findings=findings,
+                caveats=brief.get("caveats") or [], evidence=cited,
+                passes_checks=verify.verify(brief, bundle, md.read_text())["passes"],
+                repaired=bool((saved.get("meta", {}).get("repair") or {}).get("passes")),
+                truncated_families=bundle.get("truncated_families") or []))
+    return out
 
 
 def dossiers_for(con, hulls: list[str], end: date, adds, score_points) -> list[Dossier]:

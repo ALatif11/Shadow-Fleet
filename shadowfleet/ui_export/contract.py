@@ -26,7 +26,7 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-CONTRACT_VERSION = "1.0.0"
+CONTRACT_VERSION = "1.1.0"  # 1.1.0: Dossier.briefs (saved Phase 8 briefs), optional
 
 Origin = Literal["synthetic", "live"]
 LabelSet = Literal["ofac_eu_uk", "ofac_only"]  # PREREG headline is ofac_eu_uk; ofac_only is a sensitivity table
@@ -282,6 +282,42 @@ class VesselHeader(_Strict):
     ship_type: str | None
 
 
+Verdict = Literal["entailed", "partially", "not_entailed"]
+
+
+class BriefFinding(_Strict):
+    claim: str
+    severity: Literal["low", "medium", "high"]
+    evidence_ids: list[Annotated[str, Field(pattern=r"^E[0-9]+$")]] = Field(min_length=1)
+    judge_verdict: Verdict | None = Field(None, description="Phase 9 cross-family judge; null when not judged, "
+                                                            "or when the judge saw a different text of this claim")
+    judge_reason: str | None = None
+
+
+class SavedBrief(_Strict):
+    """A Phase 8 brief exactly as generated and verified offline. The console shows it; it never rewrites it.
+
+    `evidence` holds the bundle records the findings cite, under the brief's own ids (E1, E2, ...), which are
+    not dossier event ids: the bundle was built as of `cutoff`, the dossier at the end of the window."""
+
+    cutoff: date
+    risk_level: Literal["low", "medium", "high"]
+    summary: str
+    findings: list[BriefFinding] = Field(min_length=1)
+    caveats: list[str] = []
+    evidence: dict[str, dict[str, AttrValue]]
+    passes_checks: bool = Field(description="zero deterministic verifier failures (Phase 9 task 1)")
+    repaired: bool = Field(description="passed only after the one repair round (briefs v2)")
+    truncated_families: list[str] = []
+
+    @model_validator(mode="after")
+    def _cited(self) -> SavedBrief:
+        missing = {i for f in self.findings for i in f.evidence_ids} - set(self.evidence)
+        if missing:
+            raise ValueError(f"brief {self.cutoff}: cited records not carried: {sorted(missing)}")
+        return self
+
+
 class Dossier(_Strict):
     contract_version: str = CONTRACT_VERSION
     origin: Origin
@@ -293,6 +329,7 @@ class Dossier(_Strict):
     events: list[Event]
     scores: list[ScorePoint]
     sanctions: list[SanctionAction]
+    briefs: list[SavedBrief] = Field([], description="saved Phase 8 briefs, one per cutoff the hull was briefed at")
 
     @model_validator(mode="after")
     def _ids(self) -> Dossier:
@@ -302,6 +339,9 @@ class Dossier(_Strict):
         starts = [iv.start for iv in self.identity]
         if starts != sorted(starts):
             raise ValueError("identity intervals must be in start order (the console reads the last one started)")
+        cuts = [b.cutoff for b in self.briefs]
+        if cuts != sorted(set(cuts)):
+            raise ValueError("briefs must be one per cutoff, in cutoff order")
         return self
 
 

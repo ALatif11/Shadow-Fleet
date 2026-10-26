@@ -58,6 +58,9 @@ def cross_check(manifest: Manifest, watchlists: list[Watchlist], dossiers: list[
         for s in d.scores:
             if s.cutoff not in cutoffs or s.model not in manifest.models:
                 raise BundleError(f"{d.hull_id}: score for undeclared cutoff/model {s.cutoff}/{s.model}")
+        for b in d.briefs:
+            if b.cutoff not in cutoffs:
+                raise BundleError(f"{d.hull_id}: brief for undeclared cutoff {b.cutoff}")
 
 
 def _is_bundle_dir(p: Path) -> bool:

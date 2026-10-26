@@ -387,6 +387,25 @@ button:active, .row:active, .legend:active, .ev:active, .rail-btn:active { trans
 }
 .cite:hover { background: var(--surface-2); }
 .cite.bad { --c: var(--danger); cursor: help; text-decoration: line-through; }
+/* Saved (Phase 8) brief: checked by code, graded by a second model; the live draft below it is neither. */
+.saved { display: grid; gap: 8px; }
+.saved p { margin: 0; }
+.checked { padding: 7px 9px; border: var(--hair) solid currentColor; font-size: var(--fs-label); letter-spacing: var(--ls-label); }
+.checked.ok { color: var(--live); }
+.checked.bad { color: var(--danger); }
+.note { font-size: var(--fs-label); }
+.findings, .caveats, .records ul { margin: 0; padding-left: 16px; display: grid; gap: 6px; font-size: var(--fs-data); line-height: 1.55; }
+.sev, .verdict { font-family: var(--font-mono); font-size: var(--fs-label); letter-spacing: var(--ls-label); }
+.sev.high { color: var(--danger); }
+.sev.medium { color: var(--accent-500); }
+.sev.low, .verdict.none { color: var(--muted); }
+.verdict { cursor: help; }
+.verdict.entailed { color: var(--live); }
+.verdict.partially { color: var(--accent-500); }
+.verdict.not_entailed { color: var(--danger); }
+.records summary { cursor: pointer; font-size: var(--fs-label); letter-spacing: var(--ls-label); color: var(--muted); }
+.records ul { margin-top: 6px; font-family: var(--font-mono); font-size: var(--fs-label); }
+.brief-head button.secondary { background: transparent; color: var(--ink); border: var(--hair) solid var(--control-border); }
 .llm { letter-spacing: var(--ls-label); }
 .llm.online { color: var(--live); }
 .llm.offline { color: var(--muted); }
