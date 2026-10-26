@@ -1,4 +1,4 @@
-# Phase 6 report (generated 2026-10-06 by `make phase6`)
+# Phase 6 report (generated 2026-10-26 by `make phase6`)
 
 LightGBM and the isolation forest join the harness here; everything else in this report is reporting only and never drives a change to the feature set (PREREG section 7).
 

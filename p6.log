@@ -1,0 +1,3993 @@
+uv run python -m shadowfleet.cli backtest --full
+.........                                                                [100%]
+9 passed in 2.82s
+{
+  "leakage": {
+    "permutation": {
+      "pr_auc_shuffled": 0.03513090693088182,
+      "base_rate": 0.06105,
+      "ratio": 0.575,
+      "passes": true
+    },
+    "reverse_time": {
+      "early": "2024-08-31",
+      "late": "2026-03-31",
+      "base_rate_early": 0.0468,
+      "base_rate_late": 0.0065,
+      "n_positive_early": 123,
+      "n_positive_late": 17,
+      "pr_auc_forward": 0.04369774149027605,
+      "pr_auc_backward": 0.11022319605358355,
+      "lift_forward": 6.699,
+      "lift_backward": 2.358,
+      "lift_ratio": 0.352,
+      "ratio": 2.522,
+      "raw_passes": false,
+      "passes": true
+    },
+    "entity_resolution": {
+      "methods": {
+        "imo_majority": 33403,
+        "syn": 5436
+      },
+      "windows_from_a_gfw_merge": 0,
+      "pr_auc_delta": 0.0,
+      "passes": true,
+      "note": "no hull id depends on a GFW model, so disabling GFW merges changes nothing"
+    }
+  },
+  "leakage_failed": [],
+  "cutoffs_scored": 20,
+  "rows": 664,
+  "b2_live_terms": {
+    "b1": 518,
+    "long_gap": 68,
+    "sanctioned_partner": 0,
+    "convenience_flag": 10,
+    "old_vessel": 0,
+    "renamed": 156,
+    "spoof_excess": 990
+  },
+  "dead_b2_terms": [
+    "sanctioned_partner",
+    "old_vessel"
+  ],
+  "not_scored": 28,
+  "aggregate": [
+    {
+      "label_set": "ofac_only",
+      "model": "B0_random",
+      "stratum": "all",
+      "cutoffs": 20,
+      "pr_auc": 0.0119,
+      "precision_at_25": 0.008,
+      "precision_at_50": 0.01,
+      "precision_at_100": 0.0075,
+      "recall_at_50": 0.0241,
+      "fpr_at_50": 0.0188,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B0_random",
+      "stratum": "b1",
+      "cutoffs": 20,
+      "pr_auc": 0.0462,
+      "precision_at_25": 0.03,
+      "precision_at_50": 0.025,
+      "precision_at_100": 0.033,
+      "recall_at_50": 0.0544,
+      "fpr_at_50": 0.0884,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B0_random",
+      "stratum": "first_seen",
+      "cutoffs": 20,
+      "pr_auc": 0.0143,
+      "precision_at_25": 0.0,
+      "precision_at_50": 0.0,
+      "precision_at_100": 0.0015,
+      "recall_at_50": 0.0,
+      "fpr_at_50": 0.2367,
+      "cutoffs_with_a_positive": 7
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B1_russia_port",
+      "stratum": "all",
+      "cutoffs": 20,
+      "pr_auc": 0.0338,
+      "precision_at_25": 0.03,
+      "precision_at_50": 0.036,
+      "precision_at_100": 0.034,
+      "recall_at_50": 0.0689,
+      "fpr_at_50": 0.0183,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B1_russia_port",
+      "stratum": "b1",
+      "cutoffs": 20,
+      "pr_auc": 0.0346,
+      "precision_at_25": 0.03,
+      "precision_at_50": 0.036,
+      "precision_at_100": 0.034,
+      "recall_at_50": 0.0708,
+      "fpr_at_50": 0.0874,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B1_russia_port",
+      "stratum": "first_seen",
+      "cutoffs": 20,
+      "pr_auc": 0.0624,
+      "precision_at_25": 0.03,
+      "precision_at_50": 0.02,
+      "precision_at_100": 0.0115,
+      "recall_at_50": 0.8664,
+      "fpr_at_50": 0.2333,
+      "cutoffs_with_a_positive": 7
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B2_weighted",
+      "stratum": "all",
+      "cutoffs": 20,
+      "pr_auc": 0.0389,
+      "precision_at_25": 0.028,
+      "precision_at_50": 0.041,
+      "precision_at_100": 0.035,
+      "recall_at_50": 0.1048,
+      "fpr_at_50": 0.0182,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B2_weighted",
+      "stratum": "b1",
+      "cutoffs": 20,
+      "pr_auc": 0.0403,
+      "precision_at_25": 0.028,
+      "precision_at_50": 0.041,
+      "precision_at_100": 0.035,
+      "recall_at_50": 0.1084,
+      "fpr_at_50": 0.087,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B2_weighted",
+      "stratum": "first_seen",
+      "cutoffs": 20,
+      "pr_auc": 0.0854,
+      "precision_at_25": 0.03,
+      "precision_at_50": 0.021,
+      "precision_at_100": 0.012,
+      "recall_at_50": 0.7281,
+      "fpr_at_50": 0.2335,
+      "cutoffs_with_a_positive": 7
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B3_logistic",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0251,
+      "precision_at_25": 0.0277,
+      "precision_at_50": 0.0215,
+      "precision_at_100": 0.0246,
+      "recall_at_50": 0.1249,
+      "fpr_at_50": 0.0183,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B3_logistic",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.0326,
+      "precision_at_25": 0.0369,
+      "precision_at_50": 0.0246,
+      "precision_at_100": 0.0254,
+      "recall_at_50": 0.1379,
+      "fpr_at_50": 0.0916,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B3_logistic",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": null,
+      "precision_at_25": 0.0,
+      "precision_at_50": 0.0,
+      "precision_at_100": 0.0,
+      "recall_at_50": null,
+      "fpr_at_50": 0.2616,
+      "cutoffs_with_a_positive": 0
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "ISO_forest",
+      "stratum": "all",
+      "cutoffs": 20,
+      "pr_auc": 0.0247,
+      "precision_at_25": 0.046,
+      "precision_at_50": 0.029,
+      "precision_at_100": 0.0205,
+      "recall_at_50": 0.0447,
+      "fpr_at_50": 0.0184,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "ISO_forest",
+      "stratum": "b1",
+      "cutoffs": 20,
+      "pr_auc": 0.0604,
+      "precision_at_25": 0.052,
+      "precision_at_50": 0.043,
+      "precision_at_100": 0.0435,
+      "recall_at_50": 0.0737,
+      "fpr_at_50": 0.0869,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "ISO_forest",
+      "stratum": "first_seen",
+      "cutoffs": 20,
+      "pr_auc": 0.0738,
+      "precision_at_25": 0.014,
+      "precision_at_50": 0.014,
+      "precision_at_100": 0.0085,
+      "recall_at_50": 0.6784,
+      "fpr_at_50": 0.2342,
+      "cutoffs_with_a_positive": 7
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "LGBM",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0413,
+      "precision_at_25": 0.0338,
+      "precision_at_50": 0.0369,
+      "precision_at_100": 0.0315,
+      "recall_at_50": 0.2124,
+      "fpr_at_50": 0.018,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "LGBM",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.0454,
+      "precision_at_25": 0.0338,
+      "precision_at_50": 0.0415,
+      "precision_at_100": 0.0315,
+      "recall_at_50": 0.2319,
+      "fpr_at_50": 0.0901,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "LGBM",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": null,
+      "precision_at_25": 0.0,
+      "precision_at_50": 0.0,
+      "precision_at_100": 0.0,
+      "recall_at_50": null,
+      "fpr_at_50": 0.2616,
+      "cutoffs_with_a_positive": 0
+    },
+    {
+      "label_set": "union",
+      "model": "B0_random",
+      "stratum": "all",
+      "cutoffs": 20,
+      "pr_auc": 0.0338,
+      "precision_at_25": 0.046,
+      "precision_at_50": 0.045,
+      "precision_at_100": 0.0355,
+      "recall_at_50": 0.0261,
+      "fpr_at_50": 0.0185,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "union",
+      "model": "B0_random",
+      "stratum": "b1",
+      "cutoffs": 20,
+      "pr_auc": 0.1328,
+      "precision_at_25": 0.132,
+      "precision_at_50": 0.124,
+      "precision_at_100": 0.127,
+      "recall_at_50": 0.0832,
+      "fpr_at_50": 0.087,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "union",
+      "model": "B0_random",
+      "stratum": "first_seen",
+      "cutoffs": 20,
+      "pr_auc": 0.026,
+      "precision_at_25": 0.006,
+      "precision_at_50": 0.009,
+      "precision_at_100": 0.0095,
+      "recall_at_50": 0.2084,
+      "fpr_at_50": 0.2367,
+      "cutoffs_with_a_positive": 14
+    },
+    {
+      "label_set": "union",
+      "model": "B1_russia_port",
+      "stratum": "all",
+      "cutoffs": 20,
+      "pr_auc": 0.1134,
+      "precision_at_25": 0.124,
+      "precision_at_50": 0.147,
+      "precision_at_100": 0.1775,
+      "recall_at_50": 0.077,
+      "fpr_at_50": 0.0164,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "union",
+      "model": "B1_russia_port",
+      "stratum": "b1",
+      "cutoffs": 20,
+      "pr_auc": 0.1181,
+      "precision_at_25": 0.124,
+      "precision_at_50": 0.147,
+      "precision_at_100": 0.1775,
+      "recall_at_50": 0.0823,
+      "fpr_at_50": 0.0843,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "union",
+      "model": "B1_russia_port",
+      "stratum": "first_seen",
+      "cutoffs": 20,
+      "pr_auc": 0.082,
+      "precision_at_25": 0.08,
+      "precision_at_50": 0.049,
+      "precision_at_100": 0.0305,
+      "recall_at_50": 0.9231,
+      "fpr_at_50": 0.2285,
+      "cutoffs_with_a_positive": 14
+    },
+    {
+      "label_set": "union",
+      "model": "B2_weighted",
+      "stratum": "all",
+      "cutoffs": 20,
+      "pr_auc": 0.1357,
+      "precision_at_25": 0.188,
+      "precision_at_50": 0.207,
+      "precision_at_100": 0.176,
+      "recall_at_50": 0.1686,
+      "fpr_at_50": 0.0153,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "union",
+      "model": "B2_weighted",
+      "stratum": "b1",
+      "cutoffs": 20,
+      "pr_auc": 0.142,
+      "precision_at_25": 0.188,
+      "precision_at_50": 0.207,
+      "precision_at_100": 0.176,
+      "recall_at_50": 0.177,
+      "fpr_at_50": 0.0784,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "union",
+      "model": "B2_weighted",
+      "stratum": "first_seen",
+      "cutoffs": 20,
+      "pr_auc": 0.0999,
+      "precision_at_25": 0.08,
+      "precision_at_50": 0.051,
+      "precision_at_100": 0.029,
+      "recall_at_50": 0.8271,
+      "fpr_at_50": 0.2294,
+      "cutoffs_with_a_positive": 14
+    },
+    {
+      "label_set": "union",
+      "model": "B3_logistic",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.1286,
+      "precision_at_25": 0.1477,
+      "precision_at_50": 0.1523,
+      "precision_at_100": 0.1454,
+      "recall_at_50": 0.2119,
+      "fpr_at_50": 0.0161,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "B3_logistic",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.1465,
+      "precision_at_25": 0.1631,
+      "precision_at_50": 0.1662,
+      "precision_at_100": 0.1585,
+      "recall_at_50": 0.2485,
+      "fpr_at_50": 0.0829,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "B3_logistic",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": 0.1246,
+      "precision_at_25": 0.0185,
+      "precision_at_50": 0.0108,
+      "precision_at_100": 0.0062,
+      "recall_at_50": 0.8571,
+      "fpr_at_50": 0.2596,
+      "cutoffs_with_a_positive": 7
+    },
+    {
+      "label_set": "union",
+      "model": "ISO_forest",
+      "stratum": "all",
+      "cutoffs": 20,
+      "pr_auc": 0.0906,
+      "precision_at_25": 0.194,
+      "precision_at_50": 0.162,
+      "precision_at_100": 0.128,
+      "recall_at_50": 0.1223,
+      "fpr_at_50": 0.0161,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "union",
+      "model": "ISO_forest",
+      "stratum": "b1",
+      "cutoffs": 20,
+      "pr_auc": 0.2163,
+      "precision_at_25": 0.286,
+      "precision_at_50": 0.245,
+      "precision_at_100": 0.199,
+      "recall_at_50": 0.2254,
+      "fpr_at_50": 0.0746,
+      "cutoffs_with_a_positive": 20
+    },
+    {
+      "label_set": "union",
+      "model": "ISO_forest",
+      "stratum": "first_seen",
+      "cutoffs": 20,
+      "pr_auc": 0.0805,
+      "precision_at_25": 0.032,
+      "precision_at_50": 0.028,
+      "precision_at_100": 0.0205,
+      "recall_at_50": 0.437,
+      "fpr_at_50": 0.2327,
+      "cutoffs_with_a_positive": 14
+    },
+    {
+      "label_set": "union",
+      "model": "LGBM",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.1718,
+      "precision_at_25": 0.1908,
+      "precision_at_50": 0.1815,
+      "precision_at_100": 0.1677,
+      "recall_at_50": 0.2742,
+      "fpr_at_50": 0.0155,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "LGBM",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.1798,
+      "precision_at_25": 0.1908,
+      "precision_at_50": 0.1815,
+      "precision_at_100": 0.1662,
+      "recall_at_50": 0.2884,
+      "fpr_at_50": 0.0813,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "LGBM",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": 0.22,
+      "precision_at_25": 0.0185,
+      "precision_at_50": 0.0123,
+      "precision_at_100": 0.0062,
+      "recall_at_50": 1.0,
+      "fpr_at_50": 0.2593,
+      "cutoffs_with_a_positive": 7
+    }
+  ],
+  "aggregate_matched": [
+    {
+      "label_set": "ofac_only",
+      "model": "B0_random",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0061,
+      "precision_at_25": 0.0062,
+      "precision_at_50": 0.0062,
+      "precision_at_100": 0.0054,
+      "recall_at_50": 0.0222,
+      "fpr_at_50": 0.0186,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B0_random",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.0287,
+      "precision_at_25": 0.0215,
+      "precision_at_50": 0.0123,
+      "precision_at_100": 0.0146,
+      "recall_at_50": 0.0529,
+      "fpr_at_50": 0.0928,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B0_random",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": null,
+      "precision_at_25": 0.0,
+      "precision_at_50": 0.0,
+      "precision_at_100": 0.0,
+      "recall_at_50": null,
+      "fpr_at_50": 0.2616,
+      "cutoffs_with_a_positive": 0
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B1_russia_port",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0163,
+      "precision_at_25": 0.0092,
+      "precision_at_50": 0.0169,
+      "precision_at_100": 0.0177,
+      "recall_at_50": 0.0495,
+      "fpr_at_50": 0.0184,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B1_russia_port",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.0166,
+      "precision_at_25": 0.0092,
+      "precision_at_50": 0.0169,
+      "precision_at_100": 0.0177,
+      "recall_at_50": 0.05,
+      "fpr_at_50": 0.0924,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B1_russia_port",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": null,
+      "precision_at_25": 0.0,
+      "precision_at_50": 0.0,
+      "precision_at_100": 0.0,
+      "recall_at_50": null,
+      "fpr_at_50": 0.2616,
+      "cutoffs_with_a_positive": 0
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B2_weighted",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0192,
+      "precision_at_25": 0.0123,
+      "precision_at_50": 0.0292,
+      "precision_at_100": 0.0246,
+      "recall_at_50": 0.1196,
+      "fpr_at_50": 0.0182,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B2_weighted",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.0198,
+      "precision_at_25": 0.0123,
+      "precision_at_50": 0.0292,
+      "precision_at_100": 0.0246,
+      "recall_at_50": 0.123,
+      "fpr_at_50": 0.0912,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B2_weighted",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": null,
+      "precision_at_25": 0.0,
+      "precision_at_50": 0.0,
+      "precision_at_100": 0.0,
+      "recall_at_50": null,
+      "fpr_at_50": 0.2616,
+      "cutoffs_with_a_positive": 0
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B3_logistic",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0251,
+      "precision_at_25": 0.0277,
+      "precision_at_50": 0.0215,
+      "precision_at_100": 0.0246,
+      "recall_at_50": 0.1249,
+      "fpr_at_50": 0.0183,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B3_logistic",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.0326,
+      "precision_at_25": 0.0369,
+      "precision_at_50": 0.0246,
+      "precision_at_100": 0.0254,
+      "recall_at_50": 0.1379,
+      "fpr_at_50": 0.0916,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "B3_logistic",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": null,
+      "precision_at_25": 0.0,
+      "precision_at_50": 0.0,
+      "precision_at_100": 0.0,
+      "recall_at_50": null,
+      "fpr_at_50": 0.2616,
+      "cutoffs_with_a_positive": 0
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "ISO_forest",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0101,
+      "precision_at_25": 0.0123,
+      "precision_at_50": 0.0077,
+      "precision_at_100": 0.0062,
+      "recall_at_50": 0.023,
+      "fpr_at_50": 0.0186,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "ISO_forest",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.0275,
+      "precision_at_25": 0.0185,
+      "precision_at_50": 0.0108,
+      "precision_at_100": 0.0162,
+      "recall_at_50": 0.039,
+      "fpr_at_50": 0.0929,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "ISO_forest",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": null,
+      "precision_at_25": 0.0,
+      "precision_at_50": 0.0,
+      "precision_at_100": 0.0,
+      "recall_at_50": null,
+      "fpr_at_50": 0.2616,
+      "cutoffs_with_a_positive": 0
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "LGBM",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0413,
+      "precision_at_25": 0.0338,
+      "precision_at_50": 0.0369,
+      "precision_at_100": 0.0315,
+      "recall_at_50": 0.2124,
+      "fpr_at_50": 0.018,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "LGBM",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.0454,
+      "precision_at_25": 0.0338,
+      "precision_at_50": 0.0415,
+      "precision_at_100": 0.0315,
+      "recall_at_50": 0.2319,
+      "fpr_at_50": 0.0901,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "ofac_only",
+      "model": "LGBM",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": null,
+      "precision_at_25": 0.0,
+      "precision_at_50": 0.0,
+      "precision_at_100": 0.0,
+      "recall_at_50": null,
+      "fpr_at_50": 0.2616,
+      "cutoffs_with_a_positive": 0
+    },
+    {
+      "label_set": "union",
+      "model": "B0_random",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0205,
+      "precision_at_25": 0.0246,
+      "precision_at_50": 0.0231,
+      "precision_at_100": 0.02,
+      "recall_at_50": 0.0237,
+      "fpr_at_50": 0.0185,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "B0_random",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.085,
+      "precision_at_25": 0.08,
+      "precision_at_50": 0.0692,
+      "precision_at_100": 0.0723,
+      "recall_at_50": 0.0814,
+      "fpr_at_50": 0.0925,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "B0_random",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": 0.0224,
+      "precision_at_25": 0.0031,
+      "precision_at_50": 0.0046,
+      "precision_at_100": 0.0031,
+      "recall_at_50": 0.3571,
+      "fpr_at_50": 0.2612,
+      "cutoffs_with_a_positive": 7
+    },
+    {
+      "label_set": "union",
+      "model": "B1_russia_port",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0676,
+      "precision_at_25": 0.0738,
+      "precision_at_50": 0.0985,
+      "precision_at_100": 0.1085,
+      "recall_at_50": 0.0729,
+      "fpr_at_50": 0.0171,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "B1_russia_port",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.0712,
+      "precision_at_25": 0.0738,
+      "precision_at_50": 0.0985,
+      "precision_at_100": 0.1085,
+      "recall_at_50": 0.0784,
+      "fpr_at_50": 0.0896,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "B1_russia_port",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": 0.0323,
+      "precision_at_25": 0.0215,
+      "precision_at_50": 0.0123,
+      "precision_at_100": 0.0062,
+      "recall_at_50": 1.0,
+      "fpr_at_50": 0.2593,
+      "cutoffs_with_a_positive": 7
+    },
+    {
+      "label_set": "union",
+      "model": "B2_weighted",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0891,
+      "precision_at_25": 0.1508,
+      "precision_at_50": 0.16,
+      "precision_at_100": 0.1315,
+      "recall_at_50": 0.2024,
+      "fpr_at_50": 0.0159,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "B2_weighted",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.094,
+      "precision_at_25": 0.1508,
+      "precision_at_50": 0.16,
+      "precision_at_100": 0.1315,
+      "recall_at_50": 0.2123,
+      "fpr_at_50": 0.0834,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "B2_weighted",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": 0.0314,
+      "precision_at_25": 0.0185,
+      "precision_at_50": 0.0108,
+      "precision_at_100": 0.0062,
+      "recall_at_50": 0.8571,
+      "fpr_at_50": 0.2596,
+      "cutoffs_with_a_positive": 7
+    },
+    {
+      "label_set": "union",
+      "model": "B3_logistic",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.1286,
+      "precision_at_25": 0.1477,
+      "precision_at_50": 0.1523,
+      "precision_at_100": 0.1454,
+      "recall_at_50": 0.2119,
+      "fpr_at_50": 0.0161,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "B3_logistic",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.1465,
+      "precision_at_25": 0.1631,
+      "precision_at_50": 0.1662,
+      "precision_at_100": 0.1585,
+      "recall_at_50": 0.2485,
+      "fpr_at_50": 0.0829,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "B3_logistic",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": 0.1246,
+      "precision_at_25": 0.0185,
+      "precision_at_50": 0.0108,
+      "precision_at_100": 0.0062,
+      "recall_at_50": 0.8571,
+      "fpr_at_50": 0.2596,
+      "cutoffs_with_a_positive": 7
+    },
+    {
+      "label_set": "union",
+      "model": "ISO_forest",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.0655,
+      "precision_at_25": 0.1077,
+      "precision_at_50": 0.1108,
+      "precision_at_100": 0.1038,
+      "recall_at_50": 0.1396,
+      "fpr_at_50": 0.0168,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "ISO_forest",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.1739,
+      "precision_at_25": 0.2185,
+      "precision_at_50": 0.1862,
+      "precision_at_100": 0.1408,
+      "recall_at_50": 0.2745,
+      "fpr_at_50": 0.0809,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "ISO_forest",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": 0.0635,
+      "precision_at_25": 0.0031,
+      "precision_at_50": 0.0031,
+      "precision_at_100": 0.0054,
+      "recall_at_50": 0.2857,
+      "fpr_at_50": 0.2615,
+      "cutoffs_with_a_positive": 7
+    },
+    {
+      "label_set": "union",
+      "model": "LGBM",
+      "stratum": "all",
+      "cutoffs": 13,
+      "pr_auc": 0.1718,
+      "precision_at_25": 0.1908,
+      "precision_at_50": 0.1815,
+      "precision_at_100": 0.1677,
+      "recall_at_50": 0.2742,
+      "fpr_at_50": 0.0155,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "LGBM",
+      "stratum": "b1",
+      "cutoffs": 13,
+      "pr_auc": 0.1798,
+      "precision_at_25": 0.1908,
+      "precision_at_50": 0.1815,
+      "precision_at_100": 0.1662,
+      "recall_at_50": 0.2884,
+      "fpr_at_50": 0.0813,
+      "cutoffs_with_a_positive": 13
+    },
+    {
+      "label_set": "union",
+      "model": "LGBM",
+      "stratum": "first_seen",
+      "cutoffs": 13,
+      "pr_auc": 0.22,
+      "precision_at_25": 0.0185,
+      "precision_at_50": 0.0123,
+      "precision_at_100": 0.0062,
+      "recall_at_50": 1.0,
+      "fpr_at_50": 0.2593,
+      "cutoffs_with_a_positive": 7
+    }
+  ],
+  "phase6": {
+    "per_cutoff": [
+      {
+        "cutoff": "2024-08-31",
+        "hormuz_side": "pre_break",
+        "primary_model_scored": false
+      },
+      {
+        "cutoff": "2024-09-30",
+        "hormuz_side": "pre_break",
+        "primary_model_scored": false
+      },
+      {
+        "cutoff": "2024-10-31",
+        "hormuz_side": "pre_break",
+        "primary_model_scored": false
+      },
+      {
+        "cutoff": "2024-11-30",
+        "hormuz_side": "pre_break",
+        "primary_model_scored": false
+      },
+      {
+        "cutoff": "2024-12-31",
+        "hormuz_side": "pre_break",
+        "primary_model_scored": false
+      },
+      {
+        "cutoff": "2025-01-31",
+        "hormuz_side": "pre_break",
+        "primary_model_scored": false
+      },
+      {
+        "cutoff": "2025-02-28",
+        "hormuz_side": "pre_break",
+        "primary_model_scored": false
+      },
+      {
+        "cutoff": "2025-03-31",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.3181121761498579,
+            "precision_at_50": 0.4
+          },
+          "drop_ais": {
+            "pr_auc": 0.3346047658346812,
+            "precision_at_50": 0.36
+          },
+          "drop_detect": {
+            "pr_auc": 0.33527351247685494,
+            "precision_at_50": 0.42
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.3181121761498579,
+            "precision_at_50": 0.4
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.32464747331577715,
+            "precision_at_50": 0.42
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.23730988518774893,
+            "precision_at_50": 0.32
+          },
+          "drop_identity": {
+            "pr_auc": 0.3568953992504487,
+            "precision_at_50": 0.48
+          },
+          "drop_static": {
+            "pr_auc": 0.28445879605422947,
+            "precision_at_50": 0.36
+          },
+          "gfw_only": {
+            "pr_auc": 0.30851094103179605,
+            "precision_at_50": 0.4
+          },
+          "self_built_only": {
+            "pr_auc": 0.22117920037716102,
+            "precision_at_50": 0.46
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0333,
+          "detect": 0.0219,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0496,
+          "identity": 0.7354,
+          "static": 0.0067
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          362,
+          400,
+          398
+        ],
+        "shap": "data/parquet/shap/cutoff=2025-03-31",
+        "flagged": "reports/flagged_2025-03-31.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2025-03-31",
+            "rank": 1,
+            "hull_id": "9297369",
+            "score": 0.999342,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; length_m"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 2,
+            "hull_id": "9405423",
+            "score": 0.99247,
+            "top_drivers": "share_russian_destination; length_m; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 4,
+            "hull_id": "9243318",
+            "score": 0.982557,
+            "top_drivers": "length_m; share_russian_destination; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 5,
+            "hull_id": "9806627",
+            "score": 0.982299,
+            "top_drivers": "days_since_last_russian_port_visit; n_port_visits; length_m"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 6,
+            "hull_id": "9388728",
+            "score": 0.970798,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 9,
+            "hull_id": "9390587",
+            "score": 0.96152,
+            "top_drivers": "length_m; days_since_last_russian_port_visit; n_days_observed"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 10,
+            "hull_id": "9621596",
+            "score": 0.960826,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 12,
+            "hull_id": "9273844",
+            "score": 0.938553,
+            "top_drivers": "share_russian_destination; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 13,
+            "hull_id": "9326861",
+            "score": 0.936982,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 14,
+            "hull_id": "9439539",
+            "score": 0.926309,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 21,
+            "hull_id": "9285861",
+            "score": 0.860719,
+            "top_drivers": "length_m; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 23,
+            "hull_id": "9430313",
+            "score": 0.854213,
+            "top_drivers": "length_m; days_since_last_russian_port_visit; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 24,
+            "hull_id": "9693056",
+            "score": 0.85381,
+            "top_drivers": "days_since_last_russian_port_visit; n_russian_port_visits; mean_transit_speed_kn"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 25,
+            "hull_id": "9274812",
+            "score": 0.84888,
+            "top_drivers": "share_russian_destination; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 26,
+            "hull_id": "9437684",
+            "score": 0.831959,
+            "top_drivers": "days_since_last_russian_port_visit; length_m; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 27,
+            "hull_id": "9282912",
+            "score": 0.827585,
+            "top_drivers": "share_russian_destination; length_m; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 29,
+            "hull_id": "9362372",
+            "score": 0.789757,
+            "top_drivers": "share_russian_destination; days_since_last_russian_port_visit; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 30,
+            "hull_id": "9960978",
+            "score": 0.788404,
+            "top_drivers": "days_since_last_russian_port_visit; length_m; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 31,
+            "hull_id": "9417464",
+            "score": 0.788152,
+            "top_drivers": "length_m; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-03-31",
+            "rank": 35,
+            "hull_id": "9419369",
+            "score": 0.74502,
+            "top_drivers": "length_m; days_since_last_russian_port_visit; share_russian_destination"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2025-04-30",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.3271007527534223,
+            "precision_at_50": 0.42
+          },
+          "drop_ais": {
+            "pr_auc": 0.37351526203922714,
+            "precision_at_50": 0.38
+          },
+          "drop_detect": {
+            "pr_auc": 0.3352661674137178,
+            "precision_at_50": 0.44
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.3271007527534223,
+            "precision_at_50": 0.42
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.33652121369375276,
+            "precision_at_50": 0.38
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.2565312625292519,
+            "precision_at_50": 0.42
+          },
+          "drop_identity": {
+            "pr_auc": 0.35738755573291175,
+            "precision_at_50": 0.5
+          },
+          "drop_static": {
+            "pr_auc": 0.30332638622538727,
+            "precision_at_50": 0.4
+          },
+          "gfw_only": {
+            "pr_auc": 0.37139455368447627,
+            "precision_at_50": 0.42
+          },
+          "self_built_only": {
+            "pr_auc": 0.24415681339252626,
+            "precision_at_50": 0.56
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0301,
+          "detect": 0.0207,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0489,
+          "identity": 0.6418,
+          "static": 0.0066
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          362,
+          400,
+          398
+        ],
+        "shap": "data/parquet/shap/cutoff=2025-04-30",
+        "flagged": "reports/flagged_2025-04-30.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2025-04-30",
+            "rank": 1,
+            "hull_id": "9297369",
+            "score": 0.999512,
+            "top_drivers": "share_russian_destination; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 2,
+            "hull_id": "9405423",
+            "score": 0.996847,
+            "top_drivers": "share_russian_destination; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 3,
+            "hull_id": "9417464",
+            "score": 0.995598,
+            "top_drivers": "length_m; days_since_last_russian_port_visit; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 4,
+            "hull_id": "9430313",
+            "score": 0.993163,
+            "top_drivers": "share_russian_destination; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 5,
+            "hull_id": "9388728",
+            "score": 0.984652,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 7,
+            "hull_id": "9290385",
+            "score": 0.979393,
+            "top_drivers": "share_russian_destination; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 9,
+            "hull_id": "9288368",
+            "score": 0.976459,
+            "top_drivers": "days_since_last_russian_port_visit; n_port_visits; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 11,
+            "hull_id": "9282912",
+            "score": 0.949788,
+            "top_drivers": "share_russian_destination; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 12,
+            "hull_id": "9867621",
+            "score": 0.94438,
+            "top_drivers": "share_russian_destination; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 13,
+            "hull_id": "9945318",
+            "score": 0.94302,
+            "top_drivers": "share_russian_destination; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 17,
+            "hull_id": "9693056",
+            "score": 0.890358,
+            "top_drivers": "days_since_last_russian_port_visit; n_russian_port_visits; length_m"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 18,
+            "hull_id": "9785225",
+            "score": 0.887082,
+            "top_drivers": "days_since_last_russian_port_visit; n_russian_port_visits; length_m"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 19,
+            "hull_id": "9274812",
+            "score": 0.862995,
+            "top_drivers": "n_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 22,
+            "hull_id": "9895226",
+            "score": 0.831959,
+            "top_drivers": "days_since_last_russian_port_visit; n_port_visits; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 25,
+            "hull_id": "9808168",
+            "score": 0.811329,
+            "top_drivers": "days_since_last_russian_port_visit; length_m; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 26,
+            "hull_id": "9413688",
+            "score": 0.808034,
+            "top_drivers": "days_since_last_russian_port_visit; length_m; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 27,
+            "hull_id": "9370836",
+            "score": 0.783019,
+            "top_drivers": "length_m; days_since_last_russian_port_visit; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 33,
+            "hull_id": "9157650",
+            "score": 0.736787,
+            "top_drivers": "n_russian_port_visits; length_m; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 34,
+            "hull_id": "9362372",
+            "score": 0.734244,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-04-30",
+            "rank": 35,
+            "hull_id": "9410911",
+            "score": 0.721873,
+            "top_drivers": "n_port_visits; days_since_last_russian_port_visit; n_russian_port_visits"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2025-05-31",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.19124786436267127,
+            "precision_at_50": 0.22
+          },
+          "drop_ais": {
+            "pr_auc": 0.21454578473010885,
+            "precision_at_50": 0.24
+          },
+          "drop_detect": {
+            "pr_auc": 0.20053899354855861,
+            "precision_at_50": 0.22
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.19124786436267127,
+            "precision_at_50": 0.22
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.20003256020340562,
+            "precision_at_50": 0.28
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.13989620133933905,
+            "precision_at_50": 0.2
+          },
+          "drop_identity": {
+            "pr_auc": 0.20002454338678,
+            "precision_at_50": 0.22
+          },
+          "drop_static": {
+            "pr_auc": 0.1761224394062963,
+            "precision_at_50": 0.2
+          },
+          "gfw_only": {
+            "pr_auc": 0.2098533667837643,
+            "precision_at_50": 0.28
+          },
+          "self_built_only": {
+            "pr_auc": 0.09039773118735313,
+            "precision_at_50": 0.18
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0214,
+          "detect": 0.0055,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0342,
+          "identity": 0.6582,
+          "static": 0.0165
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          319,
+          93,
+          367
+        ],
+        "shap": "data/parquet/shap/cutoff=2025-05-31",
+        "flagged": "reports/flagged_2025-05-31.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2025-05-31",
+            "rank": 1,
+            "hull_id": "9405423",
+            "score": 0.98492,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 2,
+            "hull_id": "9297369",
+            "score": 0.983601,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; length_m"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 3,
+            "hull_id": "9388728",
+            "score": 0.98222,
+            "top_drivers": "n_russian_port_visits; length_m; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 6,
+            "hull_id": "9402213",
+            "score": 0.960277,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 7,
+            "hull_id": "9390587",
+            "score": 0.947079,
+            "top_drivers": "length_m; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 8,
+            "hull_id": "9787182",
+            "score": 0.926174,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 10,
+            "hull_id": "9243318",
+            "score": 0.920845,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 12,
+            "hull_id": "9354272",
+            "score": 0.900097,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 13,
+            "hull_id": "9274812",
+            "score": 0.894648,
+            "top_drivers": "share_russian_destination; n_port_visits; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 14,
+            "hull_id": "9248409",
+            "score": 0.889176,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 15,
+            "hull_id": "9417464",
+            "score": 0.888546,
+            "top_drivers": "length_m; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 17,
+            "hull_id": "9412177",
+            "score": 0.885594,
+            "top_drivers": "length_m; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 18,
+            "hull_id": "9282912",
+            "score": 0.884881,
+            "top_drivers": "length_m; n_russian_port_visits; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 20,
+            "hull_id": "9308077",
+            "score": 0.881247,
+            "top_drivers": "n_russian_port_visits; length_m; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 21,
+            "hull_id": "9960978",
+            "score": 0.874193,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 22,
+            "hull_id": "9714939",
+            "score": 0.869314,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 23,
+            "hull_id": "9853008",
+            "score": 0.867763,
+            "top_drivers": "length_m; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 24,
+            "hull_id": "9336414",
+            "score": 0.860809,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 25,
+            "hull_id": "9324320",
+            "score": 0.859043,
+            "top_drivers": "share_russian_destination; loitering_hours; n_port_visits"
+          },
+          {
+            "cutoff": "2025-05-31",
+            "rank": 26,
+            "hull_id": "9430313",
+            "score": 0.853163,
+            "top_drivers": "n_russian_port_visits; length_m; share_russian_destination"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2025-06-30",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.18048535349182354,
+            "precision_at_50": 0.2
+          },
+          "drop_ais": {
+            "pr_auc": 0.18625475193675672,
+            "precision_at_50": 0.22
+          },
+          "drop_detect": {
+            "pr_auc": 0.1823299021634207,
+            "precision_at_50": 0.22
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.18048535349182354,
+            "precision_at_50": 0.2
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.19047079874107212,
+            "precision_at_50": 0.24
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.1331311631507776,
+            "precision_at_50": 0.22
+          },
+          "drop_identity": {
+            "pr_auc": 0.17993130468946916,
+            "precision_at_50": 0.22
+          },
+          "drop_static": {
+            "pr_auc": 0.14842426764715777,
+            "precision_at_50": 0.14
+          },
+          "gfw_only": {
+            "pr_auc": 0.2190546289041605,
+            "precision_at_50": 0.22
+          },
+          "self_built_only": {
+            "pr_auc": 0.11615770951972527,
+            "precision_at_50": 0.22
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0128,
+          "detect": 0.0044,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0284,
+          "identity": 0.9211,
+          "static": 0.0148
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          319,
+          93,
+          367
+        ],
+        "shap": "data/parquet/shap/cutoff=2025-06-30",
+        "flagged": "reports/flagged_2025-06-30.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2025-06-30",
+            "rank": 1,
+            "hull_id": "9297369",
+            "score": 0.985865,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 2,
+            "hull_id": "9274812",
+            "score": 0.96523,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 3,
+            "hull_id": "9282912",
+            "score": 0.961415,
+            "top_drivers": "share_russian_destination; length_m; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 5,
+            "hull_id": "9230505",
+            "score": 0.948092,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; length_m"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 6,
+            "hull_id": "9437672",
+            "score": 0.946531,
+            "top_drivers": "share_russian_destination; length_m; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 7,
+            "hull_id": "9787182",
+            "score": 0.940298,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 8,
+            "hull_id": "9417464",
+            "score": 0.93863,
+            "top_drivers": "length_m; share_russian_destination; n_port_visits"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 9,
+            "hull_id": "9273844",
+            "score": 0.936888,
+            "top_drivers": "length_m; n_russian_port_visits; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 10,
+            "hull_id": "9388728",
+            "score": 0.931164,
+            "top_drivers": "n_russian_port_visits; length_m; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 13,
+            "hull_id": "9784611",
+            "score": 0.914868,
+            "top_drivers": "length_m; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 14,
+            "hull_id": "9402213",
+            "score": 0.914829,
+            "top_drivers": "n_russian_port_visits; length_m; n_draught_inconsistencies"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 15,
+            "hull_id": "9810513",
+            "score": 0.909968,
+            "top_drivers": "length_m; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 16,
+            "hull_id": "9248409",
+            "score": 0.9089,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 18,
+            "hull_id": "9892999",
+            "score": 0.899297,
+            "top_drivers": "length_m; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 20,
+            "hull_id": "9853008",
+            "score": 0.881335,
+            "top_drivers": "length_m; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 21,
+            "hull_id": "9853400",
+            "score": 0.879305,
+            "top_drivers": "length_m; n_russian_port_visits; n_draught_inconsistencies"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 22,
+            "hull_id": "9297541",
+            "score": 0.877459,
+            "top_drivers": "length_m; share_russian_destination; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 23,
+            "hull_id": "9337418",
+            "score": 0.875681,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 24,
+            "hull_id": "9960978",
+            "score": 0.866156,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-06-30",
+            "rank": 25,
+            "hull_id": "9714939",
+            "score": 0.864169,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; n_port_visits"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2025-07-31",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.11715364628158578,
+            "precision_at_50": 0.14
+          },
+          "drop_ais": {
+            "pr_auc": 0.08857772955955674,
+            "precision_at_50": 0.12
+          },
+          "drop_detect": {
+            "pr_auc": 0.0977591053617694,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.11715364628158578,
+            "precision_at_50": 0.14
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.11846743434296933,
+            "precision_at_50": 0.16
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.07025687615466962,
+            "precision_at_50": 0.1
+          },
+          "drop_identity": {
+            "pr_auc": 0.11637189890990285,
+            "precision_at_50": 0.1
+          },
+          "drop_static": {
+            "pr_auc": 0.11548099683061866,
+            "precision_at_50": 0.14
+          },
+          "gfw_only": {
+            "pr_auc": 0.15038900793849558,
+            "precision_at_50": 0.12
+          },
+          "self_built_only": {
+            "pr_auc": 0.06613150554234241,
+            "precision_at_50": 0.12
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0065,
+          "detect": 0.0045,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0225,
+          "identity": 0.9583,
+          "static": 0.0154
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          399,
+          395,
+          400
+        ],
+        "shap": "data/parquet/shap/cutoff=2025-07-31",
+        "flagged": "reports/flagged_2025-07-31.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2025-07-31",
+            "rank": 1,
+            "hull_id": "9297541",
+            "score": 0.989261,
+            "top_drivers": "length_m; share_russian_destination; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 2,
+            "hull_id": "9302970",
+            "score": 0.970615,
+            "top_drivers": "length_m; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 3,
+            "hull_id": "9273844",
+            "score": 0.968586,
+            "top_drivers": "n_russian_port_visits; length_m; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 4,
+            "hull_id": "9297369",
+            "score": 0.966298,
+            "top_drivers": "share_russian_destination; n_port_visits; n_draught_inconsistencies"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 6,
+            "hull_id": "9420617",
+            "score": 0.955186,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 7,
+            "hull_id": "9277541",
+            "score": 0.954008,
+            "top_drivers": "length_m; loitering_hours; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 8,
+            "hull_id": "9853008",
+            "score": 0.931193,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 9,
+            "hull_id": "9417464",
+            "score": 0.924559,
+            "top_drivers": "length_m; share_russian_destination; n_port_visits"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 10,
+            "hull_id": "9282912",
+            "score": 0.921358,
+            "top_drivers": "share_russian_destination; length_m; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 12,
+            "hull_id": "9292979",
+            "score": 0.897118,
+            "top_drivers": "length_m; share_russian_destination; n_port_visits"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 13,
+            "hull_id": "9428683",
+            "score": 0.896218,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; n_port_visits"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 14,
+            "hull_id": "9274812",
+            "score": 0.879373,
+            "top_drivers": "share_russian_destination; n_port_visits; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 15,
+            "hull_id": "9243318",
+            "score": 0.866881,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 16,
+            "hull_id": "9604380",
+            "score": 0.866721,
+            "top_drivers": "share_russian_destination; length_m; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 17,
+            "hull_id": "9388728",
+            "score": 0.840579,
+            "top_drivers": "length_m; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 18,
+            "hull_id": "9937012",
+            "score": 0.83538,
+            "top_drivers": "n_russian_port_visits; length_m; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 19,
+            "hull_id": "9294551",
+            "score": 0.833501,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 20,
+            "hull_id": "9402213",
+            "score": 0.825009,
+            "top_drivers": "n_russian_port_visits; length_m; n_draught_inconsistencies"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 22,
+            "hull_id": "9157650",
+            "score": 0.812915,
+            "top_drivers": "share_russian_destination; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-07-31",
+            "rank": 23,
+            "hull_id": "9292515",
+            "score": 0.805811,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2025-08-31",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.12080227181548905,
+            "precision_at_50": 0.12
+          },
+          "drop_ais": {
+            "pr_auc": 0.14216359518068777,
+            "precision_at_50": 0.14
+          },
+          "drop_detect": {
+            "pr_auc": 0.11351867837444235,
+            "precision_at_50": 0.14
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.12080227181548905,
+            "precision_at_50": 0.12
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.11345370702266969,
+            "precision_at_50": 0.14
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.07318467646723033,
+            "precision_at_50": 0.1
+          },
+          "drop_identity": {
+            "pr_auc": 0.09637954633519336,
+            "precision_at_50": 0.1
+          },
+          "drop_static": {
+            "pr_auc": 0.15058200050937592,
+            "precision_at_50": 0.2
+          },
+          "gfw_only": {
+            "pr_auc": 0.1439488241203783,
+            "precision_at_50": 0.16
+          },
+          "self_built_only": {
+            "pr_auc": 0.13632789792349365,
+            "precision_at_50": 0.14
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0071,
+          "detect": 0.0049,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0234,
+          "identity": 0.9105,
+          "static": 0.0126
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          400,
+          400,
+          398
+        ],
+        "shap": "data/parquet/shap/cutoff=2025-08-31",
+        "flagged": "reports/flagged_2025-08-31.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2025-08-31",
+            "rank": 1,
+            "hull_id": "9302970",
+            "score": 0.991421,
+            "top_drivers": "length_m; days_since_last_identity_change; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 2,
+            "hull_id": "9297541",
+            "score": 0.989275,
+            "top_drivers": "length_m; n_russian_port_visits; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 3,
+            "hull_id": "9388728",
+            "score": 0.982724,
+            "top_drivers": "length_m; n_port_visits; n_draught_inconsistencies"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 4,
+            "hull_id": "9292979",
+            "score": 0.981972,
+            "top_drivers": "length_m; n_port_visits; n_draught_inconsistencies"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 5,
+            "hull_id": "9379624",
+            "score": 0.980239,
+            "top_drivers": "days_since_last_identity_change; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 6,
+            "hull_id": "9297369",
+            "score": 0.979313,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 9,
+            "hull_id": "9417464",
+            "score": 0.969113,
+            "top_drivers": "length_m; n_port_visits; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 10,
+            "hull_id": "9274812",
+            "score": 0.96682,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 11,
+            "hull_id": "9853008",
+            "score": 0.966777,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 12,
+            "hull_id": "9346885",
+            "score": 0.955264,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 13,
+            "hull_id": "9282912",
+            "score": 0.955023,
+            "top_drivers": "length_m; n_russian_port_visits; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 14,
+            "hull_id": "9292515",
+            "score": 0.952663,
+            "top_drivers": "days_since_last_identity_change; n_russian_port_visits; length_m"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 15,
+            "hull_id": "9329758",
+            "score": 0.951987,
+            "top_drivers": "n_russian_port_visits; days_since_last_identity_change; n_port_visits"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 16,
+            "hull_id": "9537903",
+            "score": 0.951154,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; n_port_visits"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 18,
+            "hull_id": "9280586",
+            "score": 0.948676,
+            "top_drivers": "n_russian_port_visits; days_since_last_identity_change; n_port_visits"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 19,
+            "hull_id": "9787182",
+            "score": 0.948138,
+            "top_drivers": "n_russian_port_visits; length_m; n_draught_inconsistencies"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 21,
+            "hull_id": "9390587",
+            "score": 0.943064,
+            "top_drivers": "n_russian_port_visits; length_m; n_draught_inconsistencies"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 22,
+            "hull_id": "9257395",
+            "score": 0.942588,
+            "top_drivers": "n_russian_port_visits; days_since_last_identity_change; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 23,
+            "hull_id": "9285861",
+            "score": 0.93953,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-08-31",
+            "rank": 24,
+            "hull_id": "9294551",
+            "score": 0.934063,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2025-09-30",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.10695330058528574,
+            "precision_at_50": 0.1
+          },
+          "drop_ais": {
+            "pr_auc": 0.1054999800301133,
+            "precision_at_50": 0.16
+          },
+          "drop_detect": {
+            "pr_auc": 0.08858794778024355,
+            "precision_at_50": 0.08
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.10695330058528574,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.10149692397385358,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.09459616819828609,
+            "precision_at_50": 0.1
+          },
+          "drop_identity": {
+            "pr_auc": 0.09350479861605387,
+            "precision_at_50": 0.08
+          },
+          "drop_static": {
+            "pr_auc": 0.16905694563189727,
+            "precision_at_50": 0.18
+          },
+          "gfw_only": {
+            "pr_auc": 0.13380949616169122,
+            "precision_at_50": 0.16
+          },
+          "self_built_only": {
+            "pr_auc": 0.12605455690358416,
+            "precision_at_50": 0.14
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0117,
+          "detect": 0.0051,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0277,
+          "identity": 0.8563,
+          "static": 0.0093
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          400,
+          400,
+          400
+        ],
+        "shap": "data/parquet/shap/cutoff=2025-09-30",
+        "flagged": "reports/flagged_2025-09-30.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2025-09-30",
+            "rank": 1,
+            "hull_id": "9292515",
+            "score": 0.991525,
+            "top_drivers": "days_since_last_identity_change; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 2,
+            "hull_id": "9302970",
+            "score": 0.988816,
+            "top_drivers": "n_russian_port_visits; days_since_last_identity_change; length_m"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 3,
+            "hull_id": "9297541",
+            "score": 0.984227,
+            "top_drivers": "length_m; n_russian_port_visits; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 4,
+            "hull_id": "9777931",
+            "score": 0.98403,
+            "top_drivers": "days_since_last_identity_change; n_russian_port_visits; length_m"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 5,
+            "hull_id": "9329758",
+            "score": 0.975737,
+            "top_drivers": "days_since_last_identity_change; n_port_visits; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 6,
+            "hull_id": "9273844",
+            "score": 0.973211,
+            "top_drivers": "length_m; n_russian_port_visits; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 8,
+            "hull_id": "9417464",
+            "score": 0.971714,
+            "top_drivers": "length_m; n_port_visits; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 9,
+            "hull_id": "9742211",
+            "score": 0.971182,
+            "top_drivers": "length_m; n_port_visits; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 10,
+            "hull_id": "9439400",
+            "score": 0.967134,
+            "top_drivers": "length_m; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 11,
+            "hull_id": "9388728",
+            "score": 0.966743,
+            "top_drivers": "length_m; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 12,
+            "hull_id": "9297345",
+            "score": 0.95948,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; n_port_visits"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 14,
+            "hull_id": "9853400",
+            "score": 0.957652,
+            "top_drivers": "length_m; n_russian_port_visits; n_draught_inconsistencies"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 16,
+            "hull_id": "9296377",
+            "score": 0.954498,
+            "top_drivers": "n_russian_port_visits; n_flag_changes; length_m"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 17,
+            "hull_id": "9379624",
+            "score": 0.952373,
+            "top_drivers": "days_since_last_identity_change; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 18,
+            "hull_id": "9346885",
+            "score": 0.944004,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 19,
+            "hull_id": "9230505",
+            "score": 0.940996,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; n_draught_inconsistencies"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 20,
+            "hull_id": "9292979",
+            "score": 0.940986,
+            "top_drivers": "days_since_last_identity_change; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 21,
+            "hull_id": "9296195",
+            "score": 0.940861,
+            "top_drivers": "n_russian_port_visits; length_m; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 22,
+            "hull_id": "9257395",
+            "score": 0.938109,
+            "top_drivers": "days_since_last_identity_change; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-09-30",
+            "rank": 23,
+            "hull_id": "9313486",
+            "score": 0.937458,
+            "top_drivers": "length_m; n_russian_port_visits; n_draught_inconsistencies"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2025-10-31",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.17865463361483502,
+            "precision_at_50": 0.16
+          },
+          "drop_ais": {
+            "pr_auc": 0.12048013539407357,
+            "precision_at_50": 0.12
+          },
+          "drop_detect": {
+            "pr_auc": 0.19053052541283924,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.17865463361483502,
+            "precision_at_50": 0.16
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.16258764839751863,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.12754875978849822,
+            "precision_at_50": 0.1
+          },
+          "drop_identity": {
+            "pr_auc": 0.1727019059911601,
+            "precision_at_50": 0.12
+          },
+          "drop_static": {
+            "pr_auc": 0.13807231840240006,
+            "precision_at_50": 0.12
+          },
+          "gfw_only": {
+            "pr_auc": 0.09188200121355841,
+            "precision_at_50": 0.1
+          },
+          "self_built_only": {
+            "pr_auc": 0.03549739517043301,
+            "precision_at_50": 0.06
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0129,
+          "detect": 0.0067,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0252,
+          "identity": 0.8804,
+          "static": 0.0098
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          342,
+          398,
+          398
+        ],
+        "shap": "data/parquet/shap/cutoff=2025-10-31",
+        "flagged": "reports/flagged_2025-10-31.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2025-10-31",
+            "rank": 2,
+            "hull_id": "9302970",
+            "score": 0.987025,
+            "top_drivers": "length_m; n_russian_port_visits; days_since_last_identity_change"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 3,
+            "hull_id": "9292515",
+            "score": 0.986424,
+            "top_drivers": "days_since_last_identity_change; n_russian_port_visits; length_m"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 4,
+            "hull_id": "9292979",
+            "score": 0.985484,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_identity_change"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 5,
+            "hull_id": "9439400",
+            "score": 0.982877,
+            "top_drivers": "length_m; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 6,
+            "hull_id": "9379624",
+            "score": 0.9815,
+            "top_drivers": "days_since_last_identity_change; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 7,
+            "hull_id": "9273844",
+            "score": 0.980192,
+            "top_drivers": "length_m; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 9,
+            "hull_id": "9742211",
+            "score": 0.976448,
+            "top_drivers": "length_m; n_port_visits; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 10,
+            "hull_id": "9290361",
+            "score": 0.973501,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 11,
+            "hull_id": "9388728",
+            "score": 0.967846,
+            "top_drivers": "length_m; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 12,
+            "hull_id": "9314179",
+            "score": 0.966428,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; days_since_last_identity_change"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 14,
+            "hull_id": "9285861",
+            "score": 0.966141,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 15,
+            "hull_id": "9777931",
+            "score": 0.963767,
+            "top_drivers": "days_since_last_identity_change; n_russian_port_visits; length_m"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 16,
+            "hull_id": "9388807",
+            "score": 0.957934,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 17,
+            "hull_id": "9277541",
+            "score": 0.949809,
+            "top_drivers": "length_m; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 18,
+            "hull_id": "9853400",
+            "score": 0.947902,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 19,
+            "hull_id": "9412177",
+            "score": 0.946515,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 20,
+            "hull_id": "9230505",
+            "score": 0.946311,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; length_m"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 22,
+            "hull_id": "9297345",
+            "score": 0.94337,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; n_port_visits"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 23,
+            "hull_id": "9346885",
+            "score": 0.941613,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-10-31",
+            "rank": 24,
+            "hull_id": "9297369",
+            "score": 0.937881,
+            "top_drivers": "share_russian_destination; n_port_visits; n_russian_port_visits"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2025-11-30",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.1262290818744927,
+            "precision_at_50": 0.1
+          },
+          "drop_ais": {
+            "pr_auc": 0.09601170808343043,
+            "precision_at_50": 0.12
+          },
+          "drop_detect": {
+            "pr_auc": 0.09556750093326745,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.1262290818744927,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.1378131480774144,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.09965600454154241,
+            "precision_at_50": 0.12
+          },
+          "drop_identity": {
+            "pr_auc": 0.09965651454125081,
+            "precision_at_50": 0.1
+          },
+          "drop_static": {
+            "pr_auc": 0.08773195222004224,
+            "precision_at_50": 0.1
+          },
+          "gfw_only": {
+            "pr_auc": 0.056427999408295404,
+            "precision_at_50": 0.04
+          },
+          "self_built_only": {
+            "pr_auc": 0.061624885234860344,
+            "precision_at_50": 0.06
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0119,
+          "detect": 0.0047,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0225,
+          "identity": 0.8022,
+          "static": 0.0104
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          382,
+          217,
+          105
+        ],
+        "shap": "data/parquet/shap/cutoff=2025-11-30",
+        "flagged": "reports/flagged_2025-11-30.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2025-11-30",
+            "rank": 1,
+            "hull_id": "9388728",
+            "score": 0.978008,
+            "top_drivers": "length_m; n_port_visits; n_russian_port_visits"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 2,
+            "hull_id": "9742211",
+            "score": 0.97768,
+            "top_drivers": "length_m; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 4,
+            "hull_id": "9302970",
+            "score": 0.970609,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 6,
+            "hull_id": "9439400",
+            "score": 0.965563,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 7,
+            "hull_id": "9273844",
+            "score": 0.965353,
+            "top_drivers": "n_russian_port_visits; length_m; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 8,
+            "hull_id": "9296195",
+            "score": 0.964088,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; length_m"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 9,
+            "hull_id": "9297369",
+            "score": 0.962174,
+            "top_drivers": "share_russian_destination; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 10,
+            "hull_id": "9489297",
+            "score": 0.961302,
+            "top_drivers": "length_m; n_russian_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 11,
+            "hull_id": "9388807",
+            "score": 0.960604,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 12,
+            "hull_id": "9285861",
+            "score": 0.960121,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 13,
+            "hull_id": "9853400",
+            "score": 0.958474,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 14,
+            "hull_id": "9271573",
+            "score": 0.957889,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 15,
+            "hull_id": "9346885",
+            "score": 0.954694,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 16,
+            "hull_id": "9276597",
+            "score": 0.95132,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 17,
+            "hull_id": "9290361",
+            "score": 0.946753,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 18,
+            "hull_id": "9315965",
+            "score": 0.946632,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 19,
+            "hull_id": "9297345",
+            "score": 0.944718,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; share_russian_destination"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 20,
+            "hull_id": "9956018",
+            "score": 0.943251,
+            "top_drivers": "length_m; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 22,
+            "hull_id": "9282912",
+            "score": 0.940704,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-11-30",
+            "rank": 23,
+            "hull_id": "9230517",
+            "score": 0.939467,
+            "top_drivers": "n_russian_port_visits; n_port_visits; share_russian_destination"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2025-12-31",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.09747372256086625,
+            "precision_at_50": 0.1
+          },
+          "drop_ais": {
+            "pr_auc": 0.07841637985248068,
+            "precision_at_50": 0.1
+          },
+          "drop_detect": {
+            "pr_auc": 0.08654406918280158,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.09747372256086625,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.10580456349407483,
+            "precision_at_50": 0.1
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.07862541697899665,
+            "precision_at_50": 0.08
+          },
+          "drop_identity": {
+            "pr_auc": 0.08512005945325091,
+            "precision_at_50": 0.1
+          },
+          "drop_static": {
+            "pr_auc": 0.1458216875542837,
+            "precision_at_50": 0.08
+          },
+          "gfw_only": {
+            "pr_auc": 0.05188945514393574,
+            "precision_at_50": 0.04
+          },
+          "self_built_only": {
+            "pr_auc": 0.029835637150890472,
+            "precision_at_50": 0.04
+          }
+        },
+        "drift_psi": {
+          "ais": 0.008,
+          "detect": 0.004,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0203,
+          "identity": 0.7303,
+          "static": 0.0084
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          118,
+          287,
+          84
+        ],
+        "shap": "data/parquet/shap/cutoff=2025-12-31",
+        "flagged": "reports/flagged_2025-12-31.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2025-12-31",
+            "rank": 1,
+            "hull_id": "9439400",
+            "score": 0.971931,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 2,
+            "hull_id": "9388728",
+            "score": 0.969586,
+            "top_drivers": "length_m; n_russian_port_visits; n_port_visits"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 3,
+            "hull_id": "9302970",
+            "score": 0.964793,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 4,
+            "hull_id": "9742211",
+            "score": 0.963133,
+            "top_drivers": "length_m; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 5,
+            "hull_id": "9296195",
+            "score": 0.962961,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; length_m"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 7,
+            "hull_id": "9273844",
+            "score": 0.958005,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 8,
+            "hull_id": "9489297",
+            "score": 0.957371,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 9,
+            "hull_id": "9282053",
+            "score": 0.951525,
+            "top_drivers": "n_russian_port_visits; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 10,
+            "hull_id": "9346885",
+            "score": 0.951375,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 12,
+            "hull_id": "9388807",
+            "score": 0.949324,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 13,
+            "hull_id": "9853400",
+            "score": 0.945306,
+            "top_drivers": "n_russian_port_visits; length_m; n_port_visits"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 14,
+            "hull_id": "9290361",
+            "score": 0.943847,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 15,
+            "hull_id": "9252371",
+            "score": 0.936978,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 16,
+            "hull_id": "9346859",
+            "score": 0.936395,
+            "top_drivers": "length_m; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 17,
+            "hull_id": "9956018",
+            "score": 0.934212,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 18,
+            "hull_id": "9249178",
+            "score": 0.934121,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 19,
+            "hull_id": "9282912",
+            "score": 0.932828,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 20,
+            "hull_id": "9419369",
+            "score": 0.932533,
+            "top_drivers": "n_port_visits; days_since_last_russian_port_visit; days_since_last_identity_change"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 21,
+            "hull_id": "9276597",
+            "score": 0.932147,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2025-12-31",
+            "rank": 22,
+            "hull_id": "9489285",
+            "score": 0.931012,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2026-01-31",
+        "hormuz_side": "pre_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.1787799535620632,
+            "precision_at_50": 0.14
+          },
+          "drop_ais": {
+            "pr_auc": 0.11868225665629223,
+            "precision_at_50": 0.14
+          },
+          "drop_detect": {
+            "pr_auc": 0.19545933085714134,
+            "precision_at_50": 0.14
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.1787799535620632,
+            "precision_at_50": 0.14
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.12972919450739265,
+            "precision_at_50": 0.14
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.0908943176842351,
+            "precision_at_50": 0.1
+          },
+          "drop_identity": {
+            "pr_auc": 0.1383227504915889,
+            "precision_at_50": 0.14
+          },
+          "drop_static": {
+            "pr_auc": 0.1257427719065445,
+            "precision_at_50": 0.12
+          },
+          "gfw_only": {
+            "pr_auc": 0.08794212353852139,
+            "precision_at_50": 0.06
+          },
+          "self_built_only": {
+            "pr_auc": 0.1649915390972783,
+            "precision_at_50": 0.1
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0074,
+          "detect": 0.0046,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0153,
+          "identity": 0.6854,
+          "static": 0.0078
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          5,
+          101,
+          88
+        ],
+        "shap": "data/parquet/shap/cutoff=2026-01-31",
+        "flagged": "reports/flagged_2026-01-31.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2026-01-31",
+            "rank": 2,
+            "hull_id": "9276597",
+            "score": 0.735663,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 4,
+            "hull_id": "9346859",
+            "score": 0.732851,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; n_port_visits"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 5,
+            "hull_id": "9297321",
+            "score": 0.730991,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 6,
+            "hull_id": "9388728",
+            "score": 0.72911,
+            "top_drivers": "n_russian_port_visits; n_port_visits; length_m"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 7,
+            "hull_id": "9439400",
+            "score": 0.725877,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 8,
+            "hull_id": "9273844",
+            "score": 0.725475,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 9,
+            "hull_id": "9302970",
+            "score": 0.725239,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 10,
+            "hull_id": "9282912",
+            "score": 0.724624,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 11,
+            "hull_id": "9430313",
+            "score": 0.722605,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; share_russian_destination"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 12,
+            "hull_id": "9489285",
+            "score": 0.72242,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 13,
+            "hull_id": "9250737",
+            "score": 0.722418,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; n_port_visits"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 14,
+            "hull_id": "9290438",
+            "score": 0.721277,
+            "top_drivers": "days_since_last_russian_port_visit; n_port_visits; length_m"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 15,
+            "hull_id": "9271573",
+            "score": 0.721236,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 16,
+            "hull_id": "9489297",
+            "score": 0.719663,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 17,
+            "hull_id": "9230517",
+            "score": 0.718407,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; share_russian_destination"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 18,
+            "hull_id": "9297369",
+            "score": 0.717149,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 19,
+            "hull_id": "9853400",
+            "score": 0.71703,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 20,
+            "hull_id": "9297345",
+            "score": 0.716955,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 21,
+            "hull_id": "9252371",
+            "score": 0.715704,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-01-31",
+            "rank": 22,
+            "hull_id": "9338917",
+            "score": 0.714189,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; n_port_visits"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2026-02-28",
+        "hormuz_side": "post_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.14035213430076782,
+            "precision_at_50": 0.14
+          },
+          "drop_ais": {
+            "pr_auc": 0.12319479870789375,
+            "precision_at_50": 0.14
+          },
+          "drop_detect": {
+            "pr_auc": 0.24599871040065918,
+            "precision_at_50": 0.14
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.14035213430076782,
+            "precision_at_50": 0.14
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.12091159797975884,
+            "precision_at_50": 0.14
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.17482891307186646,
+            "precision_at_50": 0.12
+          },
+          "drop_identity": {
+            "pr_auc": 0.15016470472337295,
+            "precision_at_50": 0.12
+          },
+          "drop_static": {
+            "pr_auc": 0.1120135887128933,
+            "precision_at_50": 0.12
+          },
+          "gfw_only": {
+            "pr_auc": 0.09377323593249579,
+            "precision_at_50": 0.1
+          },
+          "self_built_only": {
+            "pr_auc": 0.22810221266827316,
+            "precision_at_50": 0.1
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0146,
+          "detect": 0.0038,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0199,
+          "identity": 0.7315,
+          "static": 0.0082
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          5,
+          101,
+          88
+        ],
+        "shap": "data/parquet/shap/cutoff=2026-02-28",
+        "flagged": "reports/flagged_2026-02-28.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2026-02-28",
+            "rank": 1,
+            "hull_id": "9388728",
+            "score": 0.735942,
+            "top_drivers": "n_russian_port_visits; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 2,
+            "hull_id": "9439400",
+            "score": 0.735755,
+            "top_drivers": "n_russian_port_visits; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 3,
+            "hull_id": "9346859",
+            "score": 0.73539,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; n_port_visits"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 4,
+            "hull_id": "9290438",
+            "score": 0.732754,
+            "top_drivers": "n_russian_port_visits; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 6,
+            "hull_id": "9297321",
+            "score": 0.730558,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 7,
+            "hull_id": "9250737",
+            "score": 0.730076,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; n_port_visits"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 8,
+            "hull_id": "9302970",
+            "score": 0.726056,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 9,
+            "hull_id": "9276597",
+            "score": 0.724072,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 10,
+            "hull_id": "9853400",
+            "score": 0.723903,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 13,
+            "hull_id": "9282912",
+            "score": 0.723086,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 14,
+            "hull_id": "9489285",
+            "score": 0.72242,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; n_port_visits"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 15,
+            "hull_id": "9282053",
+            "score": 0.721682,
+            "top_drivers": "n_russian_port_visits; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 16,
+            "hull_id": "9489297",
+            "score": 0.721538,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 17,
+            "hull_id": "9249178",
+            "score": 0.721244,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 18,
+            "hull_id": "9271573",
+            "score": 0.721236,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 19,
+            "hull_id": "9430313",
+            "score": 0.721042,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; share_russian_destination"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 21,
+            "hull_id": "9437672",
+            "score": 0.717018,
+            "top_drivers": "n_russian_port_visits; share_russian_destination; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 23,
+            "hull_id": "9405423",
+            "score": 0.714419,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; share_russian_destination"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 24,
+            "hull_id": "9273844",
+            "score": 0.713804,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-02-28",
+            "rank": 25,
+            "hull_id": "9222132",
+            "score": 0.713662,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; share_russian_destination"
+          }
+        ],
+        "primary_model_scored": true
+      },
+      {
+        "cutoff": "2026-03-31",
+        "hormuz_side": "post_break",
+        "ablations": {
+          "full": {
+            "pr_auc": 0.1500299452088184,
+            "precision_at_50": 0.12
+          },
+          "drop_ais": {
+            "pr_auc": 0.15177423291770817,
+            "precision_at_50": 0.14
+          },
+          "drop_detect": {
+            "pr_auc": 0.18119850328711992,
+            "precision_at_50": 0.12
+          },
+          "drop_gfw_encounters": {
+            "pr_auc": 0.1500299452088184,
+            "precision_at_50": 0.12
+          },
+          "drop_gfw_gaps": {
+            "pr_auc": 0.15747859122077246,
+            "precision_at_50": 0.14
+          },
+          "drop_gfw_ports": {
+            "pr_auc": 0.15583572445112842,
+            "precision_at_50": 0.1
+          },
+          "drop_identity": {
+            "pr_auc": 0.12430880929742524,
+            "precision_at_50": 0.12
+          },
+          "drop_static": {
+            "pr_auc": 0.1001207964605707,
+            "precision_at_50": 0.08
+          },
+          "gfw_only": {
+            "pr_auc": 0.10734205910381474,
+            "precision_at_50": 0.1
+          },
+          "self_built_only": {
+            "pr_auc": 0.09359609331817637,
+            "precision_at_50": 0.08
+          }
+        },
+        "drift_psi": {
+          "ais": 0.0178,
+          "detect": 0.0033,
+          "gfw_encounters": null,
+          "gfw_gaps": null,
+          "gfw_ports": 0.0272,
+          "identity": 0.5146,
+          "static": 0.0098
+        },
+        "gfw_features_all_zero": false,
+        "lgbm_rounds": [
+          35,
+          62,
+          256
+        ],
+        "shap": "data/parquet/shap/cutoff=2026-03-31",
+        "flagged": "reports/flagged_2026-03-31.csv",
+        "top_non_listed": [
+          {
+            "cutoff": "2026-03-31",
+            "rank": 1,
+            "hull_id": "9297321",
+            "score": 0.900886,
+            "top_drivers": "n_russian_port_visits; n_port_visits; length_m"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 3,
+            "hull_id": "9276597",
+            "score": 0.900587,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 4,
+            "hull_id": "9439400",
+            "score": 0.897833,
+            "top_drivers": "n_russian_port_visits; n_port_visits; length_m"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 5,
+            "hull_id": "9250737",
+            "score": 0.895585,
+            "top_drivers": "n_russian_port_visits; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 7,
+            "hull_id": "9290438",
+            "score": 0.894021,
+            "top_drivers": "n_russian_port_visits; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 8,
+            "hull_id": "9279757",
+            "score": 0.893673,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; n_port_visits"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 9,
+            "hull_id": "9346859",
+            "score": 0.89201,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 10,
+            "hull_id": "9282053",
+            "score": 0.890936,
+            "top_drivers": "n_russian_port_visits; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 11,
+            "hull_id": "9489285",
+            "score": 0.88886,
+            "top_drivers": "n_russian_port_visits; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 12,
+            "hull_id": "9285861",
+            "score": 0.888716,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 13,
+            "hull_id": "9853400",
+            "score": 0.888566,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 14,
+            "hull_id": "9271573",
+            "score": 0.884825,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; n_port_visits"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 15,
+            "hull_id": "9273844",
+            "score": 0.883154,
+            "top_drivers": "n_russian_port_visits; n_port_visits; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 16,
+            "hull_id": "9388807",
+            "score": 0.87964,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; n_port_visits"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 17,
+            "hull_id": "9249180",
+            "score": 0.879474,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 18,
+            "hull_id": "9290361",
+            "score": 0.878157,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 19,
+            "hull_id": "9388728",
+            "score": 0.878113,
+            "top_drivers": "n_russian_port_visits; length_m; days_since_last_russian_port_visit"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 20,
+            "hull_id": "9252371",
+            "score": 0.877876,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 21,
+            "hull_id": "9438406",
+            "score": 0.87615,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; length_m"
+          },
+          {
+            "cutoff": "2026-03-31",
+            "rank": 22,
+            "hull_id": "9853008",
+            "score": 0.876092,
+            "top_drivers": "n_russian_port_visits; days_since_last_russian_port_visit; n_port_visits"
+          }
+        ],
+        "primary_model_scored": true
+      }
+    ],
+    "arms": [
+      "drop_ais",
+      "drop_detect",
+      "drop_gfw_encounters",
+      "drop_gfw_gaps",
+      "drop_gfw_ports",
+      "drop_identity",
+      "drop_static",
+      "full",
+      "gfw_only",
+      "self_built_only"
+    ],
+    "top_flagged": 100,
+    "fp_review": [
+      "reports/fp_review_2025Q1.csv",
+      "reports/fp_review_2025Q2.csv",
+      "reports/fp_review_2025Q3.csv",
+      "reports/fp_review_2025Q4.csv",
+      "reports/fp_review_2026Q1.csv"
+    ],
+    "drift_by_side": {
+      "pre_break": {
+        "cutoffs": 11,
+        "psi": {
+          "ais": 0.0148,
+          "detect": 0.0079,
+          "gfw_ports": 0.0289,
+          "identity": 0.7982,
+          "static": 0.0108
+        }
+      },
+      "post_break": {
+        "cutoffs": 2,
+        "psi": {
+          "ais": 0.0162,
+          "detect": 0.0036,
+          "gfw_ports": 0.0236,
+          "identity": 0.623,
+          "static": 0.009
+        }
+      }
+    }
+  },
+  "lead_time": {
+    "B0_random": {
+      "flagged_before_designation": 62,
+      "designated_in_window": 1189,
+      "median_weeks": 20.3,
+      "min_weeks": 1.3,
+      "max_weeks": 92.0,
+      "examples": [
+        {
+          "hull_id": "9378864",
+          "first_flagged": "2024-10-31",
+          "designated": "2026-08-06",
+          "weeks": 92.0
+        },
+        {
+          "hull_id": "9323596",
+          "first_flagged": "2024-08-31",
+          "designated": "2025-12-31",
+          "weeks": 69.6
+        },
+        {
+          "hull_id": "9326811",
+          "first_flagged": "2025-04-30",
+          "designated": "2026-08-06",
+          "weeks": 66.1
+        },
+        {
+          "hull_id": "9308077",
+          "first_flagged": "2024-09-30",
+          "designated": "2025-12-19",
+          "weeks": 63.6
+        },
+        {
+          "hull_id": "9390587",
+          "first_flagged": "2025-02-28",
+          "designated": "2026-04-24",
+          "weeks": 60.0
+        }
+      ]
+    },
+    "B1_russia_port": {
+      "flagged_before_designation": 43,
+      "designated_in_window": 1189,
+      "median_weeks": 27.1,
+      "min_weeks": 3.4,
+      "max_weeks": 100.7,
+      "examples": [
+        {
+          "hull_id": "9378864",
+          "first_flagged": "2024-08-31",
+          "designated": "2026-08-06",
+          "weeks": 100.7
+        },
+        {
+          "hull_id": "9369760",
+          "first_flagged": "2024-08-31",
+          "designated": "2026-02-06",
+          "weeks": 74.9
+        },
+        {
+          "hull_id": "9332171",
+          "first_flagged": "2025-02-28",
+          "designated": "2026-07-14",
+          "weeks": 71.6
+        },
+        {
+          "hull_id": "9332614",
+          "first_flagged": "2025-02-28",
+          "designated": "2026-04-15",
+          "weeks": 58.7
+        },
+        {
+          "hull_id": "9185528",
+          "first_flagged": "2024-08-31",
+          "designated": "2025-10-15",
+          "weeks": 58.6
+        }
+      ]
+    },
+    "B2_weighted": {
+      "flagged_before_designation": 82,
+      "designated_in_window": 1189,
+      "median_weeks": 20.1,
+      "min_weeks": 1.3,
+      "max_weeks": 71.6,
+      "examples": [
+        {
+          "hull_id": "9332171",
+          "first_flagged": "2025-02-28",
+          "designated": "2026-07-14",
+          "weeks": 71.6
+        },
+        {
+          "hull_id": "9308077",
+          "first_flagged": "2024-08-31",
+          "designated": "2025-12-19",
+          "weeks": 67.9
+        },
+        {
+          "hull_id": "9291262",
+          "first_flagged": "2024-12-31",
+          "designated": "2026-04-15",
+          "weeks": 67.1
+        },
+        {
+          "hull_id": "9369760",
+          "first_flagged": "2024-12-31",
+          "designated": "2026-02-06",
+          "weeks": 57.4
+        },
+        {
+          "hull_id": "9297541",
+          "first_flagged": "2025-03-31",
+          "designated": "2026-04-24",
+          "weeks": 55.6
+        }
+      ]
+    },
+    "ISO_forest": {
+      "flagged_before_designation": 51,
+      "designated_in_window": 1189,
+      "median_weeks": 18.9,
+      "min_weeks": 1.3,
+      "max_weeks": 51.3,
+      "examples": [
+        {
+          "hull_id": "9296377",
+          "first_flagged": "2025-04-30",
+          "designated": "2026-04-24",
+          "weeks": 51.3
+        },
+        {
+          "hull_id": "9314179",
+          "first_flagged": "2025-07-31",
+          "designated": "2026-07-24",
+          "weeks": 51.1
+        },
+        {
+          "hull_id": "9297541",
+          "first_flagged": "2025-06-30",
+          "designated": "2026-04-24",
+          "weeks": 42.6
+        },
+        {
+          "hull_id": "9323340",
+          "first_flagged": "2024-12-31",
+          "designated": "2025-10-15",
+          "weeks": 41.1
+        },
+        {
+          "hull_id": "9283306",
+          "first_flagged": "2024-08-31",
+          "designated": "2025-05-21",
+          "weeks": 37.6
+        }
+      ]
+    },
+    "B3_logistic": {
+      "flagged_before_designation": 50,
+      "designated_in_window": 1189,
+      "median_weeks": 6.4,
+      "min_weeks": 1.3,
+      "max_weeks": 68.6,
+      "examples": [
+        {
+          "hull_id": "9314179",
+          "first_flagged": "2025-03-31",
+          "designated": "2026-07-24",
+          "weeks": 68.6
+        },
+        {
+          "hull_id": "9413004",
+          "first_flagged": "2025-03-31",
+          "designated": "2026-04-15",
+          "weeks": 54.3
+        },
+        {
+          "hull_id": "9346885",
+          "first_flagged": "2025-10-31",
+          "designated": "2026-08-06",
+          "weeks": 39.9
+        },
+        {
+          "hull_id": "9297541",
+          "first_flagged": "2025-07-31",
+          "designated": "2026-04-24",
+          "weeks": 38.1
+        },
+        {
+          "hull_id": "9194012",
+          "first_flagged": "2025-03-31",
+          "designated": "2025-10-24",
+          "weeks": 29.6
+        }
+      ]
+    },
+    "LGBM": {
+      "flagged_before_designation": 65,
+      "designated_in_window": 1189,
+      "median_weeks": 10.9,
+      "min_weeks": 1.3,
+      "max_weeks": 55.6,
+      "examples": [
+        {
+          "hull_id": "9390587",
+          "first_flagged": "2025-03-31",
+          "designated": "2026-04-24",
+          "weeks": 55.6
+        },
+        {
+          "hull_id": "9417464",
+          "first_flagged": "2025-03-31",
+          "designated": "2026-04-15",
+          "weeks": 54.3
+        },
+        {
+          "hull_id": "9346885",
+          "first_flagged": "2025-07-31",
+          "designated": "2026-08-06",
+          "weeks": 53.0
+        },
+        {
+          "hull_id": "9290385",
+          "first_flagged": "2025-04-30",
+          "designated": "2026-04-24",
+          "weeks": 51.3
+        },
+        {
+          "hull_id": "9297541",
+          "first_flagged": "2025-05-31",
+          "designated": "2026-04-24",
+          "weeks": 46.9
+        }
+      ]
+    }
+  },
+  "csv": "reports/metrics_by_cutoff.csv"
+}
+wrote /home/adam1/shadowfleet/reports/phase6.md

@@ -1,4 +1,4 @@
-# Phase 5b report (generated 2026-10-06 by `make backtest`)
+# Phase 5b report (generated 2026-10-26 by `make backtest`)
 
 20 cutoffs scored. Macro-averaged over cutoffs, per PREREG section 3: a cutoff with more hulls must not dominate.
 
@@ -75,14 +75,14 @@ Weeks between a hull's designation and the earliest cutoff at which it entered t
 
 | model | flagged before designation | of designated | median weeks | max |
 |---|---:|---:|---:|---:|
-| `B0_random` | 62 | 1189 | 20.3 | 92.0 |
-| `B1_russia_port` | 43 | 1189 | 27.1 | 100.7 |
-| `B2_weighted` | 82 | 1189 | 20.1 | 71.6 |
-| `B3_logistic` | 50 | 1189 | 6.4 | 68.6 |
-| `ISO_forest` | 51 | 1189 | 18.9 | 51.3 |
-| `LGBM` | 64 | 1189 | 10.9 | 55.6 |
+| `B0_random` | 40 | 1189 | 14.0 | 25.7 |
+| `B1_russia_port` | 32 | 1189 | 20.9 | 25.3 |
+| `B2_weighted` | 72 | 1189 | 15.7 | 25.4 |
+| `B3_logistic` | 49 | 1189 | 6.4 | 25.3 |
+| `ISO_forest` | 50 | 1189 | 15.4 | 25.0 |
+| `LGBM` | 60 | 1189 | 10.6 | 25.3 |
 
-Right-censored by construction: a hull flagged at the first cutoff cannot show a longer lead than the window allows, and one designated after the last horizon does not appear at all.
+Only a flag whose 182-day horizon contains the designation counts, so no lead exceeds 26 weeks (PREREG section 5). Until 2026-10-26 the code counted any earlier top-k flag, up to a year before the designation; corrected and disclosed in PREREG section 12. Right-censored: a hull designated after the last horizon does not appear at all.
 
 ## Leakage suite
 
