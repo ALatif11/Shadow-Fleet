@@ -133,6 +133,13 @@ make ui-install                # once; installs ui/node_modules
 make ui-fixtures               # writes a SYNTHETIC bundle to ui/public/ui_data (about 40 MB)
 make ui-dev                    # then open http://127.0.0.1:5173 in your Windows browser
 ```
+No Python environment or data yet? A synthetic bundle is committed at `ui/public/sample_data` (labelled SYNTHETIC), so Node alone is enough:
+```bash
+cd ui && npm ci
+VITE_UI_DATA=sample_data npm run dev
+```
+Refresh it after a contract change with `python -m shadowfleet.cli ui-fixtures --out ui/public/sample_data`.
+
 WSL forwards localhost, so the Windows browser reaches the dev server. Keys: up/down pick a hull, `[` and `]` step cutoffs, left/right move the as-of day (shift for 30 days), space plays the feature window, `H` toggles hindsight.
 
 Styling: every colour, font and effect is a CSS variable in `ui/src/theme.css`; the map reads the same variables. Layout lives in `ui/src/app.css`. Vite reloads on save.

@@ -31,3 +31,9 @@ ui/public/ui_data.old/
 ui/public/.ui_data_*
 # hand-off bundles (make sync) are dropped in the Windows clone of this repo
 *.bundle
+# stray local files that were once committed by accident (2026-11-24 cleanup)
+node_modules/
+*.log
+*.deb
+*.deb.*
+FETCH_HEAD
